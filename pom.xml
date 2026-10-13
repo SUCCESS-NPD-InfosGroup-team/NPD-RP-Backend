@@ -32,11 +32,12 @@
 		<jacoco.version>0.8.15</jacoco.version>
 		<sonar-maven-plugin.version>5.8.0.7211</sonar-maven-plugin.version>
 
-		<!-- Parches de seguridad sobre las versiones de Spring Boot 4.1.1 (CVEs en Tomcat y Jackson).
-		     Quitar estas tres líneas al subir a un Spring Boot que ya las incluya (4.1.2+). -->
+		<!-- Parches de seguridad sobre las versiones de Spring Boot 4.1.1 (CVEs en Tomcat, Jackson y el driver de PostgreSQL).
+		     Quitar estas líneas al subir a un Spring Boot que ya las incluya (4.1.2+). -->
 		<tomcat.version>11.0.27</tomcat.version>
 		<jackson-2-bom.version>2.21.7</jackson-2-bom.version>
 		<jackson-bom.version>3.1.7</jackson-bom.version>
+		<postgresql.version>42.7.14</postgresql.version>
 
 		<!-- SonarQube Cloud: organization y projectKey se confirman al crear el proyecto en sonarcloud.io -->
 		<sonar.host.url>https://sonarcloud.io</sonar.host.url>
