@@ -1,0 +1,46 @@
+name: Branch policy
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, edited]
+    branches: [main, develop]
+
+# Solo lee metadatos del evento; no necesita acceso al repositorio
+permissions: {}
+
+jobs:
+  validar-ramas:
+    name: Validar ramas
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Validar origen y nombre de la rama
+        # Los nombres de rama se pasan por env (no interpolados en el script) para evitar inyección
+        env:
+          BASE: ${{ github.base_ref }}
+          HEAD: ${{ github.head_ref }}
+        run: |
+          NAME_REGEX='^(feature|fix|hotfix|refactor|docs|test|chore|ci)/[A-Za-z0-9]+(-[A-Za-z0-9]+)*$'
+
+          if [ "$BASE" = "main" ]; then
+            if [ "$HEAD" != "develop" ]; then
+              echo "::error::A 'main' solo se llega desde 'develop'. Rama origen: '$HEAD'."
+              exit 1
+            fi
+            echo "OK: develop -> main"
+            exit 0
+          fi
+
+          if [ "$BASE" = "develop" ]; then
+            if [ "$HEAD" = "main" ]; then
+              echo "::error::No se permite abrir PR de 'main' hacia 'develop'."
+              exit 1
+            fi
+            if ! printf '%s' "$HEAD" | grep -Eq "$NAME_REGEX"; then
+              echo "::error::El nombre '$HEAD' no cumple la nomenclatura."
+              echo "Formato: <tipo>/<descripcion-en-kebab-case> (tipo en minusculas)"
+              echo "Tipos: feature, fix, hotfix, refactor, docs, test, chore, ci"
+              exit 1
+            fi
+            echo "OK: $HEAD -> develop"
+          fi
