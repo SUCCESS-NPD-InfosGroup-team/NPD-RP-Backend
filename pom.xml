@@ -29,6 +29,19 @@
 	<properties>
 		<java.version>21</java.version>
 		<springdoc.version>3.1.1</springdoc.version>
+		<jacoco.version>0.8.15</jacoco.version>
+		<sonar-maven-plugin.version>5.8.0.7211</sonar-maven-plugin.version>
+
+		<!-- SonarQube Cloud: organization y projectKey se confirman al crear el proyecto en sonarcloud.io -->
+		<sonar.host.url>https://sonarcloud.io</sonar.host.url>
+		<sonar.organization>success-npd-infosgroup-team</sonar.organization>
+		<sonar.projectKey>SUCCESS-NPD-InfosGroup-team_NPD-RP-Backend</sonar.projectKey>
+		<!-- Sonar no mide cobertura: lee el reporte que genera JaCoCo -->
+		<sonar.coverage.jacoco.xmlReportPaths>${project.build.directory}/site/jacoco/jacoco.xml</sonar.coverage.jacoco.xmlReportPaths>
+		<!-- Mismas exclusiones que JaCoCo (abajo), en formato de ruta de código fuente -->
+		<sonar.coverage.exclusions>**/dto/**,**/persistence/entity/**,**/shared/config/**,**/ApiApplication.java</sonar.coverage.exclusions>
+		<!-- El análisis espera el veredicto del quality gate y falla el build si no pasa -->
+		<sonar.qualitygate.wait>true</sonar.qualitygate.wait>
 	</properties>
 	<dependencies>
 		<dependency>
@@ -153,7 +166,47 @@
 					</execution>
 				</executions>
 			</plugin>
+			<plugin>
+				<groupId>org.jacoco</groupId>
+				<artifactId>jacoco-maven-plugin</artifactId>
+				<version>${jacoco.version}</version>
+				<executions>
+					<!-- Engancha el agente a los tests para registrar qué líneas se ejecutan -->
+					<execution>
+						<id>prepare-agent</id>
+						<goals>
+							<goal>prepare-agent</goal>
+						</goals>
+					</execution>
+					<!-- Genera target/site/jacoco/jacoco.xml (lo lee Sonar) e index.html (para personas) -->
+					<execution>
+						<id>report</id>
+						<phase>verify</phase>
+						<goals>
+							<goal>report</goal>
+						</goals>
+						<configuration>
+							<!-- Código que no vale la pena probar: DTOs, entidades, configuración y la clase main -->
+							<excludes>
+								<exclude>**/dto/**</exclude>
+								<exclude>**/persistence/entity/**</exclude>
+								<exclude>**/shared/config/**</exclude>
+								<exclude>**/ApiApplication.class</exclude>
+							</excludes>
+						</configuration>
+					</execution>
+				</executions>
+			</plugin>
 		</plugins>
+		<pluginManagement>
+			<plugins>
+				<plugin>
+					<groupId>org.sonarsource.scanner.maven</groupId>
+					<artifactId>sonar-maven-plugin</artifactId>
+					<version>${sonar-maven-plugin.version}</version>
+				</plugin>
+			</plugins>
+		</pluginManagement>
 	</build>
 
 </project>
