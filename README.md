@@ -24,6 +24,7 @@ cp .env.example .env
 | `DB_NAME`     | `npd_rp`       | Database name                                            |
 | `DB_USER`     | `npd_rp`       | Database user                                            |
 | `DB_PASSWORD` | `change-me`    | Database password                                        |
+| `APP_DEV_MODE`| `false`        | Exposes OpenAPI (`/v3/api-docs`) and Scalar UI (`/scalar`). Keep `false` on Railway |
 
 `DB_HOST` / `DB_PORT` describe the database **from your machine**. Inside Docker Compose the API always connects to `postgres:5432`, regardless of these values.
 
@@ -53,6 +54,8 @@ Run `ApiApplication` from the IDE, or:
 curl http://localhost:8080/actuator/health
 # {"status":"UP", ...}
 ```
+
+With `APP_DEV_MODE=true`, the API reference is at http://localhost:8080/scalar.
 
 ## Deployment (Railway)
 
