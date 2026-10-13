@@ -96,7 +96,7 @@ La API se documenta para los frontends con **OpenAPI**, visualizado con **Scalar
 - Configuración: `cp .env.example .env`
 - Todo en Docker (Postgres + API): `docker compose up --build`
 - API desde Maven/IDE: `./mvnw spring-boot:run` (`spring-boot-docker-compose` levanta solo el servicio `postgres`)
-- Tests: `./mvnw test`
+- Tests: `./mvnw test`. Requieren Docker en ejecución: los tests que cargan el contexto usan Testcontainers (`TestcontainersConfiguration`) y levantan su propio PostgreSQL, sin depender de `.env`. Todo test nuevo con `@SpringBootTest` debe importar esa configuración.
 - Health check: `curl localhost:8080/actuator/health`
 - `DB_HOST`/`DB_PORT` en `.env` son valores vistos desde el host (`localhost:5433`); el servicio `api` de compose siempre usa `postgres:5432`. El puerto 5433 evita chocar con un PostgreSQL local de Windows en el 5432.
 - No usar `docker run` directamente para pruebas locales: no carga `.env`.
@@ -107,5 +107,6 @@ El flujo completo está en [CONTRIBUTING.md](CONTRIBUTING.md). Resumen:
 
 - `main` = producción y `develop` = staging; ambas despliegan automáticamente en Railway.
 - Trabaja en una rama `<tipo>/<descripcion-en-kebab-case>` creada desde `develop` (tipos: `feature`, `fix`, `hotfix`, `refactor`, `docs`, `test`, `chore`, `ci`) y abre el PR hacia `develop`. `main` solo recibe PRs desde `develop`. El workflow `branch-policy.yml` lo valida.
+- Cada PR debe pasar los checks "Validar ramas" (`branch-policy.yml`) y "Run Unit Tests" (`unit-test.yml`, ejecuta `./mvnw -B verify`).
 - El PR debe indicar tipo de tarea, ID de Jira (si aplica), descripción y **obligatoriamente** si se usó IA y qué modelo.
 - Si eres un agente de IA: decláralo en el PR con el nombre y versión exactos del modelo.
