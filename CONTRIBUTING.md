@@ -45,11 +45,13 @@ El workflow `.github/workflows/branch-policy.yml` valida estas reglas en cada PR
    ```bash
    ./mvnw test
    ```
+   Docker debe estar en ejecución: los tests levantan su propio PostgreSQL con Testcontainers.
 3. Haz commit. Si hay tarea de Jira, empieza el mensaje con su ID:
    ```
    SCRUM-17 | Descripción breve del cambio
    ```
 4. Sube la rama y abre un PR **hacia `develop`** llenando la plantilla de abajo.
+   En el PR corren dos checks obligatorios: **Validar ramas** (nombre y origen de la rama) y **Run Unit Tests** (`./mvnw -B verify`). Si alguno falla, el PR no se puede fusionar.
 5. Cuando el PR se aprueba y se fusiona, el cambio se despliega en staging.
 6. Para pasar a producción se abre un PR de `develop` hacia `main`.
 
