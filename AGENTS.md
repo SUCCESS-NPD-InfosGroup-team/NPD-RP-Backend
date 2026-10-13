@@ -106,6 +106,6 @@ La API se documenta para los frontends con **OpenAPI**, visualizado con **Scalar
 El flujo completo está en [CONTRIBUTING.md](CONTRIBUTING.md). Resumen:
 
 - `main` = producción y `develop` = staging; ambas despliegan automáticamente en Railway.
-- Trabaja en una rama `feature/<descripcion>` creada desde `develop` y abre el PR hacia `develop`.
+- Trabaja en una rama `<tipo>/<descripcion-en-kebab-case>` creada desde `develop` (tipos: `feature`, `fix`, `hotfix`, `refactor`, `docs`, `test`, `chore`, `ci`) y abre el PR hacia `develop`. `main` solo recibe PRs desde `develop`. El workflow `branch-policy.yml` lo valida.
 - El PR debe indicar tipo de tarea, ID de Jira (si aplica), descripción y **obligatoriamente** si se usó IA y qué modelo.
 - Si eres un agente de IA: decláralo en el PR con el nombre y versión exactos del modelo.

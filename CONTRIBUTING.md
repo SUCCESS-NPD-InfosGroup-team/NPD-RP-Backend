@@ -6,11 +6,31 @@
 |-----------|-------------|-----------------------------|
 | `main`    | Producción  | Automático en Railway       |
 | `develop` | Staging     | Automático en Railway       |
-| `feature/<descripcion>` | Local | — |
+| `<tipo>/<descripcion>` | Local | — |
 
 - Nadie hace push directo a `main` ni a `develop`; todo entra por Pull Request.
 - `develop` sirve para revisar los cambios en staging antes de pasarlos a producción.
-- `main` solo recibe PRs desde `develop`, cuando lo que hay en staging está validado.
+- `main` solo recibe PRs desde `develop`, cuando lo que hay en staging está validado. Esto incluye los `hotfix/`: también pasan primero por `develop`.
+- No se abren PRs de `main` hacia `develop`.
+
+### Nombre de la rama
+
+Formato: `<tipo>/<descripcion-en-kebab-case>`. El tipo va en minúsculas; la descripción admite mayúsculas, minúsculas, números y guiones simples (sin espacios, `_` ni `--`).
+
+| Tipo       | Uso |
+|------------|-----|
+| `feature`  | Funcionalidad nueva |
+| `fix`      | Corrección de error |
+| `hotfix`   | Corrección urgente para producción |
+| `refactor` | Cambio interno sin alterar comportamiento |
+| `docs`     | Documentación |
+| `test`     | Tests |
+| `chore`    | Configuración, dependencias |
+| `ci`       | Pipelines y workflows |
+
+Ejemplos válidos: `feature/importar-excel-planner`, `fix/SCRUM-31-fecha-nula`. No válidos: `Feature/algo`, `feature/fecha_nula`, `mi-rama`.
+
+El workflow `.github/workflows/branch-policy.yml` valida estas reglas en cada PR hacia `main` o `develop`; si falla, el PR no se puede fusionar.
 
 ## Flujo de trabajo
 
@@ -18,9 +38,9 @@
    ```bash
    git checkout develop
    git pull
-   git checkout -b feature/<descripcion>
+   git checkout -b <tipo>/<descripcion>
    ```
-   Usa kebab-case y una descripción corta, por ejemplo `feature/importar-excel-planner`.
+   Sigue la [nomenclatura de ramas](#nombre-de-la-rama), por ejemplo `feature/importar-excel-planner`.
 2. Haz tus cambios y verifica que todo funciona:
    ```bash
    ./mvnw test
