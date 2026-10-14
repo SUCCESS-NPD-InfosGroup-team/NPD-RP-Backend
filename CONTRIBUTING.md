@@ -51,7 +51,11 @@ El workflow `.github/workflows/branch-policy.yml` valida estas reglas en cada PR
    SCRUM-17 | Descripción breve del cambio
    ```
 4. Sube la rama y abre un PR **hacia `develop`** llenando la plantilla de abajo.
-   En el PR corren dos checks obligatorios: **Validar ramas** (nombre y origen de la rama) y **Run Unit Tests** (`./mvnw -B verify`). Si alguno falla, el PR no se puede fusionar.
+   En el PR corren dos checks obligatorios. Si alguno falla, el PR no se puede fusionar:
+   - **Validar ramas**: nombre y origen de la rama.
+   - **Run Unit Tests**: ejecuta los tests y analiza el código con SonarQube Cloud. Falla si un test falla o si no se cumple el quality gate: sin bugs ni vulnerabilidades nuevas y **al menos 80% de cobertura en las líneas nuevas o modificadas** del PR. SonarCloud deja un comentario en el PR con el detalle.
+
+   Para ver tu cobertura antes de subir: `./mvnw verify` y abre `target/site/jacoco/index.html`.
 5. Cuando el PR se aprueba y se fusiona, el cambio se despliega en staging.
 6. Para pasar a producción se abre un PR de `develop` hacia `main`.
 
