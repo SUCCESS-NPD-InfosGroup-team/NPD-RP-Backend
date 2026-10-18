@@ -6,6 +6,7 @@ PostgreSQL 18 schema, versioned with Flyway in [`src/main/resources/db/migration
 |---|---|
 | `V1__create_catalogs.sql` | Catalogs, `client` and `project`; seeds the fixed catalogs |
 | `V2__create_employee.sql` | `employee` and the `resource_v` view |
+| `V3__prepare_planner_import.sql` | "No especificado" values for required fields the planner leaves empty |
 
 Images: [`er-diagram.png`](er-diagram.png). Editable diagram: [`er-diagram.drawio`](er-diagram.drawio) (open at https://app.diagrams.net).
 
@@ -98,6 +99,17 @@ Every table also has `created_at` and `updated_at` (kept by the `set_updated_at`
 - `probation_end_date` and `vacation_month` are generated from `hire_date`; they match the planner on all its rows.
 - Nobody is their own lead; a termination date is not before the hire date; level is greater than zero.
 - Concurrent edits are detected with `version` (optimistic locking).
+
+## "No especificado" values
+
+The planner has rows where a required field is empty. So the one-time import does not reject them, those rows point to a **"No especificado"** value until someone fills in the real data:
+
+| Field | Value |
+|---|---|
+| Work modality | `work_modality` with code `NO_ESPECIFICADO` |
+| Client and project | `client` "No especificado" and its `project` "No especificado" |
+
+These values are **inactive** (`active = false`): the application must not offer them when creating or editing an employee, so the field stays required for new data. A record that still has one of them must be corrected before it is saved again.
 
 ## `resource_v`
 
