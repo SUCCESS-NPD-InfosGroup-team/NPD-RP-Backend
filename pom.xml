@@ -31,6 +31,7 @@
 		<springdoc.version>3.1.1</springdoc.version>
 		<jacoco.version>0.8.15</jacoco.version>
 		<sonar-maven-plugin.version>5.8.0.7211</sonar-maven-plugin.version>
+		<poi.version>5.5.1</poi.version>
 
 		<!-- Parches de seguridad sobre las versiones de Spring Boot 4.1.1 (CVEs en Tomcat, Jackson y el driver de PostgreSQL).
 		     Quitar estas líneas al subir a un Spring Boot que ya las incluya (4.1.2+). -->
@@ -71,6 +72,12 @@
 			<groupId>org.springdoc</groupId>
 			<artifactId>springdoc-openapi-starter-webmvc-scalar</artifactId>
 			<version>${springdoc.version}</version>
+		</dependency>
+		<!-- Lee el planificador del cliente (.xlsx) para el import inicial y escribe su reporte -->
+		<dependency>
+			<groupId>org.apache.poi</groupId>
+			<artifactId>poi-ooxml</artifactId>
+			<version>${poi.version}</version>
 		</dependency>
 		<dependency>
 			<groupId>org.flywaydb</groupId>
