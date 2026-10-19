@@ -74,7 +74,7 @@ final class PlannerValues {
 	 * @return the equivalent code
 	 */
 	static String code(String value) {
-		String code = key(value).replaceAll("[^A-Z0-9]+", "_").replaceAll("^_|_$", "");
+		String code = key(value).replaceAll("[^A-Z0-9]+", "_").replaceAll("(?:^_)|(?:_$)", "");
 		for (Map.Entry<String, String> typo : TYPOS.entrySet()) {
 			code = code.replace(typo.getKey(), typo.getValue());
 		}
