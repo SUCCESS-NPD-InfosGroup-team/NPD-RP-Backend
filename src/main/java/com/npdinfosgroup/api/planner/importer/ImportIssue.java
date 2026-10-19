@@ -3,16 +3,16 @@ package com.npdinfosgroup.api.planner.importer;
 import java.util.List;
 
 /**
- * Algo que el import encontró en una fila y que alguien debe revisar: una fila rechazada o un
- * valor que se guardó con una corrección.
+ * Something the import found in a row that someone should review: a rejected row or a value
+ * saved with a correction.
  *
- * @param rowNumber fila del Excel
- * @param employeeCode COD EMPL de la fila, si lo tiene
- * @param employeeName nombre del empleado, si lo tiene
- * @param column columna donde está el problema
- * @param value valor original de esa columna
- * @param messageKey clave del mensaje en {@code messages.properties} que explica el problema
- * @param arguments datos que completan el mensaje
+ * @param rowNumber Excel row
+ * @param employeeCode COD EMPL of the row, if any
+ * @param employeeName employee name, if any
+ * @param column column with the issue
+ * @param value original value of that column
+ * @param messageKey key of the {@code messages.properties} message that explains the issue
+ * @param arguments values that complete the message
  */
 public record ImportIssue(int rowNumber, String employeeCode, String employeeName, PlannerColumn column,
 		String value, String messageKey, List<String> arguments) {

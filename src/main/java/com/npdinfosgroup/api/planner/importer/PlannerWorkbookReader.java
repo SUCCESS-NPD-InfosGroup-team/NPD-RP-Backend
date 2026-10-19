@@ -21,11 +21,11 @@ import org.apache.poi.ss.usermodel.WorkbookFactory;
 import org.springframework.stereotype.Component;
 
 /**
- * Lee las filas de la hoja {@code PLANIFICADOR} del Excel del cliente.
+ * Reads the rows of the {@code PLANIFICADOR} sheet of the client's Excel.
  * <p>
- * Busca la fila de encabezados entre las primeras filas (en el Excel actual es la 2) y ubica cada
- * columna por su nombre, no por su posición, para tolerar columnas nuevas o movidas. Las filas
- * vacías se ignoran.
+ * Looks for the header row among the first rows (row 2 in the current Excel) and finds each
+ * column by name, not by position, so new or moved columns do not break it. Empty rows are
+ * skipped.
  */
 @Component
 class PlannerWorkbookReader {
@@ -34,19 +34,18 @@ class PlannerWorkbookReader {
 
 	private static final int HEADER_SEARCH_ROWS = 10;
 
-	/** Columnas sin las que el import no tiene sentido; si falta alguna, se detiene. */
+	/** Columns the import cannot do without; if one is missing, it stops. */
 	private static final Set<PlannerColumn> REQUIRED_COLUMNS = EnumSet.of(PlannerColumn.EMPLOYEE_CODE,
 			PlannerColumn.FULL_NAME, PlannerColumn.HIRE_DATE, PlannerColumn.GENDER, PlannerColumn.JOB_POSITION,
 			PlannerColumn.STATUS);
 
 	/**
-	 * Lee el archivo y devuelve sus filas con datos.
+	 * Reads the file and returns its rows with data.
 	 *
-	 * @param file ruta del Excel ({@code .xlsx})
-	 * @return las filas con al menos una celda con datos, en el orden del archivo
-	 * @throws IOException si el archivo no existe o no es un Excel válido
-	 * @throws IllegalStateException si no se encuentra la fila de encabezados o falta una columna
-	 *         obligatoria
+	 * @param file path of the Excel ({@code .xlsx})
+	 * @return the rows with at least one non-empty cell, in file order
+	 * @throws IOException if the file does not exist or is not a valid Excel
+	 * @throws IllegalStateException if the header row is not found or a required column is missing
 	 */
 	List<PlannerRow> read(Path file) throws IOException {
 		try (Workbook workbook = WorkbookFactory.create(file.toFile(), null, true)) {
@@ -138,7 +137,7 @@ class PlannerWorkbookReader {
 		};
 	}
 
-	/** Tipo del valor de la celda; en las fórmulas, el de su último resultado guardado. */
+	/** Type of the cell value; for formulas, the type of their last cached result. */
 	private static CellType type(Cell cell) {
 		return cell.getCellType() == CellType.FORMULA ? cell.getCachedFormulaResultType() : cell.getCellType();
 	}

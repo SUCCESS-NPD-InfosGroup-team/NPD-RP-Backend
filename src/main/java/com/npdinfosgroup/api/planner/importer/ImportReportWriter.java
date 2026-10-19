@@ -16,10 +16,10 @@ import org.springframework.context.MessageSource;
 import org.springframework.stereotype.Component;
 
 /**
- * Escribe el reporte del import en un Excel para quien revisa los datos (el PO o el cliente).
+ * Writes the import report to an Excel for whoever reviews the data (the PO or the client).
  * <p>
- * Tiene tres hojas: un resumen, las filas rechazadas y las observaciones (valores que se
- * importaron con una corrección). Los textos salen de {@code messages.properties}.
+ * It has three sheets: a summary, the rejected rows and the flags (values imported with a
+ * correction). Texts come from {@code messages.properties}, in Spanish because users read them.
  */
 @Component
 class ImportReportWriter {
@@ -29,20 +29,20 @@ class ImportReportWriter {
 	private final MessageSource messages;
 
 	/**
-	 * Crea el escritor.
+	 * Creates the writer.
 	 *
-	 * @param messages textos del reporte
+	 * @param messages report texts
 	 */
 	ImportReportWriter(MessageSource messages) {
 		this.messages = messages;
 	}
 
 	/**
-	 * Escribe el reporte; si el archivo existe, lo reemplaza.
+	 * Writes the report, replacing the file if it exists.
 	 *
-	 * @param report resultado del import
-	 * @param target ruta del archivo {@code .xlsx} a crear
-	 * @throws IOException si no se puede escribir el archivo
+	 * @param report import result
+	 * @param target path of the {@code .xlsx} file to write
+	 * @throws IOException if the file cannot be written
 	 */
 	void write(PlannerImportReport report, Path target) throws IOException {
 		try (XSSFWorkbook workbook = new XSSFWorkbook()) {

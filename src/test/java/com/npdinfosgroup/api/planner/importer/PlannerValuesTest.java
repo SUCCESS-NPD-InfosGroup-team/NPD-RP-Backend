@@ -7,12 +7,12 @@ import java.time.YearMonth;
 import org.junit.jupiter.api.Test;
 
 /**
- * Reglas de limpieza de los valores del planificador.
+ * Cleaning rules for the planner values.
  */
 class PlannerValuesTest {
 
 	/**
-	 * Los espacios repetidos, los saltos de línea y los marcadores de vacío se limpian.
+	 * Repeated spaces, line breaks and empty markers are cleaned.
 	 */
 	@Test
 	void cleanNormalizesSpacesAndEmptyMarkers() {
@@ -25,7 +25,7 @@ class PlannerValuesTest {
 	}
 
 	/**
-	 * Los errores de tipeo conocidos se corrigen sin importar mayúsculas.
+	 * Known typos are fixed regardless of case.
 	 */
 	@Test
 	void cleanFixesKnownTypos() {
@@ -34,7 +34,7 @@ class PlannerValuesTest {
 	}
 
 	/**
-	 * Los valores escritos de formas distintas dan el mismo código de catálogo.
+	 * Values written in different ways give the same catalog code.
 	 */
 	@Test
 	void codeMatchesCatalogCodes() {
@@ -45,7 +45,7 @@ class PlannerValuesTest {
 	}
 
 	/**
-	 * El nombre corto del líder coincide si todas sus palabras están en el nombre completo.
+	 * A leader's short name matches if all its words are in the full name.
 	 */
 	@Test
 	void nameMatchesIgnoresAccentsAndMiddleNames() {
@@ -54,7 +54,7 @@ class PlannerValuesTest {
 	}
 
 	/**
-	 * El formato del correo y su dominio.
+	 * Email format and domain.
 	 */
 	@Test
 	void emailFormatAndDomain() {
@@ -70,7 +70,7 @@ class PlannerValuesTest {
 	}
 
 	/**
-	 * MES FINAL DE PROYECTO se interpreta como mes y año.
+	 * MES FINAL DE PROYECTO is parsed as month and year.
 	 */
 	@Test
 	void endMonthParsesSpanishMonths() {

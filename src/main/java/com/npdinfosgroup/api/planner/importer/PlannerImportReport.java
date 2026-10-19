@@ -3,12 +3,12 @@ package com.npdinfosgroup.api.planner.importer;
 import java.util.List;
 
 /**
- * Resultado de un import del planificador.
+ * Result of a planner import.
  *
- * @param rowsRead filas con datos que tenía el Excel
- * @param imported empleados creados o actualizados
- * @param rejected motivos por los que no se importaron algunas filas
- * @param flagged valores que se importaron con una corrección y conviene revisar
+ * @param rowsRead rows with data in the Excel
+ * @param imported employees created or updated
+ * @param rejected reasons why some rows were not imported
+ * @param flagged values imported with a correction that should be reviewed
  */
 public record PlannerImportReport(int rowsRead, int imported, List<ImportIssue> rejected, List<ImportIssue> flagged) {
 
@@ -18,9 +18,9 @@ public record PlannerImportReport(int rowsRead, int imported, List<ImportIssue> 
 	}
 
 	/**
-	 * Filas que no se importaron.
+	 * Rows that were not imported.
 	 *
-	 * @return la cantidad de filas leídas menos las importadas
+	 * @return rows read minus rows imported
 	 */
 	public int rejectedRows() {
 		return rowsRead - imported;

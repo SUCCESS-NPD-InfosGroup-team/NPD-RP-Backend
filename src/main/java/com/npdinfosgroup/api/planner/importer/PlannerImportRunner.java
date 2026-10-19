@@ -13,12 +13,12 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.stereotype.Component;
 
 /**
- * Corre el import del planificador al arrancar la aplicación, solo si se indica
- * {@code --planner.import.file=<ruta del Excel>}.
+ * Runs the planner import when the application starts, only if
+ * {@code --planner.import.file=<path to the Excel>} is given.
  * <p>
- * El import se hace una sola vez, antes de que la plataforma entre en uso; por eso es un comando y
- * no un endpoint que quede expuesto. Con {@code --spring.main.web-application-type=none} la
- * aplicación termina sola al acabar. Volver a correrlo actualiza los datos sin duplicarlos.
+ * The import runs once, before the platform goes live, so it is a command and not an exposed
+ * endpoint. With {@code --spring.main.web-application-type=none} the application stops when it
+ * ends. Running it again updates the data without duplicating it.
  */
 @Component
 @ConditionalOnProperty(prefix = "planner.import", name = "file")
@@ -36,12 +36,12 @@ class PlannerImportRunner implements ApplicationRunner {
 	private final ImportReportWriter reportWriter;
 
 	/**
-	 * Crea el comando.
+	 * Creates the command.
 	 *
-	 * @param properties rutas del Excel y del reporte
-	 * @param reader lector del Excel
-	 * @param importService servicio que guarda los datos
-	 * @param reportWriter escritor del reporte
+	 * @param properties paths of the Excel and the report
+	 * @param reader Excel reader
+	 * @param importService service that saves the data
+	 * @param reportWriter report writer
 	 */
 	PlannerImportRunner(PlannerImportProperties properties, PlannerWorkbookReader reader,
 			PlannerImportService importService, ImportReportWriter reportWriter) {
@@ -52,11 +52,11 @@ class PlannerImportRunner implements ApplicationRunner {
 	}
 
 	/**
-	 * Lee el Excel, importa sus filas y escribe el reporte. En el log solo quedan cantidades y la
-	 * ruta del reporte, nunca datos de las personas.
+	 * Reads the Excel, imports its rows and writes the report. The log only gets counts and the
+	 * report path, never personal data.
 	 *
-	 * @param args argumentos de la aplicación (no se usan; la configuración llega por propiedades)
-	 * @throws IOException si no se puede leer el Excel o escribir el reporte
+	 * @param args application arguments (unused; configuration comes from properties)
+	 * @throws IOException if the Excel cannot be read or the report cannot be written
 	 */
 	@Override
 	public void run(ApplicationArguments args) throws IOException {

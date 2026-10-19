@@ -1,11 +1,11 @@
 package com.npdinfosgroup.api.planner.importer;
 
 /**
- * Columnas de la hoja {@code PLANIFICADOR} que lee el import.
+ * Columns of the {@code PLANIFICADOR} sheet that the import reads.
  * <p>
- * Cada columna se reconoce por el inicio de su encabezado, sin tildes ni mayúsculas, porque el
- * Excel les agrega textos como "( obligatorio)" que cambian entre versiones del archivo. Las
- * columnas calculadas (probatoria, vacaciones) no se leen: la base de datos las genera.
+ * Each column is recognized by the start of its header, ignoring accents and case, because the
+ * Excel adds texts such as "( obligatorio)" that change between versions of the file.
+ * Calculated columns (probation, vacation) are not read: the database generates them.
  */
 public enum PlannerColumn {
 
@@ -42,19 +42,19 @@ public enum PlannerColumn {
 	}
 
 	/**
-	 * Indica si un encabezado del Excel corresponde a esta columna.
+	 * Tells whether an Excel header belongs to this column.
 	 *
-	 * @param header texto del encabezado tal como viene en el Excel
-	 * @return {@code true} si el encabezado, normalizado, empieza con el de esta columna
+	 * @param header header text as it comes in the Excel
+	 * @return {@code true} if the normalized header starts with this column's prefix
 	 */
 	boolean matches(String header) {
 		return header != null && PlannerValues.key(header).startsWith(headerPrefix);
 	}
 
 	/**
-	 * Nombre de la columna como lo conoce el usuario, para el reporte del import.
+	 * Column name as users know it, for the import report.
 	 *
-	 * @return el nombre de la columna en el Excel
+	 * @return the column name in the Excel
 	 */
 	public String label() {
 		return label;

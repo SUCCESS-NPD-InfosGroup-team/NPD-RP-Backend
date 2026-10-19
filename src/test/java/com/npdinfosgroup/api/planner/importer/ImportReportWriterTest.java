@@ -14,7 +14,7 @@ import org.junit.jupiter.api.io.TempDir;
 import org.springframework.context.support.ResourceBundleMessageSource;
 
 /**
- * El reporte del import se escribe con los textos de {@code messages.properties}.
+ * The import report is written with the texts of {@code messages.properties}.
  */
 class ImportReportWriterTest {
 
@@ -22,7 +22,7 @@ class ImportReportWriterTest {
 	Path dir;
 
 	/**
-	 * Escribe el resumen, las filas rechazadas y las observaciones, creando la carpeta si no existe.
+	 * Writes the summary, rejected and flagged sheets, creating the folder if needed.
 	 */
 	@Test
 	void writesSummaryRejectedAndFlaggedSheets() throws IOException {

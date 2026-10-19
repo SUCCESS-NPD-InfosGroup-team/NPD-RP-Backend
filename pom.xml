@@ -73,7 +73,7 @@
 			<artifactId>springdoc-openapi-starter-webmvc-scalar</artifactId>
 			<version>${springdoc.version}</version>
 		</dependency>
-		<!-- Lee el planificador del cliente (.xlsx) para el import inicial y escribe su reporte -->
+		<!-- Reads the client planner (.xlsx) for the one-time import and writes its report -->
 		<dependency>
 			<groupId>org.apache.poi</groupId>
 			<artifactId>poi-ooxml</artifactId>

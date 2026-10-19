@@ -17,8 +17,8 @@ import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Import de filas contra un PostgreSQL real con las migraciones aplicadas. Cada test corre en una
- * transacción que se revierte al terminar, así no se afectan entre sí.
+ * Imports rows into a real PostgreSQL with the migrations applied. Each test runs in a
+ * transaction that is rolled back at the end, so tests do not affect each other.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @Import(TestcontainersConfiguration.class)
@@ -34,8 +34,8 @@ class PlannerImportServiceTest {
 	private JdbcClient jdbc;
 
 	/**
-	 * Importa las filas válidas, crea clientes, proyectos y catálogos, y asigna los líderes por
-	 * código aunque el líder venga después.
+	 * Imports valid rows, creates clients, projects and catalogs, and assigns leaders by code even
+	 * when the leader comes later.
 	 */
 	@Test
 	void importsEmployeesWithCatalogsAndLeaders() {
@@ -90,8 +90,7 @@ class PlannerImportServiceTest {
 	}
 
 	/**
-	 * Los obligatorios vacíos quedan en "No especificado" y lo que conviene revisar sale en las
-	 * observaciones.
+	 * Empty required values become "No especificado" and whatever needs a review is flagged.
 	 */
 	@Test
 	void flagsValuesToReview() {
@@ -151,8 +150,8 @@ class PlannerImportServiceTest {
 	}
 
 	/**
-	 * Las filas sin datos obligatorios, con valores obligatorios desconocidos o con un código
-	 * repetido se rechazan, y sus observaciones no se reportan.
+	 * Rows with missing or unknown required values, or with a repeated code, are rejected, and
+	 * their flags are not reported.
 	 */
 	@Test
 	void rejectsRowsThatCannotBeImported() {
@@ -187,7 +186,7 @@ class PlannerImportServiceTest {
 	}
 
 	/**
-	 * Volver a correr el import actualiza los empleados sin duplicar nada.
+	 * Running the import again updates employees without duplicating anything.
 	 */
 	@Test
 	void reimportUpdatesInsteadOfDuplicating() {

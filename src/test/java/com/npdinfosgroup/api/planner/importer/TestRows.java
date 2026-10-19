@@ -5,8 +5,8 @@ import java.util.EnumMap;
 import java.util.Map;
 
 /**
- * Construye filas del planificador para los tests, con datos inventados. Cada fila empieza completa
- * y válida; cada test cambia solo lo que necesita.
+ * Builds planner rows for the tests with made-up data. Each row starts complete and valid;
+ * each test changes only what it needs.
  */
 final class TestRows {
 

@@ -10,16 +10,16 @@ import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
 
 /**
- * Acceso a datos del import del planificador.
+ * Data access for the planner import.
  * <p>
- * Usa SQL directo en lugar de entidades JPA porque el import necesita "insertar o actualizar"
- * ({@code ON CONFLICT}) para poder repetirse sin duplicar datos, y buscar los catálogos sin
- * distinguir mayúsculas, igual que sus índices únicos.
+ * Uses plain SQL instead of JPA entities because the import needs "insert or update"
+ * ({@code ON CONFLICT}) so it can run again without duplicating data, and needs to look up catalogs
+ * case-insensitively, like their unique indexes.
  */
 @Repository
 public class PlannerImportRepository {
 
-	/** Catálogos fijos: sus valores vienen sembrados por las migraciones y el import solo los busca. */
+	/** Fixed catalogs: the migrations seed their values and the import only looks them up. */
 	public enum FixedCatalog {
 
 		RESOURCE_STATUS("SELECT id, code, name FROM resource_status"),
@@ -38,7 +38,7 @@ public class PlannerImportRepository {
 
 	}
 
-	/** Catálogos abiertos: el import crea los valores que todavía no existen. */
+	/** Open catalogs: the import creates the values that do not exist yet. */
 	public enum OpenCatalog {
 
 		JOB_TITLE("SELECT id FROM job_title WHERE lower(name) = lower(:name)",
@@ -60,20 +60,20 @@ public class PlannerImportRepository {
 	}
 
 	/**
-	 * Un valor de un catálogo fijo.
+	 * A value of a fixed catalog.
 	 *
-	 * @param id identificador
-	 * @param code código estable
-	 * @param name texto que ve el usuario
+	 * @param id identifier
+	 * @param code stable code
+	 * @param name text the user sees
 	 */
 	public record CatalogValue(short id, String code, String name) {
 	}
 
 	/**
-	 * Datos mínimos de un empleado ya guardado, para asignar líderes.
+	 * Minimal data of a saved employee, used to assign leaders.
 	 *
-	 * @param id identificador
-	 * @param fullName nombre completo
+	 * @param id identifier
+	 * @param fullName full name
 	 */
 	public record EmployeeRef(long id, String fullName) {
 	}
@@ -81,19 +81,19 @@ public class PlannerImportRepository {
 	private final JdbcClient jdbc;
 
 	/**
-	 * Crea el repositorio.
+	 * Creates the repository.
 	 *
-	 * @param jdbc cliente JDBC de Spring
+	 * @param jdbc Spring JDBC client
 	 */
 	public PlannerImportRepository(JdbcClient jdbc) {
 		this.jdbc = jdbc;
 	}
 
 	/**
-	 * Todos los valores de un catálogo fijo, activos o no.
+	 * All values of a fixed catalog, active or not.
 	 *
-	 * @param catalog catálogo a leer
-	 * @return sus valores
+	 * @param catalog catalog to read
+	 * @return its values
 	 */
 	public List<CatalogValue> findAll(FixedCatalog catalog) {
 		return jdbc.sql(catalog.selectAll)
@@ -102,11 +102,11 @@ public class PlannerImportRepository {
 	}
 
 	/**
-	 * Busca un valor de un catálogo abierto sin distinguir mayúsculas y lo crea si no existe.
+	 * Finds a value of an open catalog case-insensitively and creates it if it does not exist.
 	 *
-	 * @param catalog catálogo
-	 * @param name valor; si se crea, se guarda tal como viene
-	 * @return el id del valor
+	 * @param catalog catalog
+	 * @param name value; when created, it is stored as given
+	 * @return the id of the value
 	 */
 	public long findOrCreate(OpenCatalog catalog, String name) {
 		return jdbc.sql(catalog.select)
@@ -117,11 +117,11 @@ public class PlannerImportRepository {
 	}
 
 	/**
-	 * Busca un cliente por nombre sin distinguir mayúsculas y lo crea si no existe.
+	 * Finds a client by name case-insensitively and creates it if it does not exist.
 	 *
-	 * @param name nombre del cliente
-	 * @param internal si es trabajo interno de Infosgroup, como NPD-ADMINISTRACION
-	 * @return el id del cliente
+	 * @param name client name
+	 * @param internal whether it is Infosgroup internal work, such as NPD-ADMINISTRACION
+	 * @return the id of the client
 	 */
 	public long findOrCreateClient(String name, boolean internal) {
 		return jdbc.sql("SELECT id FROM client WHERE lower(name) = lower(:name)")
@@ -136,11 +136,11 @@ public class PlannerImportRepository {
 	}
 
 	/**
-	 * Busca un proyecto de un cliente por nombre sin distinguir mayúsculas y lo crea si no existe.
+	 * Finds a client's project by name case-insensitively and creates it if it does not exist.
 	 *
-	 * @param clientId cliente dueño del proyecto
-	 * @param name nombre del proyecto
-	 * @return el id del proyecto
+	 * @param clientId client that owns the project
+	 * @param name project name
+	 * @return the id of the project
 	 */
 	public long findOrCreateProject(long clientId, String name) {
 		return jdbc.sql("SELECT id FROM project WHERE client_id = :clientId AND lower(name) = lower(:name)")
@@ -156,9 +156,9 @@ public class PlannerImportRepository {
 	}
 
 	/**
-	 * Proyecto "No especificado" que crea la migración V3 para las filas sin cliente o proyecto.
+	 * "No especificado" project created by migration V3 for rows without client or project.
 	 *
-	 * @return su id
+	 * @return its id
 	 */
 	public long findNotSpecifiedProject() {
 		return jdbc.sql("""
@@ -171,12 +171,12 @@ public class PlannerImportRepository {
 	}
 
 	/**
-	 * Crea el empleado o, si ya existe un empleado con ese código, reemplaza sus datos. El líder no
-	 * se toca aquí: se asigna después con {@link #updateLeader(long, Long)}, cuando todos los
-	 * empleados ya existen.
+	 * Creates the employee or, if an employee with that code exists, replaces its data. The leader is
+	 * not set here: {@link #updateLeader(long, Long)} assigns it later, once every employee
+	 * exists.
 	 *
-	 * @param command datos del empleado
-	 * @return el id del empleado
+	 * @param command employee data
+	 * @return the id of the employee
 	 */
 	public long upsertEmployee(ImportEmployeeCommand command) {
 		return jdbc.sql("""
@@ -231,9 +231,9 @@ public class PlannerImportRepository {
 	}
 
 	/**
-	 * Todos los empleados guardados, por código, para resolver la columna COD LÍDER.
+	 * All saved employees by code, to resolve the COD LIDER column.
 	 *
-	 * @return el id y el nombre de cada empleado, indexados por su código
+	 * @return the id and name of each employee, keyed by code
 	 */
 	public Map<String, EmployeeRef> findEmployeesByCode() {
 		return jdbc.sql("SELECT id, code, full_name FROM employee")
@@ -245,10 +245,10 @@ public class PlannerImportRepository {
 	}
 
 	/**
-	 * Asigna o quita el líder de un empleado.
+	 * Sets or clears the leader of an employee.
 	 *
-	 * @param employeeId empleado
-	 * @param leaderId su líder, o {@code null} para dejarlo sin líder
+	 * @param employeeId employee
+	 * @param leaderId the leader, or {@code null} to leave the employee without one
 	 */
 	public void updateLeader(long employeeId, Long leaderId) {
 		jdbc.sql("UPDATE employee SET leader_id = :leaderId WHERE id = :id")

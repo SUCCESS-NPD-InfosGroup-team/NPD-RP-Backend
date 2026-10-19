@@ -19,12 +19,12 @@ import org.springframework.boot.context.properties.bind.Binder;
 import org.springframework.boot.context.properties.source.MapConfigurationPropertySource;
 
 /**
- * El comando del import y su configuración.
+ * The import command and its settings.
  */
 class PlannerImportRunnerTest {
 
 	/**
-	 * Lee el Excel, importa sus filas y escribe el reporte junto al Excel si no se indicó otra ruta.
+	 * Reads the Excel, imports its rows and writes the report next to the Excel by default.
 	 */
 	@Test
 	void importsAndWritesReportNextToTheFile() throws IOException {
@@ -45,7 +45,7 @@ class PlannerImportRunnerTest {
 	}
 
 	/**
-	 * Las rutas llegan como propiedades {@code planner.import.*}.
+	 * Paths come as {@code planner.import.*} properties.
 	 */
 	@Test
 	void bindsProperties() {
@@ -59,7 +59,7 @@ class PlannerImportRunnerTest {
 	}
 
 	/**
-	 * Sin la ruta del Excel, la aplicación no arranca.
+	 * Without the Excel path, the application does not start.
 	 */
 	@Test
 	void requiresFile() {

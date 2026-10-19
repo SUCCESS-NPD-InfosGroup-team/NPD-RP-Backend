@@ -6,11 +6,11 @@ import java.util.Objects;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
- * Configuración del import del planificador ({@code planner.import.*}). Se pasa como argumento al
- * arrancar la aplicación, solo cuando se quiere importar.
+ * Planner import settings ({@code planner.import.*}), passed as arguments when the application
+ * starts, only to run the import.
  *
- * @param file ruta del Excel del planificador (obligatoria)
- * @param report ruta del reporte a generar; si falta, se crea junto al Excel
+ * @param file path of the planner Excel (required)
+ * @param report path of the report to write; if missing, it is written next to the Excel
  */
 @ConfigurationProperties("planner.import")
 record PlannerImportProperties(Path file, Path report) {
@@ -22,9 +22,9 @@ record PlannerImportProperties(Path file, Path report) {
 	}
 
 	/**
-	 * Ruta donde se escribe el reporte.
+	 * Path where the report is written.
 	 *
-	 * @return {@code report} si se indicó; si no, {@value #DEFAULT_REPORT_NAME} en la carpeta del Excel
+	 * @return {@code report} if given; otherwise {@value #DEFAULT_REPORT_NAME} in the Excel's folder
 	 */
 	Path reportFile() {
 		return report != null ? report : file.toAbsolutePath().resolveSibling(DEFAULT_REPORT_NAME);

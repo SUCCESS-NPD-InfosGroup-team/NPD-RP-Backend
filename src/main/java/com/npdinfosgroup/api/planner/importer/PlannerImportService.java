@@ -43,21 +43,21 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Importa las filas del planificador a la base de datos.
+ * Imports the planner rows into the database.
  * <p>
- * Reglas acordadas para el import inicial (historia SCRUM-66):
+ * Rules agreed for the initial import (story SCRUM-66):
  * <ul>
- * <li>Se rechaza la fila si le falta un dato que la base exige (código, nombre, posición, fecha de
- * inicio, género, estado), si el código ya apareció en otra fila o si un valor obligatorio no se
- * reconoce.</li>
- * <li>La modalidad, el cliente y el proyecto vacíos se guardan como "No especificado" y quedan en el
- * reporte para completarlos después.</li>
- * <li>El líder se asigna por COD LÍDER. Si el código no es de ningún empleado, la fila queda sin
- * líder; si el nombre de LÍDER TLP no coincide, manda el código.</li>
- * <li>Lo demás se importa como viene y se marca en el reporte si conviene revisarlo.</li>
+ * <li>A row is rejected if it lacks a value the database requires (code, name, position, hire
+ * date, gender, status), if its code already appeared in another row or if a required value is
+ * unknown.</li>
+ * <li>Empty work modality, client and project are saved as "No especificado" and listed in the
+ * report so they get filled in later.</li>
+ * <li>The leader is assigned by COD LIDER. If the code is not an employee, the row has no
+ * leader; if the LIDER TLP name does not match, the code wins.</li>
+ * <li>Everything else is imported as is and flagged in the report when it needs a review.</li>
  * </ul>
- * Todo el import corre en una sola transacción: si algo falla, no se guarda nada. Volver a correrlo
- * actualiza los empleados por su código en lugar de duplicarlos.
+ * The whole import runs in one transaction: if anything fails, nothing is saved. Running it again
+ * updates employees by code instead of duplicating them.
  */
 @Service
 class PlannerImportService {
@@ -73,21 +73,21 @@ class PlannerImportService {
 	private final PlannerImportRepository repository;
 
 	/**
-	 * Crea el servicio.
+	 * Creates the service.
 	 *
-	 * @param repository acceso a datos del import
+	 * @param repository import data access
 	 */
 	PlannerImportService(PlannerImportRepository repository) {
 		this.repository = repository;
 	}
 
 	/**
-	 * Importa las filas: crea o actualiza los empleados, crea los clientes, proyectos y valores de
-	 * catálogo que falten y asigna los líderes.
+	 * Imports the rows: creates or updates employees, creates the missing clients, projects and
+	 * catalog values, and assigns leaders.
 	 *
-	 * @param rows filas leídas del Excel
-	 * @param today fecha del import, para marcar los proyectos con fecha final vencida
-	 * @return cuántas filas se importaron y qué hay que revisar
+	 * @param rows rows read from the Excel
+	 * @param today import date, to flag projects whose end date has passed
+	 * @return how many rows were imported and what needs a review
 	 */
 	@Transactional
 	public PlannerImportReport importRows(List<PlannerRow> rows, LocalDate today) {
@@ -119,9 +119,9 @@ class PlannerImportService {
 	}
 
 	/**
-	 * Cliente "dueño" de cada dominio de correo de CONTACTO POR CLIENTE: el cliente donde más se
-	 * usa. Sirve para marcar contactos de otra empresa. Los dominios cuyo dueño es el cliente
-	 * interno (los correos de Infosgroup) no se marcan.
+	 * "Owner" client of each CONTACTO POR CLIENTE email domain: the client where it is used the
+	 * most. Used to flag contacts from another company. Domains owned by the internal client
+	 * (Infosgroup addresses) are not flagged.
 	 */
 	private static Map<String, String> contactDomainOwners(List<PlannerRow> rows) {
 		Map<String, Map<String, Long>> clientsByDomain = rows.stream()
@@ -220,7 +220,7 @@ class PlannerImportService {
 		return value == null ? null : repository.findOrCreate(catalog, value);
 	}
 
-	/** Proyecto de la fila; {@code null} si es "SIN PROYECTO". */
+	/** Project of the row; {@code null} for "SIN PROYECTO". */
 	private Long project(PlannerRow row, RowIssues issues) {
 		String client = row.get(CLIENT);
 		String project = row.get(PROJECT);
@@ -317,8 +317,8 @@ class PlannerImportService {
 	}
 
 	/**
-	 * Asigna los líderes cuando todos los empleados ya existen, porque un líder puede aparecer en una
-	 * fila posterior a la de las personas que tiene a cargo.
+	 * Assigns leaders once every employee exists, because a leader can appear in a row after the
+	 * people they lead.
 	 */
 	private void assignLeaders(List<PendingLeader> leaders, ImportRun run) {
 		Map<String, EmployeeRef> employees = repository.findEmployeesByCode();
@@ -353,7 +353,7 @@ class PlannerImportService {
 		return value != null && PlannerValues.isEmail(value);
 	}
 
-	/** Estado de una ejecución del import: catálogos cargados y lo que se va encontrando. */
+	/** State of one import run: loaded catalogs and what it finds along the way. */
 	private static final class ImportRun {
 
 		private final Map<FixedCatalog, Map<String, Short>> catalogs;
@@ -380,9 +380,8 @@ class PlannerImportService {
 	}
 
 	/**
-	 * Registra los problemas de una fila. Los rechazos pasan directo a la ejecución; las
-	 * observaciones solo cuando la fila se importa ({@link #keepFlags()}), porque las de una fila
-	 * rechazada no aportan.
+	 * Collects the issues of one row. Rejections go straight to the run; flags only when the row is
+	 * imported ({@link #keepFlags()}), because flags on a rejected row are of no use.
 	 */
 	private static final class RowIssues {
 
@@ -419,7 +418,7 @@ class PlannerImportService {
 
 	}
 
-	/** Empleado ya guardado que espera su líder. */
+	/** Saved employee waiting for its leader. */
 	private record PendingLeader(PlannerRow row, long employeeId) {
 	}
 
