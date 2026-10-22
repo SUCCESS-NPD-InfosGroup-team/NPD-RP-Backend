@@ -7,6 +7,7 @@ PostgreSQL 18 schema, versioned with Flyway in [`src/main/resources/db/migration
 | `V1__create_catalogs.sql` | Catalogs, `client` and `project`; seeds the fixed catalogs |
 | `V2__create_employee.sql` | `employee` and the `resource_v` view |
 | `V3__prepare_planner_import.sql` | "No especificado" values for required fields the planner leaves empty |
+| `V4__projects_and_assignment_view.sql` | `project.contract_end_date`; `resource_v` with ids and project dates; `project_summary_v` |
 
 Images: [`er-diagram.png`](er-diagram.png). Editable diagram: [`er-diagram.drawio`](er-diagram.drawio) (open at https://app.diagrams.net).
 
@@ -24,6 +25,7 @@ erDiagram
         bigint id PK
         bigint client_id FK "required"
         varchar name "PROYECTO ASIGNADO, unique per client"
+        date contract_end_date "contract end with the client"
         boolean active
     }
     employee {
@@ -92,8 +94,11 @@ Every table also has `created_at` and `updated_at` (kept by the `set_updated_at`
 
 ## Rules
 
+- **One project per person.** `employee.project_id` is the current project; there is no assignment table.
 - **Projects exist on their own.** A project is created before anyone is placed on it, and stays when it has no employees. A client stays when it has no projects.
-- **Required in the database** only where every planner row has the value: code, name, gender, position, hire date and status. Project, NPD lead and work modality are required by the application but nullable in the database, because the planner has rows without them.
+- **A project has its own contract end** (`project.contract_end_date`), distinct from each employee's `project_end_date`. It drives the Sales alert at 30 and 15 days; `NULL` means no date. A project starts the day it is created (`project.created_at`).
+- **An employee may have no project** (`project_id` NULL = "Sin proyecto"): allowed when registering a new hire and when someone is removed from a project, which keeps the project.
+- **Required in the database** only where every planner row has the value: code, name, gender, position, hire date and status. NPD lead and work modality are required by the application but nullable in the database, because the planner has rows without them.
 - **Everything except client and project name belongs to the employee**: in the planner, lead, end date, client contact, laptop, role, level and modality change from person to person within the same project.
 - `email` is optional and unique case-insensitively. `code` is text (`SP11`).
 - `probation_end_date` and `vacation_month` are generated from `hire_date`; they match the planner on all its rows.
@@ -120,6 +125,36 @@ Rebuilds the planner, one row per employee, for the roster, the table view and e
 | `SIN_PROYECTO` | No project |
 | `PENDIENTE_CONFIRMACION` | `project_end_date` has passed and nobody has extended it |
 | `ASIGNADO` | Any other case |
+
+Besides the planner columns (names), it exposes ids and project data so the API groups and links without comparing names (a project name is only unique within its client):
+
+| Column | Source | Use |
+|---|---|---|
+| `project_id`, `client_id` | `employee.project_id`, `project.client_id` | Group the roster by project; link to the project detail |
+| `project_active` | `project.active` | Spot the inactive "No especificado" project and ask for a fix |
+| `project_start_date` | `project.created_at` | Start of the roster bar |
+| `contract_end_date` | `project.contract_end_date` | "Fin de contrato" column and alert |
+| `leader_id` | `employee.leader_id` | Filter an NPD lead's collaborators by id |
+
+## `project_summary_v`
+
+One row per project, with or without team, for the projects list and detail. Employees on Baja are not counted.
+
+| Column | Meaning |
+|---|---|
+| `project_id`, `client_id`, `client`, `is_internal`, `project`, `active` | The project and its client |
+| `start_date` | Day the project was created |
+| `contract_end_date` | Contract end with the client |
+| `team_size` | Employees on the project; `0` = "Sin equipo" |
+| `pending_confirmation` | Team members whose `project_end_date` has passed ("N por confirmar") |
+| `next_assignment_end` | Earliest `project_end_date` still to come |
+| `indefinite_count` | Team members without `project_end_date` (INDEFINIDO) |
+
+## API rules (not enforced by the database)
+
+- **Baja**: termination reason and date are required, and the employee leaves the project (`project_id` = NULL). A `CHECK` cannot read the status code, so the employee service enforces it.
+- **Deactivating a project** is only allowed when no active employee is on it.
+- **Bulk assignment** updates every employee in one transaction, checking each `version`: if one fails, nobody is assigned.
 
 ## Mapping of the planner columns
 
