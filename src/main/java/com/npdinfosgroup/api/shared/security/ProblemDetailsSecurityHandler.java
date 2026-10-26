@@ -16,6 +16,7 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.access.AccessDeniedHandler;
+import org.springframework.security.web.csrf.CsrfException;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.LocaleResolver;
 import tools.jackson.databind.json.JsonMapper;
@@ -69,6 +70,9 @@ class ProblemDetailsSecurityHandler implements AuthenticationEntryPoint, AccessD
 
 	/**
 	 * Answers 403 when the user's role does not allow the operation.
+	 * <p>
+	 * A CSRF rejection answers 401 instead: requests with a bearer token skip the CSRF check, so only a
+	 * write without token gets here, and the user has to sign in, not ask for another role.
 	 *
 	 * @param request current request
 	 * @param response response to write
@@ -78,6 +82,11 @@ class ProblemDetailsSecurityHandler implements AuthenticationEntryPoint, AccessD
 	@Override
 	public void handle(HttpServletRequest request, HttpServletResponse response,
 			AccessDeniedException accessDeniedException) throws IOException {
+		if (accessDeniedException instanceof CsrfException) {
+			response.setHeader(HttpHeaders.WWW_AUTHENTICATE, "Bearer");
+			write(request, response, ErrorCode.UNAUTHORIZED);
+			return;
+		}
 		write(request, response, ErrorCode.FORBIDDEN);
 	}
 

@@ -24,6 +24,10 @@ import org.springframework.security.web.SecurityFilterChain;
  * route and method, so a hidden button in the frontend is never the only barrier. Only the health
  * check and, in dev mode, the API docs are public.
  * <p>
+ * CSRF protection stays on. The resource server skips it for requests with a bearer token, which is
+ * how the frontend calls the API, so it only stops writes without token; those answer 401 (see
+ * {@link ProblemDetailsSecurityHandler}).
+ * <p>
  * Only loaded with the web server: the planner import runs without one and has no requests to secure.
  */
 @Configuration(proxyBeanMethods = false)
