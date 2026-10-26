@@ -91,8 +91,7 @@ class ResourceController {
 	@ApiResponse(responseCode = "503", description = "La base de datos no respondió; no se guardó nada (`SERVICE_UNAVAILABLE`)",
 			content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemDetail.class)))
 	ResponseEntity<ResourceResponse> register(@RequestBody RegisterResourceRequest request) {
-		ResourceResponse resource = registrationService
-			.register(new RegisterResourceCommand(request, currentUser.username()));
+		ResourceResponse resource = registrationService.register(new RegisterResourceCommand(request, currentUser.username()));
 		URI location = ServletUriComponentsBuilder.fromCurrentRequestUri()
 			.path("/{id}")
 			.buildAndExpand(resource.id())
