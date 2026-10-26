@@ -8,6 +8,8 @@ It is a command, not an endpoint: the application imports the file when it start
 
 ## Run it
 
+Step-by-step flow and commands for this repo (Maven or Docker), the infra repo's global compose and Railway: [ejecucion.md](ejecucion.md).
+
 The database must have the migrations (Flyway applies them when the application starts). Put the Excel in a folder without spaces, for example `C:\import\planner.xlsx`.
 
 **Local database** (Docker Desktop running; `spring-boot-docker-compose` starts the `postgres` service):

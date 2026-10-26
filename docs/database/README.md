@@ -8,6 +8,7 @@ PostgreSQL 18 schema, versioned with Flyway in [`src/main/resources/db/migration
 | `V2__create_employee.sql` | `employee` and the `resource_v` view |
 | `V3__prepare_planner_import.sql` | "No especificado" values for required fields the planner leaves empty |
 | `V4__projects_and_assignment_view.sql` | `project.contract_end_date`; `resource_v` with ids and project dates; `project_summary_v` |
+| `V5__create_audit_log.sql` | `audit_log`: who changed what and when, one row per field |
 
 Images: [`er-diagram.png`](er-diagram.png). Editable diagram: [`er-diagram.drawio`](er-diagram.drawio) (open at https://app.diagrams.net).
 
@@ -149,6 +150,20 @@ One row per project, with or without team, for the projects list and detail. Emp
 | `pending_confirmation` | Team members whose `project_end_date` has passed ("N por confirmar") |
 | `next_assignment_end` | Earliest `project_end_date` still to come |
 | `indefinite_count` | Team members without `project_end_date` (INDEFINIDO) |
+
+## `audit_log`
+
+Change history of the records written through the API (not of the one-time import). One row per field, only inserted:
+
+| Column | Meaning |
+|---|---|
+| `entity_type`, `entity_id` | Audited record, for example `employee` and its id |
+| `action` | `CREATE` (initial values, `old_value` NULL) or `UPDATE` (only the fields that changed) |
+| `field` | Field as the API names it (`workMode`, `assignment.project`...) |
+| `old_value`, `new_value` | Values as the user sees them (names, not ids; `Indefinido` for no end date) |
+| `actor`, `occurred_at` | `preferred_username` of the Keycloak token, and when |
+
+The audit rows are written in the same transaction as the change, so both are saved or neither is.
 
 ## API rules (not enforced by the database)
 
