@@ -9,7 +9,6 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -44,8 +43,7 @@ class SecurityConfig {
 	@Bean
 	SecurityFilterChain apiSecurity(HttpSecurity http, ProblemDetailsSecurityHandler errorHandler) throws Exception {
 		String operationsAdministrator = Role.OPERATIONS_ADMINISTRATOR.realmName();
-		http.csrf(AbstractHttpConfigurer::disable)
-			.sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+		http.sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 			.authorizeHttpRequests(auth -> auth
 				// The docs are off outside APP_DEV_MODE, so these routes answer 404 there
 				.requestMatchers("/actuator/health/**", "/v3/api-docs/**", "/scalar/**", "/error").permitAll()
