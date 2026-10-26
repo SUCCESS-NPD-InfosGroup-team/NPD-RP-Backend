@@ -10,7 +10,6 @@ import com.npdinfosgroup.api.planner.dto.request.RegisterResourceRequest;
 import com.npdinfosgroup.api.planner.dto.response.ResourceResponse;
 import com.npdinfosgroup.api.planner.persistence.entity.Employee;
 import com.npdinfosgroup.api.planner.persistence.repository.EmployeeRepository;
-import com.npdinfosgroup.api.planner.persistence.repository.ResourceRepository;
 import com.npdinfosgroup.api.planner.service.mapper.ResourceMapper;
 import com.npdinfosgroup.api.shared.exception.ApiException;
 import com.npdinfosgroup.api.shared.exception.ErrorCode;
@@ -40,7 +39,7 @@ public class ResourceRegistrationService {
 
 	private final EmployeeRepository employees;
 
-	private final ResourceRepository resources;
+	private final ResourceQueryService queries;
 
 	private final AuditService audit;
 
@@ -51,15 +50,15 @@ public class ResourceRegistrationService {
 	 *
 	 * @param validator checks the request
 	 * @param employees saves the employee
-	 * @param resources reads the saved record
+	 * @param queries gives the situation of the saved record
 	 * @param audit records the initial values
 	 * @param mapper builds the response and the audited values
 	 */
 	ResourceRegistrationService(ResourceRequestValidator validator, EmployeeRepository employees,
-			ResourceRepository resources, AuditService audit, ResourceMapper mapper) {
+			ResourceQueryService queries, AuditService audit, ResourceMapper mapper) {
 		this.validator = validator;
 		this.employees = employees;
-		this.resources = resources;
+		this.queries = queries;
 		this.audit = audit;
 		this.mapper = mapper;
 	}
@@ -92,7 +91,9 @@ public class ResourceRegistrationService {
 			throw ex;
 		}
 		long id = employee.getId();
-		ResourceResponse response = mapper.toResponse(resources.findResource(id).orElseThrow(), command.actor());
+		// Loads what the database set: generated columns and the names of the related catalogs
+		employees.refresh(employee);
+		ResourceResponse response = mapper.toResponse(employee, queries.situationOf(id), command.actor());
 		audit.recordCreation(ResourceQueryService.AUDIT_ENTITY, id, mapper.auditValues(response), command.actor());
 		log.info("Resource {} registered", id);
 		return response;

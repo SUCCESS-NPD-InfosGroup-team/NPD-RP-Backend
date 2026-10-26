@@ -12,7 +12,6 @@ import com.npdinfosgroup.api.history.service.AuditService;
 import com.npdinfosgroup.api.planner.dto.request.RegisterResourceCommand;
 import com.npdinfosgroup.api.planner.dto.request.RegisterResourceRequest;
 import com.npdinfosgroup.api.planner.persistence.repository.EmployeeRepository;
-import com.npdinfosgroup.api.planner.persistence.repository.ResourceRepository;
 import com.npdinfosgroup.api.planner.service.mapper.ResourceMapper;
 import com.npdinfosgroup.api.shared.exception.ApiException;
 import com.npdinfosgroup.api.shared.exception.ErrorCode;
@@ -31,7 +30,7 @@ class ResourceRegistrationServiceTest {
 	private final EmployeeRepository employees = mock();
 
 	private final ResourceRegistrationService service = new ResourceRegistrationService(validator, employees,
-			mock(ResourceRepository.class), mock(AuditService.class), mock(ResourceMapper.class));
+			mock(ResourceQueryService.class), mock(AuditService.class), mock(ResourceMapper.class));
 
 	private final RegisterResourceCommand command = new RegisterResourceCommand(new RegisterResourceRequest("1045",
 			"Ana Torres", null, null, 1L, null, null, (short) 1, (short) 1, null, LocalDate.of(2026, 8, 3), "ACTIVO",

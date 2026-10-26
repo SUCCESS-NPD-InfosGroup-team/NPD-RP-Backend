@@ -183,10 +183,15 @@ class ResourceControllerTest {
 	 */
 	@Test
 	void registersResourceWithoutProjectAndWithIndefiniteEnd() {
-		post(ADMIN, validRequest("1103")).expectStatus()
+		Map<String, Object> withoutProject = validRequest("1103");
+		withoutProject.put("businessUnitId", catalogId("business_unit", "AE"));
+		withoutProject.put("talentReviewId", catalogId("talent_review", "DILEMA"));
+		post(ADMIN, withoutProject).expectStatus()
 			.isCreated()
 			.expectBody()
 			.jsonPath("$.situation.code").isEqualTo("SIN_PROYECTO")
+			.jsonPath("$.businessUnit.name").isEqualTo("AE")
+			.jsonPath("$.talentReview.name").isEqualTo("Dilema")
 			.jsonPath("$.assignment").doesNotExist();
 
 		Map<String, Object> indefinite = validRequest("1104");
@@ -460,6 +465,30 @@ class ResourceControllerTest {
 			.jsonPath("$.fieldsToFix").isEqualTo(List.of("workModeId", "assignment.projectId"))
 			.jsonPath("$.assignment.indefinite").isEqualTo(true)
 			.jsonPath("$.updatedBy").doesNotExist();
+	}
+
+	/**
+	 * The "Líder NPD" selector offers who leads someone today, except those on Baja; whoever leads
+	 * nobody is not offered.
+	 */
+	@Test
+	void listsNpdLeads() {
+		long led = insertEmployee("RT-C1", "Colaborador uno", "ACTIVO", workModeId, null);
+		long ledByTerminated = insertEmployee("RT-C2", "Colaborador dos", "ACTIVO", workModeId, null);
+		jdbc.sql("UPDATE employee SET leader_id = :leader WHERE id = :id").param("leader", leaderId).param("id", led)
+			.update();
+		jdbc.sql("UPDATE employee SET leader_id = :leader WHERE id = :id")
+			.param("leader", terminatedLeaderId)
+			.param("id", ledByTerminated)
+			.update();
+
+		client.get().uri(RESOURCES + "/npd-leads").header(AUTHORIZATION, "Bearer guest").exchange()
+			.expectStatus().isOk()
+			.expectBody()
+			.jsonPath("$.items[*].name").isEqualTo(List.of("Lorena Batista"))
+			.jsonPath("$.items[0].id").value(Number.class, id(leaderId));
+
+		client.get().uri(RESOURCES + "/npd-leads").exchange().expectStatus().isUnauthorized();
 	}
 
 	private RestTestClient.ResponseSpec post(String token, Object body) {

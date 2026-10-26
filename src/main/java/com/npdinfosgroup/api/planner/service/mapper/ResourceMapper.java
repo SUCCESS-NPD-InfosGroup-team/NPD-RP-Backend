@@ -14,8 +14,9 @@ import com.npdinfosgroup.api.planner.dto.response.CodeLabel;
 import com.npdinfosgroup.api.planner.dto.response.IdName;
 import com.npdinfosgroup.api.planner.dto.response.ResourceResponse;
 import com.npdinfosgroup.api.planner.dto.response.TerminationResponse;
-import com.npdinfosgroup.api.planner.persistence.repository.ResourceRepository.Ref;
-import com.npdinfosgroup.api.planner.persistence.repository.ResourceRepository.ResourceRow;
+import com.npdinfosgroup.api.planner.persistence.entity.CatalogEntity;
+import com.npdinfosgroup.api.planner.persistence.entity.Employee;
+import com.npdinfosgroup.api.planner.persistence.entity.Project;
 import org.springframework.context.MessageSource;
 import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.stereotype.Component;
@@ -43,27 +44,30 @@ public class ResourceMapper {
 	 * {@code fieldsToFix} lists the fields that still hold an imported "No especificado" value, so the
 	 * edit form can highlight them.
 	 *
-	 * @param row the stored resource
+	 * Reads the related catalogs of the employee, so it must run inside the transaction that loaded it.
+	 *
+	 * @param employee the stored resource
+	 * @param situation its situation, calculated by {@code resource_v}
 	 * @param updatedBy who changed it last through the API, if anyone
 	 * @return the response
 	 */
-	public ResourceResponse toResponse(ResourceRow row, String updatedBy) {
+	public ResourceResponse toResponse(Employee employee, String situation, String updatedBy) {
 		Locale locale = LocaleContextHolder.getLocale();
 		List<String> fieldsToFix = new ArrayList<>();
-		if (row.workModality() != null && !row.workModalityActive()) {
+		if (employee.getWorkModality() != null && !employee.getWorkModality().isActive()) {
 			fieldsToFix.add("workModeId");
 		}
-		if (row.project() != null && !row.projectActive()) {
+		if (employee.getProject() != null && !employee.getProject().isActive()) {
 			fieldsToFix.add("assignment.projectId");
 		}
-		return new ResourceResponse(row.id(), row.code(), row.fullName(), row.email(), idName(row.jobTitle()),
-				idName(row.jobPosition()), row.level(), idName(row.businessUnit()), idName(row.workModality()),
-				idName(row.gender()), idName(row.talentReview()), row.hireDate(), row.probationEndDate(),
-				new CodeLabel(row.statusCode(), row.statusName()),
-				new CodeLabel(row.situation(),
-						messages.getMessage("resource.situation." + row.situation(), null, row.situation(), locale)),
-				assignment(row), termination(row), List.copyOf(fieldsToFix), row.version(), row.updatedAt(),
-				updatedBy);
+		return new ResourceResponse(employee.getId(), employee.getCode(), employee.getFullName(), employee.getEmail(),
+				idName(employee.getJobTitle()), idName(employee.getJobPosition()), employee.getLevel(),
+				idName(employee.getBusinessUnit()), idName(employee.getWorkModality()), idName(employee.getGender()),
+				idName(employee.getTalentReview()), employee.getHireDate(), employee.getProbationEndDate(),
+				new CodeLabel(employee.getStatus().getCode(), employee.getStatus().getName()),
+				new CodeLabel(situation, messages.getMessage("resource.situation." + situation, null, situation, locale)),
+				assignment(employee), termination(employee), List.copyOf(fieldsToFix), employee.getVersion(),
+				employee.getUpdatedAt(), updatedBy);
 	}
 
 	/**
@@ -109,25 +113,29 @@ public class ResourceMapper {
 		return values;
 	}
 
-	private static AssignmentResponse assignment(ResourceRow row) {
-		if (row.project() == null) {
+	private static AssignmentResponse assignment(Employee employee) {
+		Project project = employee.getProject();
+		if (project == null) {
 			return null;
 		}
-		return new AssignmentResponse(idName(row.client()),
-				new AssignmentProjectResponse(row.project().id(), row.project().name(), row.contractEndDate()),
-				idName(row.leader()), idName(row.clientRole()), idName(row.equipmentProvider()), row.projectEndDate(),
-				row.projectEndDate() == null, row.clientContactEmail());
+		Employee leader = employee.getLeader();
+		return new AssignmentResponse(new IdName(project.getClient().getId(), project.getClient().getName()),
+				new AssignmentProjectResponse(project.getId(), project.getName(), project.getContractEndDate()),
+				leader == null ? null : new IdName(leader.getId(), leader.getFullName()),
+				idName(employee.getClientRole()), idName(employee.getEquipmentProvider()),
+				employee.getProjectEndDate(), employee.getProjectEndDate() == null,
+				employee.getClientContactEmail());
 	}
 
-	private static TerminationResponse termination(ResourceRow row) {
-		if (row.terminationDate() == null && row.terminationReason() == null) {
+	private static TerminationResponse termination(Employee employee) {
+		if (employee.getTerminationDate() == null && employee.getTerminationReason() == null) {
 			return null;
 		}
-		return new TerminationResponse(row.terminationDate(), idName(row.terminationReason()));
+		return new TerminationResponse(employee.getTerminationDate(), idName(employee.getTerminationReason()));
 	}
 
-	private static IdName idName(Ref ref) {
-		return ref == null ? null : new IdName(ref.id(), ref.name());
+	private static IdName idName(CatalogEntity value) {
+		return value == null ? null : new IdName(value.getId().longValue(), value.getName());
 	}
 
 	private static String name(IdName value) {

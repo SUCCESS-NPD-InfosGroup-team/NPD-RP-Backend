@@ -4,6 +4,8 @@ import java.net.URI;
 
 import com.npdinfosgroup.api.planner.dto.request.RegisterResourceCommand;
 import com.npdinfosgroup.api.planner.dto.request.RegisterResourceRequest;
+import com.npdinfosgroup.api.planner.dto.response.IdName;
+import com.npdinfosgroup.api.planner.dto.response.ItemsResponse;
 import com.npdinfosgroup.api.planner.dto.response.ResourceResponse;
 import com.npdinfosgroup.api.planner.service.ResourceQueryService;
 import com.npdinfosgroup.api.planner.service.ResourceRegistrationService;
@@ -115,6 +117,22 @@ class ResourceController {
 			content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemDetail.class)))
 	ResponseEntity<ResourceResponse> get(@Parameter(description = "Id del recurso") @PathVariable long id) {
 		return ResponseEntity.ok(queryService.get(id));
+	}
+
+	/**
+	 * The NPD leads that can be chosen in the "Líder NPD" selector.
+	 *
+	 * @return 200 with the leads
+	 */
+	@GetMapping(path = "/npd-leads", version = "v1")
+	@Operation(summary = "Líderes NPD", description = """
+			Colaboradores que hoy lideran al menos a otro y no están de Baja, por nombre, como \
+			`{ id, name }`. Todos los roles.""")
+	@ApiResponse(responseCode = "200", description = "Los líderes")
+	@ApiResponse(responseCode = "401", description = "Sin token o token inválido (`UNAUTHORIZED`)",
+			content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemDetail.class)))
+	ResponseEntity<ItemsResponse<IdName>> listNpdLeads() {
+		return ResponseEntity.ok(queryService.findNpdLeads());
 	}
 
 }

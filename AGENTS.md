@@ -19,6 +19,17 @@ Stack: **Java 21**, **Spring Boot 4.1.1**, PostgreSQL 18, Flyway, JPA, Lombok. D
 - **Arquitectura en capas dentro de cada módulo.** No es Domain-Driven Design: el diseño está **centrado en datos** (entidades JPA + servicios), sin agregados, value objects ni eventos de dominio.
 - El esquema de base de datos lo controla **Flyway** (`spring.jpa.hibernate.ddl-auto=validate`); Hibernate nunca crea ni modifica tablas.
 
+### Acceso a datos: solo repositorios JPA
+
+Decisión del equipo: todo el código que atiende a usuarios (endpoints y los servicios que usan) accede a la base **solo con repositorios de Spring Data JPA**.
+
+- Usa métodos derivados (`findByActiveTrueOrderByNameAsc`), `@EntityGraph` para traer relaciones en una consulta y, si no alcanza, `@Query` en **JPQL con parámetros con nombre**.
+- No uses `JdbcClient`, `JdbcTemplate`, SQL nativo ni SQL armado concatenando texto. Así no hay SQL escrito a mano en código que recibe datos del usuario, y la protección contra inyección SQL no depende de revisar cada consulta.
+- Las entidades reflejan las tablas que crea Flyway, y Hibernate **solo las valida** (`ddl-auto=validate`). Si una entidad no coincide con su tabla (nombre o tipo de columna), la aplicación no arranca: corrige la entidad o crea una migración nueva.
+- Las vistas (`resource_v`, `project_summary_v`) se mapean como entidades de solo lectura (`@Immutable`) con un repositorio que solo lee.
+- Una relación que se escribe por su id (por ejemplo, `Employee.genderId`) puede tener además su `@ManyToOne` de solo lectura (`insertable = false, updatable = false`) para leer los nombres.
+- **Única excepción:** la importación del Excel (`planner/importer`, `PlannerImportRepository`) usa `JdbcClient`. Es una carga única que ejecutan los desarrolladores desde la línea de comandos, no un endpoint, y no recibe datos por la API.
+
 ### Capas (paquetes que se repiten en los módulos)
 
 | Paquete       | Responsabilidad |

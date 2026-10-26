@@ -14,9 +14,10 @@ import com.npdinfosgroup.api.planner.dto.request.AssignmentRequest;
 import com.npdinfosgroup.api.planner.dto.request.RegisterResourceRequest;
 import com.npdinfosgroup.api.planner.dto.request.TerminationRequest;
 import com.npdinfosgroup.api.planner.persistence.entity.Employee;
+import com.npdinfosgroup.api.planner.persistence.entity.Project;
+import com.npdinfosgroup.api.planner.persistence.repository.Catalog;
 import com.npdinfosgroup.api.planner.persistence.repository.EmployeeRepository;
-import com.npdinfosgroup.api.planner.persistence.repository.ResourceRepository;
-import com.npdinfosgroup.api.planner.persistence.repository.ResourceRepository.Catalog;
+import com.npdinfosgroup.api.planner.persistence.repository.ProjectRepository;
 import com.npdinfosgroup.api.shared.exception.ApiException;
 import com.npdinfosgroup.api.shared.exception.ErrorCode;
 import com.npdinfosgroup.api.shared.exception.FieldErrorCode;
@@ -55,7 +56,9 @@ class ResourceRequestValidator {
 
 	private final Validator validator;
 
-	private final ResourceRepository resources;
+	private final CatalogService catalogs;
+
+	private final ProjectRepository projects;
 
 	private final EmployeeRepository employees;
 
@@ -65,14 +68,16 @@ class ResourceRequestValidator {
 	 * Creates the validator.
 	 *
 	 * @param validator Jakarta Bean Validation
-	 * @param resources catalog, project and lead checks
-	 * @param employees duplicate checks
+	 * @param catalogs catalog and status checks
+	 * @param projects project checks
+	 * @param employees lead and duplicate checks
 	 * @param clock gives today for the "already passed" rule
 	 */
-	ResourceRequestValidator(Validator validator, ResourceRepository resources, EmployeeRepository employees,
-			Clock clock) {
+	ResourceRequestValidator(Validator validator, CatalogService catalogs, ProjectRepository projects,
+			EmployeeRepository employees, Clock clock) {
 		this.validator = validator;
-		this.resources = resources;
+		this.catalogs = catalogs;
+		this.projects = projects;
 		this.employees = employees;
 		this.clock = clock;
 	}
@@ -89,12 +94,12 @@ class ResourceRequestValidator {
 	short validateNew(RegisterResourceRequest request) {
 		List<FieldProblem> problems = new ArrayList<>(constraintProblems(validator.validate(request), ""));
 		Optional<Short> statusId = checkStatus(request.status(), problems);
-		checkCatalog(problems, "jobTitleId", Catalog.JOB_TITLE, request.jobTitleId());
-		checkCatalog(problems, "positionId", Catalog.JOB_POSITION, request.positionId());
-		checkCatalog(problems, "businessUnitId", Catalog.BUSINESS_UNIT, request.businessUnitId());
-		checkCatalog(problems, "workModeId", Catalog.WORK_MODALITY, request.workModeId());
-		checkCatalog(problems, "genderId", Catalog.GENDER, request.genderId());
-		checkCatalog(problems, "talentReviewId", Catalog.TALENT_REVIEW, request.talentReviewId());
+		checkCatalog(problems, "jobTitleId", Catalog.JOB_TITLES, request.jobTitleId());
+		checkCatalog(problems, "positionId", Catalog.POSITIONS, request.positionId());
+		checkCatalog(problems, "businessUnitId", Catalog.BUSINESS_UNITS, request.businessUnitId());
+		checkCatalog(problems, "workModeId", Catalog.WORK_MODES, request.workModeId());
+		checkCatalog(problems, "genderId", Catalog.GENDERS, request.genderId());
+		checkCatalog(problems, "talentReviewId", Catalog.TALENT_REVIEWS, request.talentReviewId());
 		if (isTerminated(request)) {
 			checkTermination(request.termination(), request.hireDate(), problems);
 		}
@@ -156,7 +161,7 @@ class ResourceRequestValidator {
 		if (status == null || status.isBlank()) {
 			return Optional.empty();
 		}
-		Optional<Short> statusId = resources.findStatusId(status.strip().toUpperCase(Locale.ROOT));
+		Optional<Short> statusId = catalogs.findStatusId(status.strip().toUpperCase(Locale.ROOT));
 		if (statusId.isEmpty()) {
 			problems.add(FieldProblem.of("status", FieldErrorCode.UNKNOWN_VALUE));
 		}
@@ -170,7 +175,7 @@ class ResourceRequestValidator {
 			return;
 		}
 		problems.addAll(constraintProblems(validator.validate(termination), "termination."));
-		checkCatalog(problems, "termination.reasonId", Catalog.TERMINATION_REASON, termination.reasonId());
+		checkCatalog(problems, "termination.reasonId", Catalog.TERMINATION_REASONS, termination.reasonId());
 		if (termination.date() != null && hireDate != null && termination.date().isBefore(hireDate)) {
 			problems.add(FieldProblem.of("termination.date", FieldErrorCode.DATE_BEFORE_HIRE));
 		}
@@ -179,19 +184,21 @@ class ResourceRequestValidator {
 	private void checkAssignment(AssignmentRequest assignment, List<FieldProblem> problems) {
 		problems.addAll(constraintProblems(validator.validate(assignment), "assignment."));
 		if (assignment.projectId() != null) {
-			resources.findProjectActive(assignment.projectId())
+			projects.findById(assignment.projectId())
+				.map(Project::isActive)
 				.ifPresentOrElse(active -> addIf(!active, problems, "assignment.projectId", FieldErrorCode.INACTIVE_PROJECT),
 						() -> problems.add(FieldProblem.of("assignment.projectId", FieldErrorCode.UNKNOWN_ID)));
 		}
 		if (assignment.leaderId() != null) {
-			resources.findStatusCode(assignment.leaderId())
+			employees.findById(assignment.leaderId())
+				.map(leader -> leader.getStatus().getCode())
 				.ifPresentOrElse(
 						status -> addIf(TERMINATED.equals(status), problems, "assignment.leaderId",
 								FieldErrorCode.INACTIVE_LEADER),
 						() -> problems.add(FieldProblem.of("assignment.leaderId", FieldErrorCode.UNKNOWN_ID)));
 		}
-		checkCatalog(problems, "assignment.clientRoleId", Catalog.CLIENT_ROLE, assignment.clientRoleId());
-		checkCatalog(problems, "assignment.equipmentId", Catalog.EQUIPMENT_PROVIDER, assignment.equipmentId());
+		checkCatalog(problems, "assignment.clientRoleId", Catalog.CLIENT_ROLES, assignment.clientRoleId());
+		checkCatalog(problems, "assignment.equipmentId", Catalog.EQUIPMENT, assignment.equipmentId());
 		if (assignment.isIndefinite() && assignment.endDate() != null) {
 			problems.add(FieldProblem.of(ASSIGNMENT_END_DATE, FieldErrorCode.CONFLICTING_VALUES));
 		}
@@ -214,7 +221,7 @@ class ResourceRequestValidator {
 		if (id == null) {
 			return;
 		}
-		resources.findActive(catalog, id.longValue())
+		catalogs.findActive(catalog, id)
 			.ifPresentOrElse(active -> addIf(!active, problems, field, FieldErrorCode.NOT_SPECIFIED_VALUE),
 					() -> problems.add(FieldProblem.of(field, FieldErrorCode.UNKNOWN_ID)));
 	}
