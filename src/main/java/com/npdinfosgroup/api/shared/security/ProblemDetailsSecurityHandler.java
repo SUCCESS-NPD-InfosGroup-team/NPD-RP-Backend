@@ -8,6 +8,7 @@ import com.npdinfosgroup.api.shared.exception.ErrorCode;
 import com.npdinfosgroup.api.shared.exception.ProblemDetailFactory;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ProblemDetail;
@@ -24,9 +25,11 @@ import tools.jackson.databind.json.JsonMapper;
  * other error of the API.
  * <p>
  * These errors happen in the security filters, before the request reaches a controller, so
- * {@code GlobalExceptionHandler} never sees them.
+ * {@code GlobalExceptionHandler} never sees them. Only loaded with the web server: the planner import
+ * runs without one.
  */
 @Component
+@ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
 class ProblemDetailsSecurityHandler implements AuthenticationEntryPoint, AccessDeniedHandler {
 
 	private final ProblemDetailFactory problems;

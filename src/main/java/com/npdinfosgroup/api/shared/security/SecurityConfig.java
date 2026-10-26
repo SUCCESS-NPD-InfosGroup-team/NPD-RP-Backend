@@ -4,6 +4,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
+import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -23,8 +24,11 @@ import org.springframework.security.web.SecurityFilterChain;
  * Roles come from the token's {@code realm_access.roles} claim and permissions are checked here, by
  * route and method, so a hidden button in the frontend is never the only barrier. Only the health
  * check and, in dev mode, the API docs are public.
+ * <p>
+ * Only loaded with the web server: the planner import runs without one and has no requests to secure.
  */
 @Configuration(proxyBeanMethods = false)
+@ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
 class SecurityConfig {
 
 	private static final String ROLE_PREFIX = "ROLE_";
