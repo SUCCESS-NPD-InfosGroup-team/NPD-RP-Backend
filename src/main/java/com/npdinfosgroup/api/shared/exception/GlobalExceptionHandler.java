@@ -54,7 +54,7 @@ class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 		ex.getProperties().forEach(problem::setProperty);
 		if (ex instanceof ValidationException validation) {
 			problem.setProperty("errors",
-					validation.getProblems().stream().map(field -> problems.fieldError(field, locale)).toList());
+					validation.getProblems().stream().map(field -> problems.fieldError(validation.getScope(), field, locale)).toList());
 		}
 		return ResponseEntity.status(ex.getCode().status()).body(problem);
 	}

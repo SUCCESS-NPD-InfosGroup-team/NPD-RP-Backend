@@ -54,17 +54,20 @@ public class ProblemDetailFactory {
 	/**
 	 * Builds one entry of the {@code errors} list.
 	 * <p>
-	 * The message is looked up first for the specific field ({@code validation.<field>.<CODE>}), so a
-	 * field can have its own wording, and then for the code alone ({@code validation.<CODE>}).
+	 * The message is looked up first for the specific field of the form
+	 * ({@code validation.<scope>.<field>.<CODE>}), so a field can have its own wording, and then for the
+	 * code alone ({@code validation.<CODE>}).
 	 *
+	 * @param scope form the field belongs to, for example {@code resource}
 	 * @param problem the rejected field
 	 * @param locale language of the message
 	 * @return {@code field}, {@code code}, {@code message} and the problem's extra details
 	 */
-	public Map<String, Object> fieldError(FieldProblem problem, Locale locale) {
+	public Map<String, Object> fieldError(String scope, FieldProblem problem, Locale locale) {
 		Object[] args = problem.messageArgs().toArray();
 		String code = problem.code().name();
-		String message = messages.getMessage("validation." + problem.field() + "." + code, args, null, locale);
+		String message = messages.getMessage("validation." + scope + "." + problem.field() + "." + code, args, null,
+				locale);
 		if (message == null) {
 			message = messages.getMessage("validation." + code, args, locale);
 		}

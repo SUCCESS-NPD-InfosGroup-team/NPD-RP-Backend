@@ -80,6 +80,30 @@ class ClientControllerTest {
 		get(emptyClientId, "Bearer guest").expectStatus().isOk().expectBody().jsonPath("$.items").isEmpty();
 	}
 
+	/**
+	 * The clients go by name: the active ones by default and the inactive ones when asked for, where
+	 * the imported "No especificado" client is.
+	 */
+	@Test
+	void listsClients() {
+		jdbc.sql("INSERT INTO client (name, is_internal) VALUES ('CL INFOSGROUP', true)").update();
+		jdbc.sql("INSERT INTO client (name, active) VALUES ('CL Antiguo', false)").update();
+
+		client.get().uri("/api/v1/clients").header(AUTHORIZATION, "Bearer guest").exchange()
+			.expectStatus().isOk()
+			.expectBody()
+			.jsonPath("$.items[?(@.name =~ /CL .*/)].name")
+			.isEqualTo(List.of("CL BANESCO", "CL INFOSGROUP", "CL Sin proyectos"))
+			.jsonPath("$.items[?(@.name == 'CL INFOSGROUP')].isInternal").isEqualTo(List.of(true))
+			.jsonPath("$.items[?(@.name == 'No especificado')]").doesNotExist();
+
+		client.get().uri("/api/v1/clients?active=false").header(AUTHORIZATION, "Bearer guest").exchange()
+			.expectStatus().isOk()
+			.expectBody()
+			.jsonPath("$.items[?(@.name =~ /CL .*/)].name").isEqualTo(List.of("CL Antiguo"))
+			.jsonPath("$.items[?(@.name == 'No especificado')]").exists();
+	}
+
 	/** An unknown client is a 404; without a token, a 401. */
 	@Test
 	void unknownClientOrNoToken() {

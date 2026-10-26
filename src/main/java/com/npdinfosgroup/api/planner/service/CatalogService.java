@@ -8,9 +8,9 @@ import java.util.Optional;
 import com.npdinfosgroup.api.planner.dto.response.CodeLabel;
 import com.npdinfosgroup.api.planner.dto.response.IdName;
 import com.npdinfosgroup.api.planner.dto.response.ItemsResponse;
+import com.npdinfosgroup.api.planner.persistence.entity.Catalog;
 import com.npdinfosgroup.api.planner.persistence.entity.CatalogEntity;
 import com.npdinfosgroup.api.planner.persistence.entity.ResourceStatus;
-import com.npdinfosgroup.api.planner.persistence.repository.Catalog;
 import com.npdinfosgroup.api.planner.persistence.repository.CatalogEntityRepository;
 import com.npdinfosgroup.api.planner.persistence.repository.ResourceStatusRepository;
 import com.npdinfosgroup.api.shared.exception.NotFoundException;
@@ -88,7 +88,7 @@ public class CatalogService {
 	 * @return {@code true} if active, {@code false} if inactive ("No especificado"), empty if it does
 	 *         not exist
 	 */
-	Optional<Boolean> findActive(Catalog catalog, Number id) {
+	public Optional<Boolean> findActive(Catalog catalog, Number id) {
 		return repositories.get(catalog).findActiveById(id.longValue());
 	}
 
@@ -98,7 +98,7 @@ public class CatalogService {
 	 * @param code status code (ACTIVO, LICENCIA, BAJA)
 	 * @return its id, or empty if there is no active status with that code
 	 */
-	Optional<Short> findStatusId(String code) {
+	public Optional<Short> findStatusId(String code) {
 		return statuses.findByCodeAndActiveTrue(code).map(ResourceStatus::getId);
 	}
 

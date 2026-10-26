@@ -13,6 +13,7 @@ import com.npdinfosgroup.api.planner.dto.request.RegisterResourceCommand;
 import com.npdinfosgroup.api.planner.dto.request.RegisterResourceRequest;
 import com.npdinfosgroup.api.planner.persistence.repository.EmployeeRepository;
 import com.npdinfosgroup.api.planner.service.mapper.ResourceMapper;
+import com.npdinfosgroup.api.planner.service.validator.ResourceRequestValidator;
 import com.npdinfosgroup.api.shared.exception.ApiException;
 import com.npdinfosgroup.api.shared.exception.ErrorCode;
 import org.junit.jupiter.api.BeforeEach;

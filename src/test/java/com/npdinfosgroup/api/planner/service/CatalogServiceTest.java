@@ -6,7 +6,7 @@ import static org.mockito.Mockito.when;
 
 import java.util.List;
 
-import com.npdinfosgroup.api.planner.persistence.repository.Catalog;
+import com.npdinfosgroup.api.planner.persistence.entity.Catalog;
 import com.npdinfosgroup.api.planner.persistence.repository.GenderRepository;
 import com.npdinfosgroup.api.planner.persistence.repository.ResourceStatusRepository;
 import org.junit.jupiter.api.Test;

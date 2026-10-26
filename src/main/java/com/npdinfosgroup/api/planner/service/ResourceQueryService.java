@@ -9,6 +9,7 @@ import com.npdinfosgroup.api.planner.persistence.entity.ResourceSituation;
 import com.npdinfosgroup.api.planner.persistence.repository.EmployeeRepository;
 import com.npdinfosgroup.api.planner.persistence.repository.ResourceSituationRepository;
 import com.npdinfosgroup.api.planner.service.mapper.ResourceMapper;
+import com.npdinfosgroup.api.planner.service.validator.ResourceRequestValidator;
 import com.npdinfosgroup.api.shared.exception.NotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;

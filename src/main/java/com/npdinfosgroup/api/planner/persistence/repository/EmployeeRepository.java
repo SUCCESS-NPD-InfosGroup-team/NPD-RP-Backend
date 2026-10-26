@@ -1,9 +1,11 @@
 package com.npdinfosgroup.api.planner.persistence.repository;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
 import com.npdinfosgroup.api.planner.persistence.entity.Employee;
+import com.npdinfosgroup.api.planner.persistence.query.ProjectLead;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -54,5 +56,22 @@ public interface EmployeeRepository extends JpaRepository<Employee, Long>, Emplo
 			  AND EXISTS (SELECT 1 FROM Employee e WHERE e.leaderId = l.id)
 			ORDER BY l.fullName""")
 	List<Employee> findLeadsExcludingStatus(@Param("excludedStatus") String excludedStatus);
+
+	/**
+	 * The NPD leads of the collaborators of some projects, by name, not counting collaborators with a
+	 * status.
+	 *
+	 * @param projectIds project ids
+	 * @param excludedStatus status code of the collaborators that do not count (Baja)
+	 * @return one row per project and lead
+	 */
+	@Query("""
+			SELECT DISTINCT new com.npdinfosgroup.api.planner.persistence.query.ProjectLead(
+			       e.projectId, l.id, l.fullName)
+			FROM Employee e JOIN e.leader l
+			WHERE e.projectId IN :projectIds AND e.status.code <> :excludedStatus
+			ORDER BY l.fullName""")
+	List<ProjectLead> findProjectLeads(@Param("projectIds") Collection<Long> projectIds,
+			@Param("excludedStatus") String excludedStatus);
 
 }

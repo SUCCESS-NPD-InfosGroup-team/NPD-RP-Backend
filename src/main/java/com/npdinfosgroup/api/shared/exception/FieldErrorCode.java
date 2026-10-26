@@ -30,6 +30,9 @@ public enum FieldErrorCode {
 	/** The project is inactive and cannot receive people. */
 	INACTIVE_PROJECT,
 
+	/** The client is inactive and cannot receive new projects. */
+	INACTIVE_CLIENT,
+
 	/** The chosen NPD lead is on Baja. */
 	INACTIVE_LEADER,
 

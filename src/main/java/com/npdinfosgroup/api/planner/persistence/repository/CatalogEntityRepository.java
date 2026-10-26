@@ -3,6 +3,7 @@ package com.npdinfosgroup.api.planner.persistence.repository;
 import java.util.List;
 import java.util.Optional;
 
+import com.npdinfosgroup.api.planner.persistence.entity.Catalog;
 import com.npdinfosgroup.api.planner.persistence.entity.CatalogEntity;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;

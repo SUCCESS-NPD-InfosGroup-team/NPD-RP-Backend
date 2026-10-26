@@ -42,13 +42,23 @@ Decisión del equipo: todo el código que atiende a usuarios (endpoints y los se
 | `job`         | Tareas programadas (`@Scheduled`). |
 | `listener`    | Reacción a eventos de la aplicación o de persistencia. |
 
+Subpaquetes, cuando la capa crece:
+
+| Subpaquete | Contenido |
+|------------|-----------|
+| `service/mapper` | Arma las respuestas (DTOs) a partir de las entidades. |
+| `service/validator` | Reglas que se revisan antes de guardar. Juntan todos los errores de un formulario en una sola respuesta. |
+| `persistence/entity` | Entidades JPA, y enums que identifican tablas (por ejemplo, `Catalog`). |
+| `persistence/repository` | Solo repositorios Spring Data, con sus interfaces base (`CatalogEntityRepository`) y fragmentos (`EmployeeRefresh`). |
+| `persistence/query` | Piezas de consulta que no son repositorios: filtros (`Specification`) y proyecciones (resultados de una consulta). |
+
 Flujo esperado: `web → service → persistence`. Los controladores no acceden a repositorios directamente y las entidades no salen por la API (se mapean a DTOs).
 
 ### Módulos (`src/main/java/com/npdinfosgroup/api/`)
 
 | Módulo          | Propósito | Paquetes |
 |-----------------|-----------|----------|
-| `planner`       | Núcleo: los datos migrados del Excel. `importer` carga el Excel existente. | `web`, `service` (+`mapper`), `persistence` (`entity`, `repository`), `dto` (`request`, `response`), `importer` |
+| `planner`       | Núcleo: los datos migrados del Excel. `importer` carga el Excel existente. | `web`, `service` (+`mapper`, `validator`), `persistence` (`entity`, `repository`, `query`), `dto` (`request`, `response`), `importer` |
 | `insights`      | Análisis estadístico y, si se confirma, el modelo de ML. | `web`, `service`, `persistence`, `dto`, `client`, `job` |
 | `reports`       | Generación de informes, incluidos los programados. | `web`, `service`, `persistence`, `dto`, `job` |
 | `export`        | Exportación de datos a archivos. `writer` genera el formato de salida. | `web`, `service`, `dto`, `writer` |

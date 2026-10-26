@@ -49,7 +49,7 @@ class SecurityConfig {
 			.authorizeHttpRequests(auth -> auth
 				// The docs are off outside APP_DEV_MODE, so these routes answer 404 there
 				.requestMatchers("/actuator/health/**", "/v3/api-docs/**", "/scalar/**", "/error").permitAll()
-				.requestMatchers(HttpMethod.POST, "/api/*/resources").hasRole(operationsAdministrator)
+				.requestMatchers(HttpMethod.POST, "/api/*/resources", "/api/*/projects").hasRole(operationsAdministrator)
 				.anyRequest().authenticated())
 			.oauth2ResourceServer(oauth2 -> oauth2
 				.jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter()))

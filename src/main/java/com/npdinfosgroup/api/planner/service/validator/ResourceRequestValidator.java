@@ -1,4 +1,4 @@
-package com.npdinfosgroup.api.planner.service;
+package com.npdinfosgroup.api.planner.service.validator;
 
 import java.time.Clock;
 import java.time.LocalDate;
@@ -8,26 +8,22 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 
 import com.npdinfosgroup.api.planner.dto.request.AssignmentRequest;
 import com.npdinfosgroup.api.planner.dto.request.RegisterResourceRequest;
 import com.npdinfosgroup.api.planner.dto.request.TerminationRequest;
+import com.npdinfosgroup.api.planner.persistence.entity.Catalog;
 import com.npdinfosgroup.api.planner.persistence.entity.Employee;
 import com.npdinfosgroup.api.planner.persistence.entity.Project;
-import com.npdinfosgroup.api.planner.persistence.repository.Catalog;
 import com.npdinfosgroup.api.planner.persistence.repository.EmployeeRepository;
 import com.npdinfosgroup.api.planner.persistence.repository.ProjectRepository;
+import com.npdinfosgroup.api.planner.service.CatalogService;
 import com.npdinfosgroup.api.shared.exception.ApiException;
 import com.npdinfosgroup.api.shared.exception.ErrorCode;
 import com.npdinfosgroup.api.shared.exception.FieldErrorCode;
 import com.npdinfosgroup.api.shared.exception.FieldProblem;
 import com.npdinfosgroup.api.shared.exception.ValidationException;
-import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Validator;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Size;
 import org.springframework.stereotype.Component;
 
 /**
@@ -39,16 +35,19 @@ import org.springframework.stereotype.Component;
  * inactive "No especificado" values and duplicates.
  */
 @Component
-class ResourceRequestValidator {
+public class ResourceRequestValidator {
 
 	/** Status that ends the employment: requires a termination and leaves the project. */
-	static final String TERMINATED = "BAJA";
+	public static final String TERMINATED = "BAJA";
 
 	/** Fields in form order, so the error summary reads top to bottom. */
 	private static final List<String> FORM_ORDER = List.of("employeeNumber", "name", "email", "jobTitleId",
 			"positionId", "level", "businessUnitId", "workModeId", "genderId", "talentReviewId", "hireDate", "status",
 			"termination.date", "termination.reasonId", "assignment.projectId", "assignment.leaderId",
 			"assignment.clientRoleId", "assignment.equipmentId", "assignment.endDate", "assignment.clientContactEmail");
+
+	/** Scope of the field messages of this form ({@code validation.resource.<field>.<CODE>}). */
+	static final String MESSAGE_SCOPE = "resource";
 
 	private static final String EMPLOYEE_NUMBER = "employeeNumber";
 
@@ -91,8 +90,8 @@ class ResourceRequestValidator {
 	 * @throws ApiException {@link ErrorCode#EMPLOYEE_NUMBER_TAKEN} when the only problem is that the
 	 *         employee number is already registered
 	 */
-	short validateNew(RegisterResourceRequest request) {
-		List<FieldProblem> problems = new ArrayList<>(constraintProblems(validator.validate(request), ""));
+	public short validateNew(RegisterResourceRequest request) {
+		List<FieldProblem> problems = new ArrayList<>(ConstraintProblems.of(validator.validate(request), ""));
 		Optional<Short> statusId = checkStatus(request.status(), problems);
 		checkCatalog(problems, "jobTitleId", Catalog.JOB_TITLES, request.jobTitleId());
 		checkCatalog(problems, "positionId", Catalog.POSITIONS, request.positionId());
@@ -117,7 +116,7 @@ class ResourceRequestValidator {
 				FieldErrorCode.EMPLOYEE_NUMBER_TAKEN, takenArgs(employee),
 				existingResourceDetails(employee))));
 		if (!problems.isEmpty()) {
-			throw new ValidationException(inFormOrder(problems));
+			throw new ValidationException(MESSAGE_SCOPE, inFormOrder(problems));
 		}
 		return statusId.orElseThrow();
 	}
@@ -128,7 +127,7 @@ class ResourceRequestValidator {
 	 * @param request the resource
 	 * @return {@code true} on Baja
 	 */
-	static boolean isTerminated(RegisterResourceRequest request) {
+	public static boolean isTerminated(RegisterResourceRequest request) {
 		return request.status() != null && TERMINATED.equals(request.status().strip().toUpperCase(Locale.ROOT));
 	}
 
@@ -138,7 +137,7 @@ class ResourceRequestValidator {
 	 * @param existing the employee who already has the number
 	 * @return the error
 	 */
-	static ApiException employeeNumberTaken(Employee existing) {
+	public static ApiException employeeNumberTaken(Employee existing) {
 		return new ApiException(ErrorCode.EMPLOYEE_NUMBER_TAKEN, takenArgs(existing),
 				existingResourceDetails(existing));
 	}
@@ -174,7 +173,7 @@ class ResourceRequestValidator {
 			problems.add(FieldProblem.of("termination.reasonId", FieldErrorCode.REQUIRED));
 			return;
 		}
-		problems.addAll(constraintProblems(validator.validate(termination), "termination."));
+		problems.addAll(ConstraintProblems.of(validator.validate(termination), "termination."));
 		checkCatalog(problems, "termination.reasonId", Catalog.TERMINATION_REASONS, termination.reasonId());
 		if (termination.date() != null && hireDate != null && termination.date().isBefore(hireDate)) {
 			problems.add(FieldProblem.of("termination.date", FieldErrorCode.DATE_BEFORE_HIRE));
@@ -182,7 +181,7 @@ class ResourceRequestValidator {
 	}
 
 	private void checkAssignment(AssignmentRequest assignment, List<FieldProblem> problems) {
-		problems.addAll(constraintProblems(validator.validate(assignment), "assignment."));
+		problems.addAll(ConstraintProblems.of(validator.validate(assignment), "assignment."));
 		if (assignment.projectId() != null) {
 			projects.findById(assignment.projectId())
 				.map(Project::isActive)
@@ -234,20 +233,6 @@ class ResourceRequestValidator {
 
 	private static boolean hasProblem(List<FieldProblem> problems, String field) {
 		return problems.stream().anyMatch(problem -> problem.field().equals(field));
-	}
-
-	private static <T> List<FieldProblem> constraintProblems(Set<ConstraintViolation<T>> violations, String prefix) {
-		return violations.stream()
-			.map(violation -> FieldProblem.of(prefix + violation.getPropertyPath(), codeOf(violation)))
-			.toList();
-	}
-
-	private static FieldErrorCode codeOf(ConstraintViolation<?> violation) {
-		Class<?> constraint = violation.getConstraintDescriptor().getAnnotation().annotationType();
-		if (constraint == NotNull.class || constraint == NotBlank.class) {
-			return FieldErrorCode.REQUIRED;
-		}
-		return constraint == Size.class ? FieldErrorCode.TOO_LONG : FieldErrorCode.INVALID_FORMAT;
 	}
 
 	private static List<FieldProblem> inFormOrder(List<FieldProblem> problems) {

@@ -1,4 +1,4 @@
-package com.npdinfosgroup.api.planner.persistence.repository;
+package com.npdinfosgroup.api.planner.persistence.entity;
 
 import java.util.Arrays;
 import java.util.Optional;

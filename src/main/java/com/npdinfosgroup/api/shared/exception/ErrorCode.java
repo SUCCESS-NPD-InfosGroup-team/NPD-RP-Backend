@@ -29,6 +29,12 @@ public enum ErrorCode {
 	/** The employee number is already registered. */
 	EMPLOYEE_NUMBER_TAKEN(HttpStatus.CONFLICT),
 
+	/** The client already has a project with that name. */
+	PROJECT_NAME_TAKEN(HttpStatus.CONFLICT),
+
+	/** A client with that name already exists. */
+	CLIENT_NAME_TAKEN(HttpStatus.CONFLICT),
+
 	/** The database could not be reached; nothing was saved and the request can be retried. */
 	SERVICE_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE),
 
