@@ -31,6 +31,7 @@
 		<springdoc.version>3.1.1</springdoc.version>
 		<jacoco.version>0.8.15</jacoco.version>
 		<sonar-maven-plugin.version>5.8.0.7211</sonar-maven-plugin.version>
+		<poi.version>5.5.1</poi.version>
 
 		<!-- Parches de seguridad sobre las versiones de Spring Boot 4.1.1 (CVEs en Tomcat, Jackson y el driver de PostgreSQL).
 		     Quitar estas líneas al subir a un Spring Boot que ya las incluya (4.1.2+). -->
@@ -68,9 +69,24 @@
 			<artifactId>spring-boot-starter-webmvc</artifactId>
 		</dependency>
 		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-validation</artifactId>
+		</dependency>
+		<!-- Validates the Keycloak access token (JWT) of every API call -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-security-oauth2-resource-server</artifactId>
+		</dependency>
+		<dependency>
 			<groupId>org.springdoc</groupId>
 			<artifactId>springdoc-openapi-starter-webmvc-scalar</artifactId>
 			<version>${springdoc.version}</version>
+		</dependency>
+		<!-- Reads the client planner (.xlsx) for the one-time import and writes its report -->
+		<dependency>
+			<groupId>org.apache.poi</groupId>
+			<artifactId>poi-ooxml</artifactId>
+			<version>${poi.version}</version>
 		</dependency>
 		<dependency>
 			<groupId>org.flywaydb</groupId>
@@ -112,6 +128,16 @@
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-webmvc-test</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-security-test</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-resttestclient</artifactId>
 			<scope>test</scope>
 		</dependency>
 		<dependency>

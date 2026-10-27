@@ -33,3 +33,6 @@ build/
 .vscode/
 
 .env
+
+### Planner Excel and its import report (personal data) ###
+*.xlsx
