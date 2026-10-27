@@ -31,7 +31,7 @@ import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
  * record.
  */
 @RestController
-@RequestMapping("/api/{version}/resources")
+@RequestMapping("/api/{version}/planner/resources")
 @Tag(name = "Recursos", description = "Colaboradores de NPD y su proyecto actual")
 class ResourceController {
 

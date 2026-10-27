@@ -6,7 +6,7 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 /**
  * API versioning (Spring Framework 7): the version is path segment 1 of the API routes, as in
- * {@code /api/v1/resources}, and controllers declare it with the {@code version} attribute of their
+ * {@code /api/v1/planner/resources}, and controllers declare it with the {@code version} attribute of their
  * mappings.
  * <p>
  * Set here instead of with {@code spring.mvc.apiversion.use.path-segment} because the version is only
