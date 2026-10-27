@@ -5,7 +5,7 @@ import java.util.Optional;
 
 /**
  * Catalogs of the planner whose active values the forms offer, each with its name in the API path
- * ({@code /catalogs/{path}}) and the order of its values.
+ * ({@code /planner/catalogs/{path}}) and the order of its values.
  */
 public enum Catalog {
 

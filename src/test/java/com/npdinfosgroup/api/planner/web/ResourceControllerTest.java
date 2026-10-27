@@ -40,7 +40,7 @@ class ResourceControllerTest {
 
 	private static final String ADMIN = "operations-administrator";
 
-	private static final String RESOURCES = "/api/v1/resources";
+	private static final String RESOURCES = "/api/v1/planner/resources";
 
 	private static final LocalDate TODAY = LocalDate.now(ZoneId.of("America/Bogota"));
 

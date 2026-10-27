@@ -38,7 +38,7 @@ class ProjectControllerTest {
 
 	private static final String ADMIN = "operations-administrator";
 
-	private static final String PROJECTS = "/api/v1/projects";
+	private static final String PROJECTS = "/api/v1/planner/projects";
 
 	private static final LocalDate TODAY = LocalDate.now(ZoneId.of("America/Bogota"));
 
@@ -208,7 +208,7 @@ class ProjectControllerTest {
 
 		long clientId = jdbc.sql("SELECT id FROM client WHERE name = 'PJ Claro'").query(Long.class).single();
 		assertThat(auditValues("client", clientId)).containsExactlyInAnyOrder("name=PJ Claro", "isInternal=Sí");
-		client.get().uri("/api/v1/clients/{id}/projects", clientId).header(AUTHORIZATION, "Bearer guest").exchange()
+		client.get().uri("/api/v1/planner/clients/{id}/projects", clientId).header(AUTHORIZATION, "Bearer guest").exchange()
 			.expectStatus().isOk()
 			.expectBody()
 			.jsonPath("$.items[*].name").isEqualTo(List.of("PJ Soporte QA"));

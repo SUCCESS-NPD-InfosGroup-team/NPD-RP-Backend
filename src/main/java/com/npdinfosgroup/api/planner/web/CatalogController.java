@@ -21,7 +21,7 @@ import org.springframework.web.bind.annotation.RestController;
  * Options of the form selectors, one catalog per call.
  */
 @RestController
-@RequestMapping("/api/{version}/catalogs")
+@RequestMapping("/api/{version}/planner/catalogs")
 @Tag(name = "Catálogos", description = "Opciones de los selectores de los formularios")
 class CatalogController {
 

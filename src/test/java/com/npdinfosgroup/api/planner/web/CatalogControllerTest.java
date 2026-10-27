@@ -27,7 +27,7 @@ import org.springframework.test.web.servlet.client.RestTestClient;
 @Import({ TestcontainersConfiguration.class, TestSecurityConfiguration.class })
 class CatalogControllerTest {
 
-	private static final String CATALOGS = "/api/v1/catalogs/";
+	private static final String CATALOGS = "/api/v1/planner/catalogs/";
 
 	@Autowired
 	private RestTestClient client;
