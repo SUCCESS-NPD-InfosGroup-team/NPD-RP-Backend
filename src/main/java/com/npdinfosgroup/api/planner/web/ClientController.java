@@ -23,7 +23,7 @@ import org.springframework.web.bind.annotation.RestController;
  * Clients and the projects each one has.
  */
 @RestController
-@RequestMapping("/api/{version}/clients")
+@RequestMapping("/api/{version}/planner/clients")
 @Tag(name = "Clientes", description = "Clientes y sus proyectos")
 class ClientController {
 

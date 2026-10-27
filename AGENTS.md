@@ -82,6 +82,11 @@ Por ahora los módulos son solo carpetas (`.gitkeep`). Al crear código nuevo, c
 
 ## Reglas obligatorias para cada cambio
 
+### Controladores
+Los controladores tienen que tener el nombre de su modulo, por ejemplo si el controlador está dentro del modulo planner, el endpoint sera planner/projects para obtener los proyectos
+
+nombres para los modulos: "planner|history|insights|reports|export|access|notifications"
+
 ### Guías de Spring Boot
 
 Todo cambio debe cumplir las guías de [guidelines.md](guidelines.md) (inyección por constructor, propiedades tipadas, límites transaccionales, DTOs como records, versionado de API, manejo centralizado de errores, logging, etc.):

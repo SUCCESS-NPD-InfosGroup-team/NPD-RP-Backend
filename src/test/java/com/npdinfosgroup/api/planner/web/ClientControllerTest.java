@@ -89,7 +89,7 @@ class ClientControllerTest {
 		jdbc.sql("INSERT INTO client (name, is_internal) VALUES ('CL INFOSGROUP', true)").update();
 		jdbc.sql("INSERT INTO client (name, active) VALUES ('CL Antiguo', false)").update();
 
-		client.get().uri("/api/v1/clients").header(AUTHORIZATION, "Bearer guest").exchange()
+		client.get().uri("/api/v1/planner/clients").header(AUTHORIZATION, "Bearer guest").exchange()
 			.expectStatus().isOk()
 			.expectBody()
 			.jsonPath("$.items[?(@.name =~ /CL .*/)].name")
@@ -97,7 +97,7 @@ class ClientControllerTest {
 			.jsonPath("$.items[?(@.name == 'CL INFOSGROUP')].isInternal").isEqualTo(List.of(true))
 			.jsonPath("$.items[?(@.name == 'No especificado')]").doesNotExist();
 
-		client.get().uri("/api/v1/clients?active=false").header(AUTHORIZATION, "Bearer guest").exchange()
+		client.get().uri("/api/v1/planner/clients?active=false").header(AUTHORIZATION, "Bearer guest").exchange()
 			.expectStatus().isOk()
 			.expectBody()
 			.jsonPath("$.items[?(@.name =~ /CL .*/)].name").isEqualTo(List.of("CL Antiguo"))
@@ -113,11 +113,11 @@ class ClientControllerTest {
 			.jsonPath("$.code").isEqualTo("NOT_FOUND")
 			.jsonPath("$.detail").isEqualTo("No existe el registro 999999.");
 
-		client.get().uri("/api/v1/clients/{id}/projects", clientId).exchange().expectStatus().isUnauthorized();
+		client.get().uri("/api/v1/planner/clients/{id}/projects", clientId).exchange().expectStatus().isUnauthorized();
 	}
 
 	private RestTestClient.ResponseSpec get(long id, String authorization) {
-		return client.get().uri("/api/v1/clients/{id}/projects", id).header(AUTHORIZATION, authorization).exchange();
+		return client.get().uri("/api/v1/planner/clients/{id}/projects", id).header(AUTHORIZATION, authorization).exchange();
 	}
 
 	private long insert(String sql) {

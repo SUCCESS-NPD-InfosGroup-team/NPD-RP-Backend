@@ -36,7 +36,7 @@ import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
  * Projects of the clients: the list of the Projects module, creating one and reading one.
  */
 @RestController
-@RequestMapping("/api/{version}/projects")
+@RequestMapping("/api/{version}/planner/projects")
 @Tag(name = "Proyectos", description = "Proyectos de los clientes")
 class ProjectController {
 
