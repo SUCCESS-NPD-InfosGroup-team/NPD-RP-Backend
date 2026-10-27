@@ -32,7 +32,7 @@ public class ResourceMapper {
 	/**
 	 * Creates the mapper.
 	 *
-	 * @param messages source of the situation labels and of "Indefinido"
+	 * @param messages source of the situation labels, of "Indefinido" and of "Sí"/"No"
 	 */
 	ResourceMapper(MessageSource messages) {
 		this.messages = messages;
@@ -63,7 +63,8 @@ public class ResourceMapper {
 		return new ResourceResponse(employee.getId(), employee.getCode(), employee.getFullName(), employee.getEmail(),
 				idName(employee.getJobTitle()), idName(employee.getJobPosition()), employee.getLevel(),
 				idName(employee.getBusinessUnit()), idName(employee.getWorkModality()), idName(employee.getGender()),
-				idName(employee.getTalentReview()), employee.getHireDate(), employee.getProbationEndDate(),
+				idName(employee.getTalentReview()), employee.getHireDate(), employee.isOnProbation(),
+				employee.getProbationEndDate(),
 				new CodeLabel(employee.getStatus().getCode(), employee.getStatus().getName()),
 				new CodeLabel(situation, messages.getMessage("resource.situation." + situation, null, situation, locale)),
 				assignment(employee), termination(employee), List.copyOf(fieldsToFix), employee.getVersion(),
@@ -92,6 +93,8 @@ public class ResourceMapper {
 		values.put("gender", name(resource.gender()));
 		values.put("talentReview", name(resource.talentReview()));
 		values.put("hireDate", text(resource.hireDate()));
+		values.put("onProbation", messages.getMessage(resource.onProbation() ? "audit.value.yes" : "audit.value.no",
+				null, LocaleContextHolder.getLocale()));
 		values.put("status", resource.status().label());
 		AssignmentResponse assignment = resource.assignment();
 		if (assignment != null) {

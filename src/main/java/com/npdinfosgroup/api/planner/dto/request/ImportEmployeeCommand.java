@@ -20,5 +20,6 @@ public record ImportEmployeeCommand(
 		Long clientRoleId,
 		Short equipmentProviderId,
 		String clientContactEmail,
-		LocalDate projectEndDate) {
+		LocalDate projectEndDate,
+		boolean onProbation) {
 }

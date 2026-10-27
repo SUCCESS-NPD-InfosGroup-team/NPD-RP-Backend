@@ -42,7 +42,7 @@ public class ResourceRequestValidator {
 
 	/** Fields in form order, so the error summary reads top to bottom. */
 	private static final List<String> FORM_ORDER = List.of("employeeNumber", "name", "email", "jobTitleId",
-			"positionId", "level", "businessUnitId", "workModeId", "genderId", "talentReviewId", "hireDate", "status",
+			"positionId", "level", "businessUnitId", "workModeId", "genderId", "talentReviewId", "hireDate", "onProbation", "status",
 			"termination.date", "termination.reasonId", "assignment.projectId", "assignment.leaderId",
 			"assignment.clientRoleId", "assignment.equipmentId", "assignment.endDate", "assignment.clientContactEmail");
 

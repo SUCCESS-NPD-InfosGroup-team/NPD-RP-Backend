@@ -34,7 +34,7 @@ class ResourceRegistrationServiceTest {
 			mock(ResourceQueryService.class), mock(AuditService.class), mock(ResourceMapper.class));
 
 	private final RegisterResourceCommand command = new RegisterResourceCommand(new RegisterResourceRequest("1045",
-			"Ana Torres", null, null, 1L, null, null, (short) 1, (short) 1, null, LocalDate.of(2026, 8, 3), "ACTIVO",
+			"Ana Torres", null, null, 1L, null, null, (short) 1, (short) 1, null, LocalDate.of(2026, 8, 3), false, "ACTIVO",
 			null, null), "mperez");
 
 	/** The request itself is valid; only the insert fails. */

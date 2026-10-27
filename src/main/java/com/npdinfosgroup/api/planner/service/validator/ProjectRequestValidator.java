@@ -1,5 +1,7 @@
 package com.npdinfosgroup.api.planner.service.validator;
 
+import java.time.Clock;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -20,6 +22,8 @@ import org.springframework.stereotype.Component;
 /**
  * Checks a new project before it is saved: first every invalid field at once (400), then the names
  * already taken (409), which the form shows apart with a way to pick the existing record.
+ * <p>
+ * The project starts the day it is created, so the client contract end cannot have already passed.
  */
 @Component
 public class ProjectRequestValidator {
@@ -29,11 +33,15 @@ public class ProjectRequestValidator {
 
 	private static final String CLIENT_ID = "clientId";
 
+	private static final String CONTRACT_END_DATE = "contractEndDate";
+
 	private final Validator validator;
 
 	private final ClientRepository clients;
 
 	private final ProjectRepository projects;
+
+	private final Clock clock;
 
 	/**
 	 * Creates the validator.
@@ -41,11 +49,14 @@ public class ProjectRequestValidator {
 	 * @param validator Jakarta Bean Validation
 	 * @param clients client checks
 	 * @param projects duplicate project checks
+	 * @param clock gives today for the "already passed" rule
 	 */
-	ProjectRequestValidator(Validator validator, ClientRepository clients, ProjectRepository projects) {
+	ProjectRequestValidator(Validator validator, ClientRepository clients, ProjectRepository projects,
+			Clock clock) {
 		this.validator = validator;
 		this.clients = clients;
 		this.projects = projects;
+		this.clock = clock;
 	}
 
 	/**
@@ -77,6 +88,9 @@ public class ProjectRequestValidator {
 			else if (!client.isActive()) {
 				problems.add(FieldProblem.of(CLIENT_ID, FieldErrorCode.INACTIVE_CLIENT));
 			}
+		}
+		if (request.contractEndDate() != null && request.contractEndDate().isBefore(LocalDate.now(clock))) {
+			problems.add(FieldProblem.of(CONTRACT_END_DATE, FieldErrorCode.DATE_IN_PAST));
 		}
 		if (!problems.isEmpty()) {
 			throw new ValidationException(MESSAGE_SCOPE, problems);

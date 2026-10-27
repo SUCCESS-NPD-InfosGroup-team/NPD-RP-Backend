@@ -111,7 +111,8 @@ class ProjectController {
 			- Va exactamente uno: `clientId` (cliente existente y activo) o `newClient` (se crea junto con \
 			el proyecto, en la misma transacción).
 			- `name` es obligatorio, de hasta 150 caracteres y único dentro del cliente.
-			- `contractEndDate` es opcional.
+			- El inicio del proyecto es la fecha de creación; no se envía.
+			- `contractEndDate` es opcional y, si llega, no puede haber pasado (hoy sí se acepta).
 			- Primero se informan todos los campos inválidos (400); los nombres repetidos van aparte (409).""")
 	@ApiResponse(responseCode = "201", description = "Proyecto creado; `Location` apunta a él")
 	@ApiResponse(responseCode = "400", description = "Uno o más campos inválidos (`VALIDATION_FAILED`, detalle en `errors`)",

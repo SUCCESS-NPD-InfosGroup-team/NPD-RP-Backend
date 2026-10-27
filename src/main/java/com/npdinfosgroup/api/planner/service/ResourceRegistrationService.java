@@ -113,6 +113,7 @@ public class ResourceRegistrationService {
 		employee.setGenderId(request.genderId());
 		employee.setTalentReviewId(request.talentReviewId());
 		employee.setHireDate(request.hireDate());
+		employee.setOnProbation(request.onProbation());
 		employee.setStatusId(statusId);
 		if (ResourceRequestValidator.isTerminated(request)) {
 			employee.setTerminationDate(request.termination().date());

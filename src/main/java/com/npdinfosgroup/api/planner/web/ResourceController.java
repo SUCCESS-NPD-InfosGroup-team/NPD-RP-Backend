@@ -73,6 +73,8 @@ class ResourceController {
 			de él), `leaderId` y `endDate` (no pasada) o `indefinite = true`.
 			- Con `status = BAJA` son obligatorios `termination.date` (no antes de `hireDate`) y \
 			`termination.reasonId`, y el recurso se guarda sin proyecto aunque llegue `assignment`.
+			- `onProbation` es obligatorio: indica si entra en periodo de prueba. `probationEndDate` \
+			(día 90 desde `hireDate`) la calcula el sistema y se devuelve siempre.
 			- La situación (Asignado, Pendiente de confirmación, Sin proyecto) no se envía: la calcula el \
 			sistema.
 			- Todos los errores de validación llegan juntos en `errors`. Si el único problema es el \

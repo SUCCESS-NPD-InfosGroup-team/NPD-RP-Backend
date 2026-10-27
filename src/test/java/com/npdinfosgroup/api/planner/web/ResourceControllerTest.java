@@ -125,6 +125,7 @@ class ResourceControllerTest {
 	@Test
 	void registersResourceWithProject() {
 		Map<String, Object> request = validRequest("1102");
+		request.put("onProbation", true);
 		request.put("assignment", assignment());
 
 		URI location = post(ADMIN, request).expectStatus()
@@ -134,6 +135,7 @@ class ResourceControllerTest {
 			.jsonPath("$.name").isEqualTo("Laura Gómez")
 			.jsonPath("$.workMode.name").isEqualTo("Virtual")
 			.jsonPath("$.hireDate").isEqualTo(HIRE_DATE.toString())
+			.jsonPath("$.onProbation").isEqualTo(true)
 			.jsonPath("$.probationEndDate").isEqualTo(HIRE_DATE.plusDays(90).toString())
 			.jsonPath("$.status.code").isEqualTo("ACTIVO")
 			.jsonPath("$.situation.code").isEqualTo("ASIGNADO")
@@ -171,7 +173,7 @@ class ResourceControllerTest {
 			.containsEntry("old_value", null)
 			.containsEntry("actor", TestSecurityConfiguration.usernameOf(ADMIN)));
 		assertThat(audit).extracting(row -> row.get("field") + "=" + row.get("new_value"))
-			.contains("employeeNumber=1102", "workMode=Virtual", "status=Activo",
+			.contains("employeeNumber=1102", "workMode=Virtual", "onProbation=Sí", "status=Activo",
 					"assignment.project=RT Programa de automatización", "assignment.leader=Lorena Batista",
 					"assignment.endDate=" + TODAY.plusMonths(3))
 			.noneMatch(value -> value.toString().startsWith("talentReview="));
@@ -190,6 +192,7 @@ class ResourceControllerTest {
 			.isCreated()
 			.expectBody()
 			.jsonPath("$.situation.code").isEqualTo("SIN_PROYECTO")
+			.jsonPath("$.onProbation").isEqualTo(false)
 			.jsonPath("$.businessUnit.name").isEqualTo("AE")
 			.jsonPath("$.talentReview.name").isEqualTo("Dilema")
 			.jsonPath("$.assignment").doesNotExist();
@@ -220,9 +223,10 @@ class ResourceControllerTest {
 			.expectHeader().contentType("application/problem+json")
 			.expectBody()
 			.jsonPath("$.code").isEqualTo("VALIDATION_FAILED")
-			.jsonPath("$.detail").isEqualTo("No se guardó el registro. Corrige los 7 campos marcados.")
+			.jsonPath("$.detail").isEqualTo("No se guardó el registro. Corrige los 8 campos marcados.")
 			.jsonPath("$.errors[*].field")
-			.isEqualTo(List.of("employeeNumber", "name", "positionId", "workModeId", "genderId", "hireDate", "status"))
+			.isEqualTo(List.of("employeeNumber", "name", "positionId", "workModeId", "genderId", "hireDate", "onProbation",
+					"status"))
 			.jsonPath("$.errors[*].code").value(List.class, codes -> assertThat(codes).containsOnly("REQUIRED"))
 			.jsonPath("$.errors[3].message").isEqualTo("Selecciona la modalidad laboral.");
 		assertThat(employeeCount()).isEqualTo(2);
@@ -511,6 +515,7 @@ class ResourceControllerTest {
 		request.put("workModeId", workModeId);
 		request.put("genderId", genderId);
 		request.put("hireDate", HIRE_DATE.toString());
+		request.put("onProbation", false);
 		request.put("status", "ACTIVO");
 		return request;
 	}
