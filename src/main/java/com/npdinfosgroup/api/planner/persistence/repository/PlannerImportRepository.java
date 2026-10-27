@@ -183,11 +183,11 @@ public class PlannerImportRepository {
 				INSERT INTO employee (code, full_name, email, gender_id, job_title_id, job_position_id, level,
 				                      business_unit_id, work_modality_id, hire_date, status_id, termination_reason_id,
 				                      talent_review_id, project_id, client_role_id, equipment_provider_id,
-				                      client_contact_email, project_end_date)
+				                      client_contact_email, project_end_date, on_probation)
 				VALUES (:code, :fullName, :email, :genderId, :jobTitleId, :jobPositionId, :level,
 				        :businessUnitId, :workModalityId, :hireDate, :statusId, :terminationReasonId,
 				        :talentReviewId, :projectId, :clientRoleId, :equipmentProviderId,
-				        :clientContactEmail, :projectEndDate)
+				        :clientContactEmail, :projectEndDate, :onProbation)
 				ON CONFLICT (code) DO UPDATE SET
 				    full_name             = EXCLUDED.full_name,
 				    email                 = EXCLUDED.email,
@@ -206,6 +206,7 @@ public class PlannerImportRepository {
 				    equipment_provider_id = EXCLUDED.equipment_provider_id,
 				    client_contact_email  = EXCLUDED.client_contact_email,
 				    project_end_date      = EXCLUDED.project_end_date,
+				    on_probation          = EXCLUDED.on_probation,
 				    version               = employee.version + 1
 				RETURNING id""")
 			.param("code", command.code())
@@ -226,6 +227,7 @@ public class PlannerImportRepository {
 			.param("equipmentProviderId", command.equipmentProviderId(), Types.SMALLINT)
 			.param("clientContactEmail", command.clientContactEmail(), Types.VARCHAR)
 			.param("projectEndDate", command.projectEndDate(), Types.DATE)
+			.param("onProbation", command.onProbation())
 			.query(Long.class)
 			.single();
 	}

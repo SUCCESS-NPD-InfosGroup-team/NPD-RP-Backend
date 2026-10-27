@@ -182,7 +182,8 @@ class PlannerImportService {
 				optionalFixed(row, TALENT_REVIEW, FixedCatalog.TALENT_REVIEW, run, issues), projectId,
 				openCatalog(row, CLIENT_ROLE, OpenCatalog.CLIENT_ROLE),
 				optionalFixed(row, EQUIPMENT_PROVIDER, FixedCatalog.EQUIPMENT_PROVIDER, run, issues),
-				clientContact(row, run, issues), projectEndDate(row, projectId != null, run, issues));
+				clientContact(row, run, issues), projectEndDate(row, projectId != null, run, issues),
+				onProbation(row.hireDate(), run.today));
 		issues.keepFlags();
 		return command;
 	}
@@ -238,6 +239,11 @@ class PlannerImportService {
 		}
 		long clientId = repository.findOrCreateClient(client, PlannerValues.key(client).equals(INTERNAL_CLIENT));
 		return repository.findOrCreateProject(clientId, project);
+	}
+
+	/** The Excel has no probation column: a person is on probation while their 90 days have not ended. */
+	private static boolean onProbation(LocalDate hireDate, LocalDate today) {
+		return hireDate != null && !hireDate.plusDays(90).isBefore(today);
 	}
 
 	private static LocalDate projectEndDate(PlannerRow row, boolean hasProject, ImportRun run, RowIssues issues) {

@@ -58,6 +58,9 @@ public class Employee {
 	@Column(name = "hire_date", nullable = false)
 	private LocalDate hireDate;
 
+	@Column(name = "on_probation", nullable = false)
+	private boolean onProbation;
+
 	@Column(name = "probation_end_date", insertable = false, updatable = false)
 	private LocalDate probationEndDate;
 

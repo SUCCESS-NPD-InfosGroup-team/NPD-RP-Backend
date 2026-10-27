@@ -10,6 +10,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 public record ResourceResponse(long id, String employeeNumber, String name, String email, IdName jobTitle,
 		IdName position, Short level, IdName businessUnit, IdName workMode, IdName gender, IdName talentReview,
 		LocalDate hireDate,
+		@Schema(description = "En periodo de prueba") boolean onProbation,
 		@Schema(description = "Día 90 desde la fecha de inicio de contrato") LocalDate probationEndDate,
 		CodeLabel status,
 		@Schema(description = "Calculada: ASIGNADO, PENDIENTE_CONFIRMACION o SIN_PROYECTO") CodeLabel situation,

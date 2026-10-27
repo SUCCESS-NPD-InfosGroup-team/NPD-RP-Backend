@@ -22,6 +22,7 @@ public record RegisterResourceRequest(
 		@Schema(description = "Género (catálogo genders)") @NotNull Short genderId,
 		@Schema(description = "Resultado de Talent Review (catálogo talentReviews)") Short talentReviewId,
 		@Schema(description = "Fecha de inicio de contrato", example = "2026-10-20") @NotNull LocalDate hireDate,
+		@Schema(description = "En periodo de prueba. La fecha en que termina (día 90) la calcula el sistema") @NotNull Boolean onProbation,
 		@Schema(description = "Estado", allowableValues = { "ACTIVO", "LICENCIA", "BAJA" }) @NotBlank String status,
 		@Schema(description = "Desvinculación; obligatoria con Estado = BAJA y se ignora con los demás") TerminationRequest termination,
 		@Schema(description = "Proyecto; null = «Sin proyecto por ahora». Se ignora con Estado = BAJA") AssignmentRequest assignment) {

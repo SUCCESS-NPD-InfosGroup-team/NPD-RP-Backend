@@ -52,6 +52,7 @@ class PlannerImportServiceTest {
 					.with(PlannerColumn.LEADER_CODE, "1")
 					.with(PlannerColumn.LEADER_NAME, "MARIA OTRA")
 					.with(PlannerColumn.CLIENT_CONTACT, null)
+					.hireDate(TODAY.minusDays(30))
 					.build());
 
 		PlannerImportReport report = service.importRows(rows, TODAY);
@@ -87,6 +88,10 @@ class PlannerImportServiceTest {
 		assertThat(jdbc.sql("SELECT full_name FROM employee WHERE code = '900'").query(String.class).single())
 			.isEqualTo("Lucia Maria Lider Gomez");
 		assertThat(jdbc.sql("SELECT count(*) FROM job_title").query(Long.class).single()).isEqualTo(1);
+		// On probation only while the 90 days since the hire date have not ended on the import date
+		assertThat(jdbc.sql("SELECT code, on_probation FROM employee ORDER BY code").query().listOfRows())
+			.extracting(row -> row.get("code") + "=" + row.get("on_probation"))
+			.containsExactly("100=false", "900=true");
 	}
 
 	/**
