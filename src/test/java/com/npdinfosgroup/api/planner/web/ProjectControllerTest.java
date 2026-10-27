@@ -158,10 +158,12 @@ class ProjectControllerTest {
 	 */
 	@Test
 	void createsProjectForExistingClient() {
+		// A contract that ends today has not passed yet
+		String contractEnd = TODAY.toString();
 		Map<String, Object> request = new HashMap<>();
 		request.put("clientId", banescoId);
 		request.put("name", "  PJ Banca movil ");
-		request.put("contractEndDate", "2027-03-31");
+		request.put("contractEndDate", contractEnd);
 
 		URI location = post(ADMIN, request).expectStatus()
 			.isCreated()
@@ -172,7 +174,7 @@ class ProjectControllerTest {
 			.jsonPath("$.client.isInternal").isEqualTo(false)
 			.jsonPath("$.active").isEqualTo(true)
 			.jsonPath("$.startDate").isNotEmpty()
-			.jsonPath("$.contractEndDate").isEqualTo("2027-03-31")
+			.jsonPath("$.contractEndDate").isEqualTo(contractEnd)
 			.jsonPath("$.teamSize").isEqualTo(0)
 			.returnResult()
 			.getResponseHeaders()
@@ -185,7 +187,7 @@ class ProjectControllerTest {
 			.expectBody()
 			.jsonPath("$.name").isEqualTo("PJ Banca movil");
 		assertThat(auditValues("project", id)).containsExactlyInAnyOrder("client=PJ BANESCO", "name=PJ Banca movil",
-				"contractEndDate=2027-03-31");
+				"contractEndDate=" + contractEnd);
 		assertThat(jdbc.sql("SELECT DISTINCT actor FROM audit_log WHERE entity_type = 'project'").query(String.class)
 			.list()).containsExactly(TestSecurityConfiguration.usernameOf(ADMIN));
 	}
@@ -231,6 +233,8 @@ class ProjectControllerTest {
 		assertFieldError(Map.of("clientId", inactiveClientId, "name", "PJ Y"), "clientId", "INACTIVE_CLIENT");
 		assertFieldError(Map.of("newClient", Map.of("name", " "), "name", "PJ Y"), "newClient.name", "REQUIRED");
 		assertFieldError(Map.of("clientId", banescoId, "name", "x".repeat(151)), "name", "TOO_LONG");
+		assertFieldError(Map.of("clientId", banescoId, "name", "PJ Y", "contractEndDate", TODAY.minusDays(1).toString()),
+				"contractEndDate", "DATE_IN_PAST");
 		assertThat(jdbc.sql("SELECT count(*) FROM project WHERE name = 'PJ Y'").query(Long.class).single()).isZero();
 	}
 
