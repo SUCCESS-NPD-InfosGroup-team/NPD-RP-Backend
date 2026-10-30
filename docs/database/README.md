@@ -9,6 +9,7 @@ PostgreSQL 18 schema, versioned with Flyway in [`src/main/resources/db/migration
 | `V3__prepare_planner_import.sql` | "No especificado" values for required fields the planner leaves empty |
 | `V4__projects_and_assignment_view.sql` | `project.contract_end_date`; `resource_v` with ids and project dates; `project_summary_v` |
 | `V5__create_audit_log.sql` | `audit_log`: who changed what and when, one row per field |
+| `V7__resource_search.sql` | `resource_v` with what the roster search needs: probation, client role id, start of the bar, group and search text |
 
 Images: [`er-diagram.png`](er-diagram.png). Editable diagram: [`er-diagram.drawio`](er-diagram.drawio) (open at https://app.diagrams.net).
 
@@ -136,6 +137,11 @@ Besides the planner columns (names), it exposes ids and project data so the API 
 | `project_start_date` | `project.created_at` | Start of the roster bar |
 | `contract_end_date` | `project.contract_end_date` | "Fin de contrato" column and alert |
 | `leader_id` | `employee.leader_id` | Filter an NPD lead's collaborators by id |
+| `on_probation` | `employee.on_probation` | Draw day 90 of probation on the roster bar |
+| `client_role_id` | `employee.client_role_id` | Filter the roster by role in the client |
+| `assignment_start_date` | later of `project.created_at` and `employee.hire_date` | Start of the roster bar |
+| `roster_group` | 0 = inactive project ("No especificado"), 1 = without project, 2 = active project | Order of the roster groups: the records to fix go first |
+| `search_text` | name, employee number, project and client, in lower case without accents | Roster search ("zuniga" finds "Zúñiga") |
 
 ## `project_summary_v`
 
