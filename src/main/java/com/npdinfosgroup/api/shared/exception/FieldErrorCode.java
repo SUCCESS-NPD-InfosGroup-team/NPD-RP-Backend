@@ -36,6 +36,9 @@ public enum FieldErrorCode {
 	/** The chosen NPD lead is on Baja. */
 	INACTIVE_LEADER,
 
+	/** The chosen NPD lead is the edited resource itself. */
+	SELF_LEADER,
+
 	/** The date has already passed. */
 	DATE_IN_PAST,
 

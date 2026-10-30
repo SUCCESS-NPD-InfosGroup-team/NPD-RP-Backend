@@ -4,11 +4,14 @@ import java.net.URI;
 
 import com.npdinfosgroup.api.planner.dto.request.RegisterResourceCommand;
 import com.npdinfosgroup.api.planner.dto.request.RegisterResourceRequest;
+import com.npdinfosgroup.api.planner.dto.request.UpdateResourceCommand;
+import com.npdinfosgroup.api.planner.dto.request.UpdateResourceRequest;
 import com.npdinfosgroup.api.planner.dto.response.IdName;
 import com.npdinfosgroup.api.planner.dto.response.ItemsResponse;
 import com.npdinfosgroup.api.planner.dto.response.ResourceResponse;
 import com.npdinfosgroup.api.planner.service.ResourceQueryService;
 import com.npdinfosgroup.api.planner.service.ResourceRegistrationService;
+import com.npdinfosgroup.api.planner.service.ResourceUpdateService;
 import com.npdinfosgroup.api.shared.security.CurrentUser;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -21,14 +24,15 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
 /**
- * Resources of the planner: registering a collaborator (with or without project) and reading their
- * record.
+ * Resources of the planner: registering a collaborator (with or without project), reading their
+ * record and editing it.
  */
 @RestController
 @RequestMapping("/api/{version}/planner/resources")
@@ -41,6 +45,8 @@ class ResourceController {
 
 	private final ResourceQueryService queryService;
 
+	private final ResourceUpdateService updateService;
+
 	private final CurrentUser currentUser;
 
 	/**
@@ -48,12 +54,14 @@ class ResourceController {
 	 *
 	 * @param registrationService registers resources
 	 * @param queryService reads resources
+	 * @param updateService edits resources
 	 * @param currentUser who makes the request, for the audit log
 	 */
 	ResourceController(ResourceRegistrationService registrationService, ResourceQueryService queryService,
-			CurrentUser currentUser) {
+			ResourceUpdateService updateService, CurrentUser currentUser) {
 		this.registrationService = registrationService;
 		this.queryService = queryService;
+		this.updateService = updateService;
 		this.currentUser = currentUser;
 	}
 
@@ -118,6 +126,56 @@ class ResourceController {
 			content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemDetail.class)))
 	ResponseEntity<ResourceResponse> get(@Parameter(description = "Id del recurso") @PathVariable long id) {
 		return ResponseEntity.ok(queryService.get(id));
+	}
+
+	/**
+	 * Edits the record of a resource. Only an Operations administrator can do it; every field that
+	 * changes is audited with their username.
+	 *
+	 * @param id employee id
+	 * @param request the whole record as it should be saved, with the version that was read
+	 * @return 200 with the saved record and its new version
+	 */
+	@PutMapping(path = "/{id}", version = "v1")
+	@Operation(summary = "Editar recurso", description = """
+			Reemplaza el registro de un recurso por el que envía el formulario de edición (HU-02). Solo \
+			Operations administrator.
+
+			- Se envía el registro completo, con la `version` que devolvió `GET /planner/resources/{id}`. Si otra \
+			persona lo guardó después, responde 409 `CONCURRENT_MODIFICATION` con `currentVersion`, \
+			`updatedBy`, `updatedAt` y `updatedFields` (los campos que cambió, con los nombres de la \
+			auditoría, por ejemplo `assignment.project`), y no se guarda nada: hay que recargar el registro.
+			- Mismas reglas que el registro: obligatorios `name`, `positionId`, `status` (y los demás \
+			marcados en el esquema); `leaderId` solo con proyecto; el rol en el cliente es opcional.
+			- `assignment.endDate` no puede haber pasado, o va `indefinite = true`.
+			- Una persona tiene un solo proyecto: otro `assignment.projectId` la mueve a ese proyecto. \
+			`assignment = null` la deja «Sin proyecto».
+			- Los valores «No especificado» del import (modalidad laboral, y cliente y proyecto, que \
+			están inactivos) se rechazan hasta elegir el valor real; `fieldsToFix` del GET los indica.
+			- Con `status = BAJA` son obligatorios `termination.date` (no antes de `hireDate`) y \
+			`termination.reasonId`, y la persona sale de su proyecto aunque llegue `assignment`.
+			- Se guarda todo o nada. Cada campo que cambia queda en la auditoría (quién, cuándo, valor \
+			anterior y nuevo); si no cambia nada, no se guarda nada y la `version` sigue igual.
+			- Todos los errores de validación llegan juntos en `errors`.""")
+	@ApiResponse(responseCode = "200", description = "Recurso guardado, con su nueva `version`")
+	@ApiResponse(responseCode = "400", description = "Uno o más campos inválidos (`VALIDATION_FAILED`, detalle en `errors`)",
+			content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemDetail.class)))
+	@ApiResponse(responseCode = "401", description = "Sin token o token inválido (`UNAUTHORIZED`)",
+			content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemDetail.class)))
+	@ApiResponse(responseCode = "403", description = "El rol no es Operations administrator (`FORBIDDEN`)",
+			content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemDetail.class)))
+	@ApiResponse(responseCode = "404", description = "No existe (`NOT_FOUND`)",
+			content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemDetail.class)))
+	@ApiResponse(responseCode = "409", description = """
+			Otra persona guardó el registro después de leerlo (`CONCURRENT_MODIFICATION`, con \
+			`currentVersion`, `updatedBy`, `updatedAt` y `updatedFields`), o el N° de empleado es de otro recurso \
+			(`EMPLOYEE_NUMBER_TAKEN`, con `existingResourceId` y `existingResourceName`)""",
+			content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemDetail.class)))
+	@ApiResponse(responseCode = "503", description = "La base de datos no respondió; no se guardó nada (`SERVICE_UNAVAILABLE`)",
+			content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemDetail.class)))
+	ResponseEntity<ResourceResponse> update(@Parameter(description = "Id del recurso") @PathVariable long id,
+			@RequestBody UpdateResourceRequest request) {
+		return ResponseEntity.ok(updateService.update(new UpdateResourceCommand(id, request, currentUser.username())));
 	}
 
 	/**

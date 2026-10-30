@@ -48,6 +48,8 @@
 		<sonar.coverage.jacoco.xmlReportPaths>${project.build.directory}/site/jacoco/jacoco.xml</sonar.coverage.jacoco.xmlReportPaths>
 		<!-- Mismas exclusiones que JaCoCo (abajo), en formato de ruta de código fuente -->
 		<sonar.coverage.exclusions>**/dto/**,**/persistence/entity/**,**/shared/config/**,**/ApiApplication.java</sonar.coverage.exclusions>
+		<!-- Los DTOs solo declaran campos: los de registrar y editar recurso son casi iguales -->
+		<sonar.cpd.exclusions>**/dto/**</sonar.cpd.exclusions>
 		<!-- El análisis espera el veredicto del quality gate y falla el build si no pasa -->
 		<sonar.qualitygate.wait>true</sonar.qualitygate.wait>
 	</properties>

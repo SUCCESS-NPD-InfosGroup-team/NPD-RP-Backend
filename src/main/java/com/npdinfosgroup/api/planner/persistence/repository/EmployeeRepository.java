@@ -33,6 +33,24 @@ public interface EmployeeRepository extends JpaRepository<Employee, Long>, Emplo
 	boolean existsByEmailIgnoreCase(String email);
 
 	/**
+	 * Employee with an employee number other than the given one, for the edit of that employee.
+	 *
+	 * @param code employee number
+	 * @param id id of the employee being edited
+	 * @return another employee with the number, if any
+	 */
+	Optional<Employee> findFirstByCodeIgnoreCaseAndIdNot(String code, Long id);
+
+	/**
+	 * Whether an e-mail belongs to an employee other than the given one, for the edit of that employee.
+	 *
+	 * @param email e-mail
+	 * @param id id of the employee being edited
+	 * @return {@code true} if another employee has it
+	 */
+	boolean existsByEmailIgnoreCaseAndIdNot(String email, Long id);
+
+	/**
 	 * An employee with every related catalog, project, client and lead, in one query, to build their
 	 * full record.
 	 *

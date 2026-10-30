@@ -4,7 +4,6 @@ import java.util.List;
 import java.util.Map;
 
 import com.npdinfosgroup.api.history.service.AuditService;
-import com.npdinfosgroup.api.planner.dto.request.AssignmentRequest;
 import com.npdinfosgroup.api.planner.dto.request.RegisterResourceCommand;
 import com.npdinfosgroup.api.planner.dto.request.RegisterResourceRequest;
 import com.npdinfosgroup.api.planner.dto.response.ResourceResponse;
@@ -32,9 +31,6 @@ import org.springframework.transaction.annotation.Transactional;
 public class ResourceRegistrationService {
 
 	private static final Logger log = LoggerFactory.getLogger(ResourceRegistrationService.class);
-
-	/** Unique constraint of {@code employee.code}, created by V2. */
-	private static final String CODE_CONSTRAINT = "employee_code_key";
 
 	private final ResourceRequestValidator validator;
 
@@ -86,7 +82,7 @@ public class ResourceRegistrationService {
 		}
 		catch (DataIntegrityViolationException ex) {
 			// Someone registered the same number between the check and the insert
-			if (isCodeConflict(ex)) {
+			if (ResourceFields.isCodeConflict(ex)) {
 				throw new ApiException(ErrorCode.EMPLOYEE_NUMBER_TAKEN, List.of(employee.getCode(), ""), Map.of());
 			}
 			throw ex;
@@ -102,43 +98,8 @@ public class ResourceRegistrationService {
 
 	private static Employee toEmployee(RegisterResourceRequest request, short statusId) {
 		Employee employee = new Employee();
-		employee.setCode(request.employeeNumber().strip());
-		employee.setFullName(request.name().strip());
-		employee.setEmail(clean(request.email()));
-		employee.setJobTitleId(request.jobTitleId());
-		employee.setJobPositionId(request.positionId());
-		employee.setLevel(request.level());
-		employee.setBusinessUnitId(request.businessUnitId());
-		employee.setWorkModalityId(request.workModeId());
-		employee.setGenderId(request.genderId());
-		employee.setTalentReviewId(request.talentReviewId());
-		employee.setHireDate(request.hireDate());
-		employee.setOnProbation(request.onProbation());
-		employee.setStatusId(statusId);
-		if (ResourceRequestValidator.isTerminated(request)) {
-			employee.setTerminationDate(request.termination().date());
-			employee.setTerminationReasonId(request.termination().reasonId());
-		}
-		else if (request.assignment() != null) {
-			AssignmentRequest assignment = request.assignment();
-			employee.setProjectId(assignment.projectId());
-			employee.setLeaderId(assignment.leaderId());
-			employee.setClientRoleId(assignment.clientRoleId());
-			employee.setEquipmentProviderId(assignment.equipmentId());
-			employee.setClientContactEmail(clean(assignment.clientContactEmail()));
-			employee.setProjectEndDate(assignment.isIndefinite() ? null : assignment.endDate());
-		}
+		ResourceFields.copy(request, statusId, employee);
 		return employee;
-	}
-
-	private static boolean isCodeConflict(DataIntegrityViolationException ex) {
-		String message = ex.getMostSpecificCause().getMessage();
-		return message != null && message.contains(CODE_CONSTRAINT);
-	}
-
-	/** Blank optional text is stored as {@code null}, never as an empty string. */
-	private static String clean(String value) {
-		return value == null || value.isBlank() ? null : value.strip();
 	}
 
 }

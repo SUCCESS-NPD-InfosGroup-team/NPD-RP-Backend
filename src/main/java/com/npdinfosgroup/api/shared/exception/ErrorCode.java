@@ -35,6 +35,9 @@ public enum ErrorCode {
 	/** A client with that name already exists. */
 	CLIENT_NAME_TAKEN(HttpStatus.CONFLICT),
 
+	/** Someone else saved the record after the user read it; nothing was saved. */
+	CONCURRENT_MODIFICATION(HttpStatus.CONFLICT),
+
 	/** The database could not be reached; nothing was saved and the request can be retried. */
 	SERVICE_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE),
 
