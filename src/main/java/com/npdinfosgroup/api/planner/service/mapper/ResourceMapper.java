@@ -116,6 +116,19 @@ public class ResourceMapper {
 		return values;
 	}
 
+	/**
+	 * Values of a stored resource as the audit log stores them, to compare a record before and after an
+	 * edit. The situation is not audited: the database calculates it.
+	 * <p>
+	 * Reads the related catalogs of the employee, so it must run inside the transaction that loaded it.
+	 *
+	 * @param employee the stored resource
+	 * @return the values, in form order
+	 */
+	public Map<String, String> auditValues(Employee employee) {
+		return auditValues(toResponse(employee, null, null));
+	}
+
 	private static AssignmentResponse assignment(Employee employee) {
 		Project project = employee.getProject();
 		if (project == null) {

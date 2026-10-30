@@ -1,5 +1,7 @@
 package com.npdinfosgroup.api.history.persistence.repository;
 
+import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 
 import com.npdinfosgroup.api.history.persistence.entity.AuditEntry;
@@ -19,5 +21,16 @@ public interface AuditEntryRepository extends JpaRepository<AuditEntry, Long> {
 	 */
 	Optional<AuditEntry> findFirstByEntityTypeAndEntityIdOrderByOccurredAtDescIdDesc(String entityType,
 			Long entityId);
+
+	/**
+	 * The rows of one change of a record: every field saved in the same transaction shares its moment.
+	 *
+	 * @param entityType audited table
+	 * @param entityId id of the record
+	 * @param occurredAt moment of the change
+	 * @return its rows, in the order they were written
+	 */
+	List<AuditEntry> findByEntityTypeAndEntityIdAndOccurredAtOrderByIdAsc(String entityType, Long entityId,
+			Instant occurredAt);
 
 }
