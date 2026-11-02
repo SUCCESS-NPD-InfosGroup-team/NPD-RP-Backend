@@ -78,6 +78,7 @@ Other directories:
 
 - `src/main/resources/db/migration/` — Flyway migrations (`V<n>__<description>.sql`). Never edit a migration that was already applied; create a new one.
 - `src/test/java/...` — tests.
+- `docs/specs/<JIRA-ID>/` — specification, design and PR plan of each Jira task (see [Spec-driven development](#spec-driven-development)).
 
 Modules without code are only folders (`.gitkeep`). When you create new code, place it in the matching module and layer; do not create new packages without a clear reason.
 
@@ -88,6 +89,21 @@ Modules without code are only folders (`.gitkeep`). When you create new code, pl
 
 ## Mandatory rules for every change
 
+### Spec-driven development
+
+Every Jira task is specified, designed and planned **before any code is written**. The documents live in `docs/specs/<JIRA-ID>/` (for example, `docs/specs/SCRUM-93/`), one folder per task:
+
+| File | Content |
+|------|---------|
+| `spec.md` | **What and why.** The user story, its acceptance criteria and the scope: what is included, what is explicitly out of it, and the open questions. No technical decisions. |
+| `design.md` | **How.** The technical decisions, each with the options considered and the reason for the choice (for example, how the API talks to Keycloak), plus the data model, endpoints, error codes, settings and environment variables, and any change needed outside the repository (Keycloak, Railway). |
+| `plan.md` | **The PRs.** One entry per PR, in merge order: branch, content, estimated changed lines, what it depends on, and its status (pending, in review, merged) with the PR link. |
+
+- Order: `spec.md` → `design.md` → `plan.md` → code. The developer reviews and approves each document before the next one is written, and AI agents do not write code until the three are approved.
+- The documents are kept up to date: a PR that changes a decision updates `design.md` in the same PR, and `plan.md` is updated as PRs are opened and merged.
+- The spec folder usually goes in its own `docs/` PR, before the first code PR, and follows the [PR size](#pr-size) rule.
+- Documentation that is not about one task (for example, `docs/database/`) stays in its own folder under `docs/`.
+
 ### PR size
 
 Every PR **must have fewer than 400 changed lines**. A small PR gets a thorough review and can be reverted without dragging other changes along.
@@ -96,6 +112,14 @@ Every PR **must have fewer than 400 changed lines**. A small PR gets a thorough 
 - If a task does not fit, split it into several PRs merged into `develop` in order (for example: external client, then persistence and service, then endpoint). Each PR states in its description which part it is (for example, "Part 2 of 4") and the Jira ID.
 - Each PR must stand on its own: it compiles, passes the checks and brings **its own tests** (80% coverage on new code). Tests are never left for a later PR.
 - A PR does not mix changes unrelated to its task (refactors, formatting, other stories).
+
+### Commits by AI agents
+
+It is **mandatory** for an AI agent to **never commit before the developer has reviewed the changes**.
+
+- Leave the changes uncommitted in the working tree and report what changed (files, purpose, test results and the changed-line count).
+- Commit only after the developer reviews the changes and explicitly approves that commit. Approval of one commit does not extend to later changes.
+- The same applies to anything that publishes work: no push, PR or merge without the developer's explicit approval.
 
 ### Controllers
 
@@ -152,5 +176,6 @@ The full workflow is in [CONTRIBUTING.md](CONTRIBUTING.md). Summary:
 - Work on a `<type>/<kebab-case-description>` branch created from `develop` (types: `feature`, `fix`, `hotfix`, `refactor`, `docs`, `test`, `chore`, `ci`) and open the PR against `develop`. `main` only receives PRs from `develop`. The `branch-policy.yml` workflow enforces this.
 - Every PR must pass the "Validar ramas" (`branch-policy.yml`) and "Run Unit Tests" (`unit-test.yml`: tests + SonarQube Cloud analysis) checks. The latter fails if a test fails **or** if the "Sonar way" quality gate does not pass: no new bugs or vulnerabilities and **80% coverage on new code**.
 - Every PR has **fewer than 400 changed lines** (see [PR size](#pr-size)).
+- AI agents never commit, push or open a PR before the developer reviews and approves the changes (see [Commits by AI agents](#commits-by-ai-agents)).
 - The PR must state the task type, the Jira ID (if any), a description and, **mandatorily**, whether AI was used and which model.
 - If you are an AI agent: declare it in the PR with the exact model name and version.
