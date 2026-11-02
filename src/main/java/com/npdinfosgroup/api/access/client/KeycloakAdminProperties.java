@@ -12,7 +12,7 @@ import org.springframework.validation.annotation.Validated;
 /**
  * Settings to call the Keycloak Admin REST API ({@code app.keycloak.*}). The API calls it as its own
  * service account, a confidential client with the {@code client_credentials} grant; see
- * {@code docs/access/keycloak-admin-api.md}.
+ * {@code docs/specs/SCRUM-93/design.md}.
  * <p>
  * The application does not start if one is missing or invalid.
  *

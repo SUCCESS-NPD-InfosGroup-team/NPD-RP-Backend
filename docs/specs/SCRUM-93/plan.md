@@ -7,8 +7,8 @@ How: [design.md](design.md).
 |---|--------|--------|
 | 0a | `docs/agents-in-english-and-pr-size` | Merged ([#20](https://github.com/SUCCESS-NPD-InfosGroup-team/NPD-RP-Backend/pull/20)) |
 | 0b | `docs/spec-driven-development` | Merged ([#21](https://github.com/SUCCESS-NPD-InfosGroup-team/NPD-RP-Backend/pull/21)) |
-| 0c | `docs/SCRUM-93-spec` | This PR |
-| 1a | `feature/SCRUM-93-keycloak-admin-rest-client` | Written before the spec; to review |
+| 0c | `docs/SCRUM-93-spec` | Merged ([#22](https://github.com/SUCCESS-NPD-InfosGroup-team/NPD-RP-Backend/pull/22)) |
+| 1a | `feature/SCRUM-93-keycloak-admin-rest-client` | This PR |
 | 1b | `feature/SCRUM-93-keycloak-user-operations` | Pending |
 | 2 | `feature/SCRUM-93-app-user-registration` | Pending |
 | 3 | `feature/SCRUM-93-create-user-endpoint` | Pending |
@@ -24,7 +24,7 @@ ignored. 204 lines.
 
 The `docs/specs/<JIRA-ID>/` rule and the rule that AI agents do not commit before review. 25 lines.
 
-## 0c. SCRUM-93 spec, design and plan
+## 0c. SCRUM-93 spec, design and plan — merged
 
 This folder. Depends on 0b only for the rule it follows; can be merged in any order with it.
 
@@ -36,8 +36,7 @@ This folder. Depends on 0b only for the rule it follows; can be merged in any or
   `src/test/resources/config/application.properties`.
 - Tests with `MockRestServiceServer`: token requested once and sent on every call whoever is logged in;
   rejected credentials; URLs from the issuer; the app does not start with invalid settings.
-- **Before merging:** point its two comments from `docs/access/keycloak-admin-api.md` to this
-  `design.md`.
+- Its comments point to this `design.md`.
 - ~335 lines. Needs Keycloak changes 1–2 and the Railway variables before it is deployed (design §8).
 
 ## 1b. Keycloak user operations — part 2 of 6
