@@ -3,10 +3,12 @@ package com.npdinfosgroup.api.planner.web;
 import java.net.URI;
 import java.time.LocalDate;
 
+import com.npdinfosgroup.api.planner.dto.request.ContractEndFilter;
 import com.npdinfosgroup.api.planner.dto.request.CreateProjectCommand;
 import com.npdinfosgroup.api.planner.dto.request.CreateProjectRequest;
 import com.npdinfosgroup.api.planner.dto.request.ProjectSearchCriteria;
 import com.npdinfosgroup.api.planner.dto.response.PageResponse;
+import com.npdinfosgroup.api.planner.dto.response.ProjectKpisResponse;
 import com.npdinfosgroup.api.planner.dto.response.ProjectListItemResponse;
 import com.npdinfosgroup.api.planner.dto.response.ProjectResponse;
 import com.npdinfosgroup.api.planner.service.ProjectQueryService;
@@ -33,7 +35,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
 /**
- * Projects of the clients: the list of the Projects module, creating one and reading one.
+ * Projects of the clients: the list of the Projects module and its KPIs, creating one and reading one.
  */
 @RestController
 @RequestMapping("/api/{version}/planner/projects")
@@ -41,6 +43,14 @@ import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 class ProjectController {
 
 	private static final String PROBLEM_JSON = "application/problem+json";
+
+	private static final String CONTRACT_END_DESCRIPTION = """
+			Fin de contrato: `NEXT_30_DAYS` (entre hoy y hoy + 30 días) o `NONE` (sin fecha). Sin valor no \
+			filtra""";
+
+	private static final String SEARCH_DESCRIPTION = """
+			Parte del nombre del proyecto o del cliente, sin distinguir mayúsculas. Vacío no filtra; se usan \
+			los primeros 150 caracteres""";
 
 	private final ProjectQueryService queryService;
 
@@ -68,6 +78,8 @@ class ProjectController {
 	 * @param clientId only the projects of this client
 	 * @param leaderId only the projects with a collaborator of this NPD lead
 	 * @param contractEndBefore only the projects whose contract ends on or before this date
+	 * @param contractEnd «Próximos 30 días» or «Sin fecha»
+	 * @param search part of the project or client name
 	 * @param includeInactive whether the inactive projects are included
 	 * @param pageable page ({@code page}, from 0) and size ({@code size}, 25 by default, 100 at most)
 	 * @return 200 with the page
@@ -78,7 +90,9 @@ class ProjectController {
 			agruparla por cliente. El parámetro `sort` se ignora. Todos los roles.
 
 			- `daysToContractEnd` es `null` sin fin de contrato y negativo si ya pasó.
-			- `teamSize = 0` es «Sin equipo». Los colaboradores de Baja no cuentan.""")
+			- `teamSize = 0` es «Sin equipo». Los colaboradores de Baja no cuentan.
+			- `contractEnd` y `search` se combinan con los demás filtros (AND); las fechas se calculan \
+			en el servidor con la zona America/Bogota.""")
 	@ApiResponse(responseCode = "200", description = "La página")
 	@ApiResponse(responseCode = "400", description = "Un parámetro no tiene el formato esperado (`INVALID_REQUEST`)",
 			content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemDetail.class)))
@@ -88,12 +102,50 @@ class ProjectController {
 			@Parameter(description = "Solo los proyectos de este cliente") @RequestParam(required = false) Long clientId,
 			@Parameter(description = "Solo los proyectos con al menos un colaborador de este líder NPD")
 			@RequestParam(required = false) Long leaderId,
-			@Parameter(description = "Solo los proyectos con fin de contrato en o antes de esta fecha")
+			@Parameter(description = "Solo los proyectos con fin de contrato en o antes de esta fecha (preferir `contractEnd`)")
 			@RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate contractEndBefore,
+			@Parameter(description = CONTRACT_END_DESCRIPTION) @RequestParam(required = false) ContractEndFilter contractEnd,
+			@Parameter(description = SEARCH_DESCRIPTION) @RequestParam(required = false) String search,
 			@Parameter(description = "Incluir los proyectos inactivos") @RequestParam(defaultValue = "false") boolean includeInactive,
 			@ParameterObject Pageable pageable) {
+		return ResponseEntity.ok(queryService.list(
+				new ProjectSearchCriteria(clientId, leaderId, contractEndBefore, contractEnd, search, includeInactive),
+				pageable));
+	}
+
+	/**
+	 * The KPIs above the projects list, over every project that matches the filters.
+	 *
+	 * @param clientId only the projects of this client
+	 * @param leaderId only the projects with a collaborator of this NPD lead
+	 * @param contractEnd «Próximos 30 días» or «Sin fecha»
+	 * @param search part of the project or client name
+	 * @param includeInactive whether the inactive projects are included
+	 * @return 200 with the KPIs
+	 */
+	@GetMapping(path = "/kpis", version = "v1")
+	@Operation(summary = "Indicadores de proyectos", description = """
+			Indicadores del módulo Proyectos (HU-07) con los mismos filtros que la lista, calculados sobre \
+			todos los proyectos que cumplen los filtros y no solo sobre la página visible. Todos los roles.
+
+			- `contractEndingSoon` cuenta los contratos que terminan entre hoy y hoy + 30 días (los ya \
+			vencidos no cuentan).
+			- `collaboratorsWithoutProject` cuenta a los colaboradores en estado Activo sin proyecto en \
+			toda la base; no depende de los filtros.""")
+	@ApiResponse(responseCode = "200", description = "Los indicadores")
+	@ApiResponse(responseCode = "400", description = "Un parámetro no tiene el formato esperado (`INVALID_REQUEST`)",
+			content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemDetail.class)))
+	@ApiResponse(responseCode = "401", description = "Sin token o token inválido (`UNAUTHORIZED`)",
+			content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemDetail.class)))
+	ResponseEntity<ProjectKpisResponse> kpis(
+			@Parameter(description = "Solo los proyectos de este cliente") @RequestParam(required = false) Long clientId,
+			@Parameter(description = "Solo los proyectos con al menos un colaborador de este líder NPD")
+			@RequestParam(required = false) Long leaderId,
+			@Parameter(description = CONTRACT_END_DESCRIPTION) @RequestParam(required = false) ContractEndFilter contractEnd,
+			@Parameter(description = SEARCH_DESCRIPTION) @RequestParam(required = false) String search,
+			@Parameter(description = "Incluir los proyectos inactivos") @RequestParam(defaultValue = "false") boolean includeInactive) {
 		return ResponseEntity.ok(queryService
-			.list(new ProjectSearchCriteria(clientId, leaderId, contractEndBefore, includeInactive), pageable));
+			.kpis(new ProjectSearchCriteria(clientId, leaderId, null, contractEnd, search, includeInactive)));
 	}
 
 	/**

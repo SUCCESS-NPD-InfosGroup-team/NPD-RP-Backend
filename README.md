@@ -57,6 +57,19 @@ curl http://localhost:8080/actuator/health
 
 With `APP_DEV_MODE=true`, the API reference is at http://localhost:8080/scalar.
 
+## Code documentation (Doxygen)
+
+The Javadoc that `AGENTS.md` makes mandatory is also published as browsable HTML with [Doxygen](https://www.doxygen.nl): packages, classes, package-private members, source browser and UML class/collaboration diagrams. No special comment style is needed; Doxygen reads standard Javadoc.
+
+Requirements: Doxygen ≥ 1.9 and Graphviz (`dot`). Windows: `winget install DimitriVanHeesch.Doxygen Graphviz.Graphviz`; macOS: `brew install doxygen graphviz`; Ubuntu: `sudo apt install doxygen graphviz`.
+
+```bash
+mkdir -p target/doxygen && doxygen docs/doxygen/Doxyfile
+# open target/doxygen/html/index.html
+```
+
+Warnings go to `target/doxygen/warnings.log`. Review them in your PR: a wrong `@param` or a broken `{@link}` in your code shows up there. The REST contract for the frontend stays in OpenAPI/Scalar (`/scalar` with `APP_DEV_MODE=true`); Doxygen documents the code, not the API.
+
 ## Deployment (Railway)
 
 Railway builds from the `Dockerfile` using the settings in `railway.json` (health check on `/actuator/health`, restart on failure). Railway injects `PORT`; set the database variables on the API service using references to the Postgres service:
