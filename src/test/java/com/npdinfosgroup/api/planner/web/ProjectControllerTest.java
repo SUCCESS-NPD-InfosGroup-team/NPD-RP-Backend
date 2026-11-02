@@ -139,6 +139,84 @@ class ProjectControllerTest {
 			.jsonPath("$.page.totalElements").isEqualTo(0);
 	}
 
+	/**
+	 * «Buscar» matches part of the project or client name ignoring case, and a wildcard typed by the
+	 * user is not a wildcard.
+	 */
+	@Test
+	void searchesByProjectOrClientName() {
+		list("guest", "search=ORACLE").expectStatus()
+			.isOk()
+			.expectBody()
+			.jsonPath("$.items[?(@.name =~ /PJ .*/)].name").isEqualTo(List.of("PJ Oracle Fusion"));
+
+		list("guest", "search=pj tig").expectStatus()
+			.isOk()
+			.expectBody()
+			.jsonPath("$.items[?(@.name =~ /PJ .*/)].name").isEqualTo(List.of("PJ Soporte"));
+
+		list("guest", "clientId=" + banescoId + "&search=_").expectStatus()
+			.isOk()
+			.expectBody()
+			.jsonPath("$.items").isEmpty();
+
+		list("guest", "clientId=" + banescoId + "&search=  ").expectStatus()
+			.isOk()
+			.expectBody()
+			.jsonPath("$.items[*].name").isEqualTo(List.of("PJ Oracle Fusion", "PJ Portal"));
+	}
+
+	/** «Próximos 30 días» and «Sin fecha» filter on the server; an unknown option is a 400. */
+	@Test
+	void filtersByContractEndOption() {
+		list("guest", "clientId=" + banescoId + "&contractEnd=NEXT_30_DAYS").expectStatus()
+			.isOk()
+			.expectBody()
+			.jsonPath("$.items[*].name").isEqualTo(List.of("PJ Portal"));
+
+		list("guest", "clientId=" + banescoId + "&contractEnd=NONE").expectStatus()
+			.isOk()
+			.expectBody()
+			.jsonPath("$.items[*].name").isEqualTo(List.of("PJ Oracle Fusion"));
+
+		// "PJ Soporte" ends in 90 days: outside the window
+		list("guest", "clientId=" + tigoId + "&contractEnd=NEXT_30_DAYS").expectStatus()
+			.isOk()
+			.expectBody()
+			.jsonPath("$.items").isEmpty();
+
+		list("guest", "contractEnd=SOMEDAY").expectStatus()
+			.isBadRequest()
+			.expectBody()
+			.jsonPath("$.code").isEqualTo("INVALID_REQUEST");
+	}
+
+	/**
+	 * The KPIs use the same filters as the list and count every matching project; every role reads
+	 * them.
+	 */
+	@Test
+	void givesKpisWithTheListFilters() {
+		kpis("guest", "clientId=" + banescoId).expectStatus()
+			.isOk()
+			.expectBody()
+			.jsonPath("$.projects").isEqualTo(2)
+			.jsonPath("$.clients").isEqualTo(1)
+			.jsonPath("$.withoutTeam").isEqualTo(1)
+			.jsonPath("$.contractEndingSoon").isEqualTo(1)
+			.jsonPath("$.pendingConfirmation").isEqualTo(1)
+			// The NPD lead is Activo and has no project
+			.jsonPath("$.collaboratorsWithoutProject").value(Number.class, n -> assertThat(n.longValue()).isPositive());
+
+		kpis("npd-leader", "clientId=" + banescoId + "&includeInactive=true&contractEnd=NONE").expectStatus()
+			.isOk()
+			.expectBody()
+			.jsonPath("$.projects").isEqualTo(2)
+			.jsonPath("$.withoutTeam").isEqualTo(1);
+
+		client.get().uri(PROJECTS + "/kpis").exchange().expectStatus().isUnauthorized();
+	}
+
 	/** Pages are numbered from 0 and report the totals. */
 	@Test
 	void paginatesTheList() {
@@ -279,6 +357,10 @@ class ProjectControllerTest {
 
 	private RestTestClient.ResponseSpec list(String token, String query) {
 		return client.get().uri(PROJECTS + "?" + query).header(AUTHORIZATION, "Bearer " + token).exchange();
+	}
+
+	private RestTestClient.ResponseSpec kpis(String token, String query) {
+		return client.get().uri(PROJECTS + "/kpis?" + query).header(AUTHORIZATION, "Bearer " + token).exchange();
 	}
 
 	private RestTestClient.ResponseSpec post(String token, Object body) {

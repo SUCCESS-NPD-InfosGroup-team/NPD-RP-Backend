@@ -92,4 +92,14 @@ public interface EmployeeRepository extends JpaRepository<Employee, Long>, Emplo
 	List<ProjectLead> findProjectLeads(@Param("projectIds") Collection<Long> projectIds,
 			@Param("excludedStatus") String excludedStatus);
 
+	/**
+	 * How many employees with a status have no project, for the «Colaboradores sin proyecto» KPI of
+	 * the Projects module.
+	 *
+	 * @param statusCode status code of the employees counted (Activo)
+	 * @return the number of employees
+	 */
+	@Query("SELECT count(e) FROM Employee e WHERE e.projectId IS NULL AND e.status.code = :statusCode")
+	long countWithoutProject(@Param("statusCode") String statusCode);
+
 }
