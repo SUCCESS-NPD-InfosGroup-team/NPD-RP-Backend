@@ -6,7 +6,7 @@ How: [design.md](design.md).
 | # | Branch | Status |
 |---|--------|--------|
 | 0a | `docs/agents-in-english-and-pr-size` | Merged ([#20](https://github.com/SUCCESS-NPD-InfosGroup-team/NPD-RP-Backend/pull/20)) |
-| 0b | `docs/spec-driven-development` | Pushed, PR to open |
+| 0b | `docs/spec-driven-development` | Merged ([#21](https://github.com/SUCCESS-NPD-InfosGroup-team/NPD-RP-Backend/pull/21)) |
 | 0c | `docs/SCRUM-93-spec` | This PR |
 | 1a | `feature/SCRUM-93-keycloak-admin-rest-client` | Written before the spec; to review |
 | 1b | `feature/SCRUM-93-keycloak-user-operations` | Pending |
@@ -20,7 +20,7 @@ How: [design.md](design.md).
 `AGENTS.md` translated to English with the language rule, PRs under 400 changed lines, `start_env.bat`
 ignored. 204 lines.
 
-## 0b. Spec-driven development and no AI commits before review
+## 0b. Spec-driven development and no AI commits before review — merged
 
 The `docs/specs/<JIRA-ID>/` rule and the rule that AI agents do not commit before review. 25 lines.
 
