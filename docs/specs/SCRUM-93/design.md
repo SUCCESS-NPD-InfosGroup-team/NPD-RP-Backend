@@ -150,7 +150,7 @@ their values in `src/test/resources/config/application.properties`.
 
 ## 8. Changes outside the repository
 
-Needed in the Keycloak realm `npd-rp` of **each environment** (local and production), and the
+Needed in the Keycloak realm `npd` of **each environment** (local and production), and the
 variables in the local `.env` and in **Railway** (production, before the release that includes the PR):
 
 | # | Where | Change | Needed by |
