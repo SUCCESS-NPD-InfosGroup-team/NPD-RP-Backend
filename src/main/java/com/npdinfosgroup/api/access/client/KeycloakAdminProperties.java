@@ -22,6 +22,9 @@ import org.springframework.validation.annotation.Validated;
  * @param adminClientSecret secret of the service account
  * @param connectTimeout how long to wait to connect to Keycloak
  * @param readTimeout how long to wait for each Keycloak answer
+ * @param frontendClientId client of the frontend, whose pages the invitation email links to
+ * @param invitationRedirectUri frontend page the user goes back to after setting the password
+ * @param invitationLifespan how long the invitation link is valid
  */
 @Validated
 @ConfigurationProperties("app.keycloak")
@@ -30,7 +33,10 @@ public record KeycloakAdminProperties(
 		@NotBlank String adminClientId,
 		@NotBlank String adminClientSecret,
 		@NotNull Duration connectTimeout,
-		@NotNull Duration readTimeout) {
+		@NotNull Duration readTimeout,
+		@NotBlank String frontendClientId,
+		@NotNull @Pattern(regexp = "https?://.+") String invitationRedirectUri,
+		@NotNull Duration invitationLifespan) {
 
 	private static final String REALMS = "/realms/";
 

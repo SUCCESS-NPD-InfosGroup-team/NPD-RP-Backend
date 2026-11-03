@@ -2,11 +2,13 @@ package com.npdinfosgroup.api.access.client;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.hamcrest.Matchers.startsWith;
 import static org.springframework.http.HttpHeaders.AUTHORIZATION;
 import static org.springframework.http.MediaType.APPLICATION_JSON;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.content;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.queryParam;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withCreatedEntity;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withException;
@@ -45,13 +47,14 @@ class KeycloakAdminClientTest {
 
 	private static final KeycloakAdminProperties PROPERTIES = new KeycloakAdminProperties(
 			"http://keycloak.test/realms/npd-rp", "npd-rp-api-admin", "s3cret", Duration.ofSeconds(2),
-			Duration.ofSeconds(5));
+			Duration.ofSeconds(5), "npd-rp-web", "http://localhost:5173/recursos", Duration.ofHours(48));
 
 	private final RestClient.Builder builder = RestClient.builder();
 
 	private final MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
 
-	private final KeycloakAdminClient keycloak = new KeycloakAdminClient(KeycloakAdminClientConfig.create(builder, PROPERTIES));
+	private final KeycloakAdminClient keycloak = new KeycloakAdminClient(
+			KeycloakAdminClientConfig.create(builder, PROPERTIES), PROPERTIES);
 
 	/** The account is created with the email as username, and its id comes from the Location header. */
 	@Test
@@ -103,6 +106,23 @@ class KeycloakAdminClientTest {
 			.andRespond(withNoContent());
 
 		keycloak.assignRealmRole(USER_ID, Role.NPD_LEADER);
+		server.verify();
+	}
+
+	/** The invitation asks for a new password, links back to the frontend and lasts 48 hours. */
+	@Test
+	void sendsTheInvitationEmail() {
+		expectToken();
+		server.expect(requestTo(startsWith(USERS_URL + "/" + USER_ID + "/execute-actions-email?")))
+			.andExpect(method(HttpMethod.PUT))
+			.andExpect(queryParam("client_id", "npd-rp-web"))
+			.andExpect(queryParam("redirect_uri", "http://localhost:5173/recursos"))
+			.andExpect(queryParam("lifespan", "172800"))
+			.andExpect(content().json("""
+					["UPDATE_PASSWORD"]""", true))
+			.andRespond(withNoContent());
+
+		keycloak.sendInvitation(USER_ID);
 		server.verify();
 	}
 

@@ -21,7 +21,7 @@ import com.npdinfosgroup.api.shared.security.Role;
 
 /**
  * The calls to the Keycloak Admin REST API that creating a user needs: create the account, give it its
- * realm role and, to undo a failed creation, delete it. See
+ * realm role, send the invitation email and, to undo a failed creation, delete it. See
  * {@code docs/specs/SCRUM-93/design.md} §3.
  * <p>
  * Errors: a 409 on creation is {@link KeycloakUserExistsException}; Keycloak down, a timeout or a 5xx
@@ -35,13 +35,17 @@ public class KeycloakAdminClient {
 
 	private final RestClient keycloak;
 
+	private final KeycloakAdminProperties properties;
+
 	/**
 	 * Creates the client.
 	 *
 	 * @param keycloak HTTP client with the service-account token and the admin URL of the realm
+	 * @param properties Keycloak settings, for the invitation link
 	 */
-	KeycloakAdminClient(@Qualifier("keycloakAdminRestClient") RestClient keycloak) {
+	KeycloakAdminClient(@Qualifier("keycloakAdminRestClient") RestClient keycloak, KeycloakAdminProperties properties) {
 		this.keycloak = keycloak;
+		this.properties = properties;
 	}
 
 	/**
@@ -94,6 +98,26 @@ public class KeycloakAdminClient {
 				.retrieve()
 				.toBodilessEntity();
 		});
+	}
+
+	/**
+	 * Emails the user a link to set the password. The link is valid for the configured lifespan and
+	 * leads back to the frontend's invitation page.
+	 *
+	 * @param userId Keycloak id of the account
+	 * @throws IdentityProviderUnavailableException if Keycloak cannot be reached or fails to send it
+	 */
+	public void sendInvitation(UUID userId) {
+		call("send invitation", () -> keycloak.put()
+			.uri(uri -> uri.path("/users/{id}/execute-actions-email")
+				.queryParam("client_id", properties.frontendClientId())
+				.queryParam("redirect_uri", properties.invitationRedirectUri())
+				.queryParam("lifespan", properties.invitationLifespan().toSeconds())
+				.build(userId))
+			.contentType(MediaType.APPLICATION_JSON)
+			.body(List.of("UPDATE_PASSWORD"))
+			.retrieve()
+			.toBodilessEntity());
 	}
 
 	/**
