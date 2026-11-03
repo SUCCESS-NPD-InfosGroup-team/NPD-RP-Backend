@@ -12,8 +12,8 @@ How: [design.md](design.md).
 | 1b | `feature/SCRUM-93-keycloak-user-operations` | Merged ([#24](https://github.com/SUCCESS-NPD-InfosGroup-team/NPD-RP-Backend/pull/24)) |
 | 1c | `feature/SCRUM-93-keycloak-invitation` | Merged ([#25](https://github.com/SUCCESS-NPD-InfosGroup-team/NPD-RP-Backend/pull/25)) |
 | 2 | `feature/SCRUM-93-app-user-registration` | Merged ([#27](https://github.com/SUCCESS-NPD-InfosGroup-team/NPD-RP-Backend/pull/27)) |
-| 3 | `feature/SCRUM-93-create-user-endpoint` | This PR |
-| 4 | `feature/SCRUM-93-list-users` | Pending |
+| 3 | `feature/SCRUM-93-create-user-endpoint` | Merged ([#28](https://github.com/SUCCESS-NPD-InfosGroup-team/NPD-RP-Backend/pull/28)) |
+| 4 | `feature/SCRUM-93-list-users` | This PR |
 | 5 | `feature/SCRUM-93-last-access` | Pending |
 
 ## 0a. AGENTS.md in English and PR size — merged
@@ -66,7 +66,7 @@ This folder. Depends on 0b only for the rule it follows; can be merged in any or
 - Unit tests of the service (Keycloak client mocked), including each rollback case.
 - 399 lines. Depends on 1c.
 
-## 3. `POST /api/v1/access/users` — part 5 of 7
+## 3. `POST /api/v1/access/users` — part 5 of 7 — merged
 
 - `UserController` (POST), `CreateUserRequest` and response DTOs, 201 with `Location`, full OpenAPI
   description with every error.
@@ -77,9 +77,11 @@ This folder. Depends on 0b only for the rule it follows; can be merged in any or
 ## 4. `GET /api/v1/access/users` and `GET /api/v1/access/roles` — part 6 of 7
 
 - Paged list sorted by full name, without filters; response with user, role, state and last access.
+- `GET /api/v1/access/users/{id}`, so the `Location` of the creation answers.
+- `PageResponse` and `PageInfo` move from `planner/dto` to `shared/dto`, so `access` does not depend on `planner`.
 - The four roles with their Spanish names and descriptions from `messages.properties`.
 - OpenAPI and end-to-end tests.
-- ~280 lines. Depends on 2 (can be built in parallel with 3).
+- 384 lines. Depends on 3 (it answers the `Location` of the creation).
 
 ## 5. Last access and state — part 7 of 7
 
