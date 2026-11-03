@@ -156,8 +156,8 @@ variables in **Railway**, before the PR that needs them is deployed:
 |---|-------|--------|-----------|
 | 1 | Clients → Create client | `npd-rp-api-admin`: Client authentication ON, only "Service accounts roles" ticked, no redirect URIs. Its secret goes to `KEYCLOAK_ADMIN_CLIENT_SECRET`. | PR 1a |
 | 2 | That client → Service accounts roles | `realm-management`: `manage-users`, `view-users`, `query-users` (not `realm-admin`). | PR 1a |
-| 3 | Realm settings → Email | SMTP configured and tested; without it the invitation fails. | PR 1b |
+| 3 | Realm settings → Email | SMTP configured and tested; without it the invitation fails. | PR 1c |
 | 4 | Realm settings → Login | Email as username: ON. | PR 1b |
 | 5 | Realm settings → User profile → `lastName` | Not required. | PR 1b |
-| 6 | Frontend client → Valid redirect URIs | Includes `{APP_FRONTEND_URL}/recursos`. | PR 1b |
-| 7 | Realm settings → Localization (optional) | Spanish for the email and the password page. | PR 1b |
+| 6 | Frontend client → Valid redirect URIs | Includes `{APP_FRONTEND_URL}/recursos`. | PR 1c |
+| 7 | Realm settings → Localization (optional) | Spanish for the email and the password page. | PR 1c |
