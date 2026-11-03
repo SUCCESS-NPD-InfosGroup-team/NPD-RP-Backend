@@ -15,7 +15,8 @@ import org.springframework.security.oauth2.jwt.JwtDecoder;
  * a JWT with that role and the username {@code <role>.user}.
  * <p>
  * So {@code Authorization: Bearer operations-administrator} acts as an Operations administrator, and
- * {@link #INVALID_TOKEN} is rejected like an expired token. Used with
+ * {@link #INVALID_TOKEN} is rejected like an expired token. {@code <role>~<subject>} also sets the
+ * token's subject, for example a Keycloak user id. Used with
  * {@code @Import(TestSecurityConfiguration.class)}.
  */
 @TestConfiguration(proxyBeanMethods = false)
@@ -46,11 +47,14 @@ public class TestSecurityConfiguration {
 				throw new BadJwtException("Invalid test token");
 			}
 			Instant now = Instant.now();
+			// "<role>~<subject>" also sets the subject, which Keycloak fills with the user's id
+			int at = token.indexOf('~');
+			String role = at < 0 ? token : token.substring(0, at);
 			return Jwt.withTokenValue(token)
 				.header("alg", "none")
-				.subject(token)
-				.claim("preferred_username", usernameOf(token))
-				.claim("realm_access", Map.of("roles", List.of(token)))
+				.subject(at < 0 ? token : token.substring(at + 1))
+				.claim("preferred_username", usernameOf(role))
+				.claim("realm_access", Map.of("roles", List.of(role)))
 				.issuedAt(now)
 				.expiresAt(now.plusSeconds(300))
 				.build();
