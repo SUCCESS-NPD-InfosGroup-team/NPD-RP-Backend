@@ -41,6 +41,9 @@ public enum ErrorCode {
 	/** The database could not be reached; nothing was saved and the request can be retried. */
 	SERVICE_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE),
 
+	/** Keycloak could not be reached; nothing was created and the request can be retried. */
+	IDENTITY_PROVIDER_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE),
+
 	/** Unexpected failure. */
 	INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR);
 
