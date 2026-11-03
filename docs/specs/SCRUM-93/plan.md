@@ -11,8 +11,8 @@ How: [design.md](design.md).
 | 1a | `feature/SCRUM-93-keycloak-admin-rest-client` | Merged ([#23](https://github.com/SUCCESS-NPD-InfosGroup-team/NPD-RP-Backend/pull/23)) |
 | 1b | `feature/SCRUM-93-keycloak-user-operations` | Merged ([#24](https://github.com/SUCCESS-NPD-InfosGroup-team/NPD-RP-Backend/pull/24)) |
 | 1c | `feature/SCRUM-93-keycloak-invitation` | Merged ([#25](https://github.com/SUCCESS-NPD-InfosGroup-team/NPD-RP-Backend/pull/25)) |
-| 2 | `feature/SCRUM-93-app-user-registration` | This PR |
-| 3 | `feature/SCRUM-93-create-user-endpoint` | Pending |
+| 2 | `feature/SCRUM-93-app-user-registration` | Merged ([#27](https://github.com/SUCCESS-NPD-InfosGroup-team/NPD-RP-Backend/pull/27)) |
+| 3 | `feature/SCRUM-93-create-user-endpoint` | This PR |
 | 4 | `feature/SCRUM-93-list-users` | Pending |
 | 5 | `feature/SCRUM-93-last-access` | Pending |
 
@@ -57,7 +57,7 @@ This folder. Depends on 0b only for the rule it follows; can be merged in any or
 - Tests of the call and of the new settings.
 - ~120 lines. Depends on 1b. Needs Keycloak changes 3, 6 and 7.
 
-## 2. `app_user` and registration service — part 4 of 7
+## 2. `app_user` and registration service — part 4 of 7 — merged
 
 - Migration `V8__create_app_user.sql`, `AppUser` entity, `AppUserRepository`.
 - `CreateUserCommand`, `UserRegistrationService`: duplicate email check, Keycloak calls, insert and audit
@@ -72,7 +72,7 @@ This folder. Depends on 0b only for the rule it follows; can be merged in any or
   description with every error.
 - `SecurityConfig`: `/api/*/access/**` → `operations-administrator`.
 - End-to-end tests: 201, 400, 401, 403, 409, 503 (Keycloak client replaced in the test context).
-- ~300 lines. Depends on 2.
+- 399 lines. Depends on 2.
 
 ## 4. `GET /api/v1/access/users` and `GET /api/v1/access/roles` — part 6 of 7
 

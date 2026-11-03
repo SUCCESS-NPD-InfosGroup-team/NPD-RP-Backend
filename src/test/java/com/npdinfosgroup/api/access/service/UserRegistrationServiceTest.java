@@ -21,14 +21,17 @@ import com.npdinfosgroup.api.access.client.IdentityProviderUnavailableException;
 import com.npdinfosgroup.api.access.client.KeycloakAdminClient;
 import com.npdinfosgroup.api.access.client.KeycloakUserExistsException;
 import com.npdinfosgroup.api.access.dto.request.CreateUserCommand;
+import com.npdinfosgroup.api.access.dto.request.CreateUserRequest;
 import com.npdinfosgroup.api.access.dto.response.UserResponse;
 import com.npdinfosgroup.api.access.persistence.entity.AppUser;
 import com.npdinfosgroup.api.access.persistence.entity.AppUserState;
 import com.npdinfosgroup.api.access.persistence.repository.AppUserRepository;
+import com.npdinfosgroup.api.access.service.validator.CreateUserRequestValidator;
 import com.npdinfosgroup.api.history.service.AuditService;
 import com.npdinfosgroup.api.shared.exception.ApiException;
 import com.npdinfosgroup.api.shared.exception.ErrorCode;
 import com.npdinfosgroup.api.shared.security.Role;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
@@ -51,11 +54,19 @@ class UserRegistrationServiceTest {
 
 	private final AuditService audit = mock();
 
-	private final UserRegistrationService service = new UserRegistrationService(users, keycloak, audit,
+	private final CreateUserRequestValidator validator = mock();
+
+	private final UserRegistrationService service = new UserRegistrationService(validator, users, keycloak, audit,
 			TransactionOperations.withoutTransaction(), Clock.fixed(NOW, ZoneOffset.UTC));
 
-	private final CreateUserCommand command = new CreateUserCommand(" Ana María Ríos ", " Ana.Rios@Example.com ",
-			Role.NPD_LEADER, "admin");
+	private final CreateUserCommand command = new CreateUserCommand(
+			new CreateUserRequest(" Ana María Ríos ", " Ana.Rios@Example.com ", "npd-leader"), "admin");
+
+	/** The request itself is valid. */
+	@BeforeEach
+	void acceptRequest() {
+		when(validator.validate(any())).thenReturn(Role.NPD_LEADER);
+	}
 
 	/**
 	 * The account is created, gets its role and the invitation, in that order; the user is saved as
