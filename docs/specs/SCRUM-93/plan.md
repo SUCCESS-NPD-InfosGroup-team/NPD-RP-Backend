@@ -13,8 +13,8 @@ How: [design.md](design.md).
 | 1c | `feature/SCRUM-93-keycloak-invitation` | Merged ([#25](https://github.com/SUCCESS-NPD-InfosGroup-team/NPD-RP-Backend/pull/25)) |
 | 2 | `feature/SCRUM-93-app-user-registration` | Merged ([#27](https://github.com/SUCCESS-NPD-InfosGroup-team/NPD-RP-Backend/pull/27)) |
 | 3 | `feature/SCRUM-93-create-user-endpoint` | Merged ([#28](https://github.com/SUCCESS-NPD-InfosGroup-team/NPD-RP-Backend/pull/28)) |
-| 4 | `feature/SCRUM-93-list-users` | This PR |
-| 5 | `feature/SCRUM-93-last-access` | Pending |
+| 4 | `feature/SCRUM-93-list-users` | Merged ([#29](https://github.com/SUCCESS-NPD-InfosGroup-team/NPD-RP-Backend/pull/29)) |
+| 5 | `feature/SCRUM-93-last-access` | This PR |
 
 ## 0a. AGENTS.md in English and PR size — merged
 
@@ -74,7 +74,7 @@ This folder. Depends on 0b only for the rule it follows; can be merged in any or
 - End-to-end tests: 201, 400, 401, 403, 409, 503 (Keycloak client replaced in the test context).
 - 399 lines. Depends on 2.
 
-## 4. `GET /api/v1/access/users` and `GET /api/v1/access/roles` — part 6 of 7
+## 4. `GET /api/v1/access/users` and `GET /api/v1/access/roles` — part 6 of 7 — merged
 
 - Paged list sorted by full name, without filters; response with user, role, state and last access.
 - `GET /api/v1/access/users/{id}`, so the `Location` of the creation answers.
@@ -88,4 +88,4 @@ This folder. Depends on 0b only for the rule it follows; can be merged in any or
 - After authentication, update `last_access_at` of the calling user at most once every 5 minutes, and
   move `PENDING` to `ACTIVE` on the first access (design §5).
 - Tests of the throttling and the state change.
-- ~200 lines. Depends on 2.
+- 399 lines. Depends on 2.
