@@ -9,8 +9,8 @@ How: [design.md](design.md).
 | 0b | `docs/spec-driven-development` | Merged ([#21](https://github.com/SUCCESS-NPD-InfosGroup-team/NPD-RP-Backend/pull/21)) |
 | 0c | `docs/SCRUM-93-spec` | Merged ([#22](https://github.com/SUCCESS-NPD-InfosGroup-team/NPD-RP-Backend/pull/22)) |
 | 1a | `feature/SCRUM-93-keycloak-admin-rest-client` | Merged ([#23](https://github.com/SUCCESS-NPD-InfosGroup-team/NPD-RP-Backend/pull/23)) |
-| 1b | `feature/SCRUM-93-keycloak-user-operations` | This PR |
-| 1c | `feature/SCRUM-93-keycloak-invitation` | Pending |
+| 1b | `feature/SCRUM-93-keycloak-user-operations` | Merged ([#24](https://github.com/SUCCESS-NPD-InfosGroup-team/NPD-RP-Backend/pull/24)) |
+| 1c | `feature/SCRUM-93-keycloak-invitation` | This PR |
 | 2 | `feature/SCRUM-93-app-user-registration` | Pending |
 | 3 | `feature/SCRUM-93-create-user-endpoint` | Pending |
 | 4 | `feature/SCRUM-93-list-users` | Pending |
@@ -40,7 +40,7 @@ This folder. Depends on 0b only for the rule it follows; can be merged in any or
 - Its comments point to this `design.md`.
 - ~335 lines. Needs Keycloak changes 1–2 and the Railway variables before it is deployed (design §8).
 
-## 1b. Keycloak user operations — part 2 of 7
+## 1b. Keycloak user operations — part 2 of 7 — merged
 
 - `KeycloakAdminClient`: create account (id from `Location`), assign realm role, delete account.
 - Error mapping (design §3): `KeycloakUserExistsException` on 409, `IdentityProviderUnavailableException`
