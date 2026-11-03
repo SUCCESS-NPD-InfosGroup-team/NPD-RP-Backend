@@ -35,6 +35,9 @@ public enum ErrorCode {
 	/** A client with that name already exists. */
 	CLIENT_NAME_TAKEN(HttpStatus.CONFLICT),
 
+	/** A user with that email already exists. */
+	EMAIL_TAKEN(HttpStatus.CONFLICT),
+
 	/** Someone else saved the record after the user read it; nothing was saved. */
 	CONCURRENT_MODIFICATION(HttpStatus.CONFLICT),
 
