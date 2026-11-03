@@ -39,3 +39,6 @@ build/
 
 ### Local launcher script ###
 start_env.bat
+
+### skills
+.claude/skills/*
