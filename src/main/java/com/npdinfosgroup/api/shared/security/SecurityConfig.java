@@ -53,6 +53,8 @@ class SecurityConfig {
 				.requestMatchers("/actuator/health/**", "/v3/api-docs/**", "/scalar/**", "/error").permitAll()
 				.requestMatchers(HttpMethod.POST, "/api/*/planner/resources", "/api/*/planner/projects").hasRole(operationsAdministrator)
 				.requestMatchers(HttpMethod.PUT, "/api/*/planner/resources/*").hasRole(operationsAdministrator)
+				// User management, whatever the method: only Operations administrators
+				.requestMatchers("/api/*/access/**").hasRole(operationsAdministrator)
 				.anyRequest().authenticated())
 			.oauth2ResourceServer(oauth2 -> oauth2
 				.jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter()))
