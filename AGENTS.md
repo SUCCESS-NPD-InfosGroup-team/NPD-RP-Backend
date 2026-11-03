@@ -72,7 +72,7 @@ Expected flow: `web → service → persistence`. Controllers do not access repo
 | `history`       | Change history of the data. | `web`, `service`, `persistence`, `dto`, `listener` |
 | `access`        | Users, permissions and which data each one can see (`visibility`). | `web`, `service`, `persistence`, `dto`, `client`, `visibility` |
 | `integration`   | Integration and synchronization with external systems. | `web`, `service`, `persistence`, `dto`, `client`, `job` |
-| `shared`        | Cross-cutting code; not a business module. | `audit`, `config`, `exception`, `security`, `util` |
+| `shared`        | Cross-cutting code; not a business module. | `audit`, `config`, `dto` (shapes shared by every module, such as pages), `exception`, `security`, `util` |
 
 Other directories:
 

@@ -86,6 +86,7 @@ class UserControllerTest {
 			.query(Long.class)
 			.single();
 		assertThat(location).hasPath(USERS + "/" + id);
+		get(location.getPath()).expectStatus().isOk().expectBody().jsonPath("$.email").isEqualTo("ana.rios@example.com");
 		verify(keycloak).assignRealmRole(KEYCLOAK_ID, Role.NPD_LEADER);
 		verify(keycloak).sendInvitation(KEYCLOAK_ID);
 		assertThat(jdbc.sql("SELECT field || '=' || new_value || ' by ' || actor FROM audit_log WHERE entity_type = 'app_user'")
@@ -117,9 +118,7 @@ class UserControllerTest {
 	/** An email that already has a user is rejected before calling Keycloak. */
 	@Test
 	void rejectsATakenEmail() {
-		jdbc.sql("""
-				INSERT INTO app_user (keycloak_id, full_name, email, role, state, created_at, created_by)
-				VALUES (gen_random_uuid(), 'Ana', 'ana.rios@example.com', 'guest', 'ACTIVE', now(), 'test')""").update();
+		insertUser("Ana", "ana.rios@example.com", "ACTIVE", "now()");
 
 		post(ADMIN, ANA).expectStatus().isEqualTo(409).expectBody().jsonPath("$.code").isEqualTo("EMAIL_TAKEN");
 		verifyNoInteractions(keycloak);
@@ -137,12 +136,53 @@ class UserControllerTest {
 		assertThat(jdbc.sql("SELECT count(*) FROM app_user").query(Long.class).single()).isZero();
 	}
 
+	/** The list goes by full name, page by page, with the state and the last access. */
+	@Test
+	void listsTheUsersByName() {
+		insertUser("Carlos Pérez", "carlos@example.com", "ACTIVE", "now()");
+		insertUser("Ana Ríos", "ana@example.com", "PENDING", "NULL");
+		insertUser("Beatriz Gómez", "beatriz@example.com", "ACTIVE", "now()");
+
+		get(USERS + "?size=2&sort=email,desc").expectStatus()
+			.isOk()
+			.expectBody()
+			.jsonPath("$.items[*].fullName").isEqualTo(List.of("Ana Ríos", "Beatriz Gómez"))
+			.jsonPath("$.items[0].state").isEqualTo("PENDING")
+			.jsonPath("$.items[0].lastAccessAt").doesNotExist()
+			.jsonPath("$.items[1].lastAccessAt").isNotEmpty()
+			.jsonPath("$.page.totalElements").isEqualTo(3)
+			.jsonPath("$.page.totalPages").isEqualTo(2);
+		get(USERS + "?page=1&size=2").expectStatus().isOk().expectBody()
+			.jsonPath("$.items[*].fullName").isEqualTo(List.of("Carlos Pérez"));
+	}
+
+	/** A user that does not exist is a 404. */
+	@Test
+	void reportsAMissingUser() {
+		get(USERS + "/999999").expectStatus().isNotFound().expectBody().jsonPath("$.code").isEqualTo("NOT_FOUND");
+	}
+
 	/** Without a token the request is refused, and with another role it is forbidden. */
 	@Test
 	void onlyOperationsAdministratorsCreateUsers() {
 		client.post().uri(USERS).contentType(APPLICATION_JSON).body(ANA).exchange().expectStatus().isUnauthorized();
 		post("npd-leader", ANA).expectStatus().isForbidden().expectBody().jsonPath("$.code").isEqualTo("FORBIDDEN");
+		client.get().uri(USERS).header(AUTHORIZATION, "Bearer guest").exchange().expectStatus().isForbidden();
 		verifyNoInteractions(keycloak);
+	}
+
+	private void insertUser(String fullName, String email, String state, String lastAccess) {
+		jdbc.sql("""
+				INSERT INTO app_user (keycloak_id, full_name, email, role, state, last_access_at, created_at, created_by)
+				VALUES (gen_random_uuid(), :name, :email, 'guest', :state, %s, now(), 'test')""".formatted(lastAccess))
+			.param("name", fullName)
+			.param("email", email)
+			.param("state", state)
+			.update();
+	}
+
+	private RestTestClient.ResponseSpec get(String uri) {
+		return client.get().uri(uri).header(AUTHORIZATION, "Bearer " + ADMIN).exchange();
 	}
 
 	private RestTestClient.ResponseSpec post(String token, Object body) {

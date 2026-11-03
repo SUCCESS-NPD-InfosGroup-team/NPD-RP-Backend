@@ -123,6 +123,7 @@ every list request.
 |----------|-------|---------|
 | `POST /api/v1/access/users` | Operations administrator | 201 + `Location` + the user; 400 `VALIDATION_FAILED`; 401; 403; 409 `EMAIL_TAKEN`; 503 `IDENTITY_PROVIDER_UNAVAILABLE` |
 | `GET /api/v1/access/users?page=&size=` | Operations administrator | 200, paged and sorted by full name, no filters: `id`, `fullName`, `email`, `role`, `state`, `lastAccessAt`; 401; 403 |
+| `GET /api/v1/access/users/{id}` | Operations administrator | 200 with the same fields as the list; 401; 403; 404 `NOT_FOUND` |
 | `GET /api/v1/access/roles` | Operations administrator | 200: each role's `code`, `name` and `description` (Spanish texts from `messages.properties`); 401; 403 |
 
 Request of the POST: `{"fullName": "...", "email": "...", "role": "operations-administrator"}`, with

@@ -103,8 +103,7 @@ public class UserRegistrationService {
 			keycloak.sendInvitation(keycloakId);
 			AppUser user = transactions.execute(status -> save(keycloakId, fullName, email, role, command.actor()));
 			log.info("User {} created", user.getId());
-			return new UserResponse(user.getId(), user.getFullName(), user.getEmail(), user.getRole(),
-					user.getState().name(), user.getLastAccessAt());
+			return UserQueryService.toResponse(user);
 		}
 		catch (RuntimeException ex) {
 			deleteAccount(keycloakId);
