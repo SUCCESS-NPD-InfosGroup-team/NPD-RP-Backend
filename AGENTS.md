@@ -152,7 +152,7 @@ Javadoc documentation is **mandatory**:
 The API is documented for the frontends with **OpenAPI**, rendered with **Scalar UI**:
 
 - Every new or modified endpoint must be fully described in OpenAPI: summary, parameters, request body, responses and status codes (including errors in ProblemDetails format).
-- The OpenAPI specification and Scalar UI are **only available in dev mode**: `APP_DEV_MODE=true` in `.env`. If the variable is missing or `false` (staging and production on Railway), both endpoints answer 404.
+- The OpenAPI specification and Scalar UI are **only available in dev mode**: `APP_DEV_MODE=true` in `.env`. If the variable is missing or `false` (production on Railway), both endpoints answer 404.
 - With dev mode on: specification at `/v3/api-docs` and Scalar UI at `/scalar`.
 - Implementation: the `springdoc-openapi-starter-webmvc-scalar` dependency (springdoc 3.x, compatible with Spring Boot 4). In `application.properties`, `app.dev-mode` controls `springdoc.api-docs.enabled` and `scalar.enabled`. The metadata (title, description, version) lives in `shared/config/OpenApiConfig`.
 - Do not add any other way to expose the documentation (for example, Swagger UI), and do not enable it outside `APP_DEV_MODE`.
@@ -172,7 +172,7 @@ The API is documented for the frontends with **OpenAPI**, rendered with **Scalar
 
 The full workflow is in [CONTRIBUTING.md](CONTRIBUTING.md). Summary:
 
-- `main` = production and `develop` = staging; both deploy automatically to Railway.
+- `main` = production, deployed automatically to Railway. There is no staging: `develop` is not deployed and is run locally with `docker compose up --build`.
 - Work on a `<type>/<kebab-case-description>` branch created from `develop` (types: `feature`, `fix`, `hotfix`, `refactor`, `docs`, `test`, `chore`, `ci`) and open the PR against `develop`. `main` only receives PRs from `develop`. The `branch-policy.yml` workflow enforces this.
 - Every PR must pass the "Validar ramas" (`branch-policy.yml`) and "Run Unit Tests" (`unit-test.yml`: tests + SonarQube Cloud analysis) checks. The latter fails if a test fails **or** if the "Sonar way" quality gate does not pass: no new bugs or vulnerabilities and **80% coverage on new code**.
 - Every PR has **fewer than 400 changed lines** (see [PR size](#pr-size)).

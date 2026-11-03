@@ -10,7 +10,7 @@ How: [design.md](design.md).
 | 0c | `docs/SCRUM-93-spec` | Merged ([#22](https://github.com/SUCCESS-NPD-InfosGroup-team/NPD-RP-Backend/pull/22)) |
 | 1a | `feature/SCRUM-93-keycloak-admin-rest-client` | Merged ([#23](https://github.com/SUCCESS-NPD-InfosGroup-team/NPD-RP-Backend/pull/23)) |
 | 1b | `feature/SCRUM-93-keycloak-user-operations` | Merged ([#24](https://github.com/SUCCESS-NPD-InfosGroup-team/NPD-RP-Backend/pull/24)) |
-| 1c | `feature/SCRUM-93-keycloak-invitation` | This PR |
+| 1c | `feature/SCRUM-93-keycloak-invitation` | Merged ([#25](https://github.com/SUCCESS-NPD-InfosGroup-team/NPD-RP-Backend/pull/25)) |
 | 2 | `feature/SCRUM-93-app-user-registration` | Pending |
 | 3 | `feature/SCRUM-93-create-user-endpoint` | Pending |
 | 4 | `feature/SCRUM-93-list-users` | Pending |
@@ -49,7 +49,7 @@ This folder. Depends on 0b only for the rule it follows; can be merged in any or
 - Tests with `MockRestServiceServer` for each call and error.
 - 396 lines. Depends on 1a. Split from the invitation (1c) to stay under 400 lines. Needs Keycloak changes 4–5.
 
-## 1c. Invitation email — part 3 of 7
+## 1c. Invitation email — part 3 of 7 — merged
 
 - `KeycloakAdminClient.sendInvitation`: `execute-actions-email` with `UPDATE_PASSWORD`.
 - Settings `frontend-client-id`, `invitation-redirect-uri`, `invitation-lifespan`;

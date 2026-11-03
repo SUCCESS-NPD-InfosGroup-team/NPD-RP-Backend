@@ -1,67 +1,68 @@
-# Cómo contribuir
+# How to contribute
 
-## Ramas
+## Branches
 
-| Rama      | Entorno     | Despliegue                  |
+| Branch    | Environment | Deployment                  |
 |-----------|-------------|-----------------------------|
-| `main`    | Producción  | Automático en Railway       |
-| `develop` | Staging     | Automático en Railway       |
-| `<tipo>/<descripcion>` | Local | — |
+| `main`    | Production  | Automatic on Railway        |
+| `develop` | Local only  | None: run it with `docker compose up --build` |
+| `<type>/<description>` | Local | — |
 
-- Nadie hace push directo a `main` ni a `develop`; todo entra por Pull Request.
-- `develop` sirve para revisar los cambios en staging antes de pasarlos a producción.
-- `main` solo recibe PRs desde `develop`, cuando lo que hay en staging está validado. Esto incluye los `hotfix/`: también pasan primero por `develop`.
-- No se abren PRs de `main` hacia `develop`.
+- There is no staging environment (a cost decision): `develop` is not deployed anywhere.
+- Nobody pushes directly to `main` or `develop`; everything goes in through a Pull Request.
+- `develop` gathers the merged changes; check them locally with `docker compose up --build` before they go to production.
+- `main` only receives PRs from `develop`, once what is in `develop` has been checked. This includes `hotfix/` branches: they also go through `develop` first.
+- No PRs are opened from `main` to `develop`.
 
-### Nombre de la rama
+### Branch name
 
-Formato: `<tipo>/<descripcion-en-kebab-case>`. El tipo va en minúsculas; la descripción admite mayúsculas, minúsculas, números y guiones simples (sin espacios, `_` ni `--`).
+Format: `<type>/<kebab-case-description>`. The type is lowercase; the description allows uppercase and lowercase letters, numbers and single hyphens (no spaces, `_` or `--`).
 
-| Tipo       | Uso |
+| Type       | Use |
 |------------|-----|
-| `feature`  | Funcionalidad nueva |
-| `fix`      | Corrección de error |
-| `hotfix`   | Corrección urgente para producción |
-| `refactor` | Cambio interno sin alterar comportamiento |
-| `docs`     | Documentación |
+| `feature`  | New functionality |
+| `fix`      | Bug fix |
+| `hotfix`   | Urgent fix for production |
+| `refactor` | Internal change without changing behavior |
+| `docs`     | Documentation |
 | `test`     | Tests |
-| `chore`    | Configuración, dependencias |
-| `ci`       | Pipelines y workflows |
+| `chore`    | Configuration, dependencies |
+| `ci`       | Pipelines and workflows |
 
-Ejemplos válidos: `feature/importar-excel-planner`, `fix/SCRUM-31-fecha-nula`. No válidos: `Feature/algo`, `feature/fecha_nula`, `mi-rama`.
+Valid examples: `feature/import-planner-excel`, `fix/SCRUM-31-null-date`. Not valid: `Feature/something`, `feature/null_date`, `my-branch`.
 
-El workflow `.github/workflows/branch-policy.yml` valida estas reglas en cada PR hacia `main` o `develop`; si falla, el PR no se puede fusionar.
+The `.github/workflows/branch-policy.yml` workflow checks these rules on every PR to `main` or `develop`; if it fails, the PR cannot be merged.
 
-## Flujo de trabajo
+## Workflow
 
-1. Actualiza `develop` y crea tu rama desde ahí:
+1. Update `develop` and create your branch from it:
    ```bash
    git checkout develop
    git pull
-   git checkout -b <tipo>/<descripcion>
+   git checkout -b <type>/<description>
    ```
-   Sigue la [nomenclatura de ramas](#nombre-de-la-rama), por ejemplo `feature/importar-excel-planner`.
-2. Haz tus cambios y verifica que todo funciona:
+   Follow the [branch naming](#branch-name), for example `feature/import-planner-excel`.
+2. Make your changes and check that everything works:
    ```bash
    ./mvnw test
    ```
-   Docker debe estar en ejecución: los tests levantan su propio PostgreSQL con Testcontainers.
-3. Haz commit. Si hay tarea de Jira, empieza el mensaje con su ID:
+   Docker must be running: the tests start their own PostgreSQL with Testcontainers.
+3. Commit. If there is a Jira task, start the message with its ID:
    ```
-   SCRUM-17 | Descripción breve del cambio
+   SCRUM-17 | Short description of the change
    ```
-4. Sube la rama y abre un PR **hacia `develop`** llenando la plantilla de abajo.
-   En el PR corren dos checks obligatorios. Si alguno falla, el PR no se puede fusionar:
-   - **Validar ramas**: nombre y origen de la rama.
-   - **Run Unit Tests**: ejecuta los tests y analiza el código con SonarQube Cloud. Falla si un test falla o si no se cumple el quality gate: sin bugs ni vulnerabilidades nuevas y **al menos 80% de cobertura en las líneas nuevas o modificadas** del PR. SonarCloud deja un comentario en el PR con el detalle.
+4. Push the branch and open a PR **to `develop`**, filling in the template below.
+   Two mandatory checks run on the PR. If either fails, the PR cannot be merged:
+   - **Validar ramas**: name and origin of the branch.
+   - **Run Unit Tests**: runs the tests and analyzes the code with SonarQube Cloud. It fails if a test fails or if the quality gate is not met: no new bugs or vulnerabilities and **at least 80% coverage on the new or changed lines** of the PR. SonarCloud leaves a comment on the PR with the details.
 
-   Para ver tu cobertura antes de subir: `./mvnw verify` y abre `target/site/jacoco/index.html`.
-5. Cuando el PR se aprueba y se fusiona, el cambio se despliega en staging.
-6. Para pasar a producción se abre un PR de `develop` hacia `main`.
+   To see your coverage before pushing: `./mvnw verify` and open `target/site/jacoco/index.html`.
+5. When the PR is approved and merged, the change is in `develop`. Nothing is deployed: run it locally with `docker compose up --build`.
+6. To release to production, open a PR from `develop` to `main`. Before merging it, add to Railway any new environment variable and make any Keycloak change that the released PRs need.
 
-## Plantilla del Pull Request
+## Pull Request template
 
-Todos los campos son obligatorios salvo el ID de Jira cuando no exista tarea. **El campo de IA siempre debe llenarse**, aunque la respuesta sea "No". La plantilla está en `.github/pull_request_template.md` y GitHub la carga automáticamente al abrir el PR.
+Every field is mandatory except the Jira ID when there is no task. **The AI field must always be filled in**, even if the answer is "No". The template is in `.github/pull_request_template.md` and GitHub loads it automatically when the PR is opened. Its headings stay in Spanish; write the content in English.
 
 ```markdown
 ## Tipo de tarea
