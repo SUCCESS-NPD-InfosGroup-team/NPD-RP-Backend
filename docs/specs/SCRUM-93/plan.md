@@ -11,7 +11,7 @@ How: [design.md](design.md).
 | 1a | `feature/SCRUM-93-keycloak-admin-rest-client` | Merged ([#23](https://github.com/SUCCESS-NPD-InfosGroup-team/NPD-RP-Backend/pull/23)) |
 | 1b | `feature/SCRUM-93-keycloak-user-operations` | Merged ([#24](https://github.com/SUCCESS-NPD-InfosGroup-team/NPD-RP-Backend/pull/24)) |
 | 1c | `feature/SCRUM-93-keycloak-invitation` | Merged ([#25](https://github.com/SUCCESS-NPD-InfosGroup-team/NPD-RP-Backend/pull/25)) |
-| 2 | `feature/SCRUM-93-app-user-registration` | Pending |
+| 2 | `feature/SCRUM-93-app-user-registration` | This PR |
 | 3 | `feature/SCRUM-93-create-user-endpoint` | Pending |
 | 4 | `feature/SCRUM-93-list-users` | Pending |
 | 5 | `feature/SCRUM-93-last-access` | Pending |
@@ -64,7 +64,7 @@ This folder. Depends on 0b only for the rule it follows; can be merged in any or
   in one transaction, rollback in Keycloak on failure.
 - Error code `EMAIL_TAKEN` with its Spanish texts.
 - Unit tests of the service (Keycloak client mocked), including each rollback case.
-- ~380 lines. Depends on 1c.
+- 399 lines. Depends on 1c.
 
 ## 3. `POST /api/v1/access/users` — part 5 of 7
 
