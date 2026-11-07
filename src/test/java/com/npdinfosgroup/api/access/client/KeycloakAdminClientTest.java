@@ -46,7 +46,7 @@ class KeycloakAdminClientTest {
 	private static final UUID USER_ID = UUID.fromString("5f0c2b8e-1d2a-4c3b-9e4f-6a7b8c9d0e1f");
 
 	private static final KeycloakAdminProperties PROPERTIES = new KeycloakAdminProperties(
-			"http://keycloak.test/realms/npd-rp", "npd-rp-api-admin", "s3cret", Duration.ofSeconds(2),
+			"http://keycloak.test/realms/npd-rp", null, "npd-rp-api-admin", "s3cret", Duration.ofSeconds(2),
 			Duration.ofSeconds(5), "npd-rp-web", "http://localhost:5173/recursos", Duration.ofHours(48));
 
 	private final RestClient.Builder builder = RestClient.builder();

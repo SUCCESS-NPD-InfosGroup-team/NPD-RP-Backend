@@ -38,8 +38,31 @@ Details of B:
   logged in.
 - The token and admin URLs come from the existing `KEYCLOAK_ISSUER_URI`
   (`{keycloak}/realms/{realm}` → `.../protocol/openid-connect/token` and
-  `{keycloak}/admin/realms/{realm}`), so there is a single Keycloak URL to configure.
+  `{keycloak}/admin/realms/{realm}`), so usually there is a single Keycloak URL to configure.
+  Only where the API cannot reach Keycloak at the issuer's address, the optional `KEYCLOAK_ADMIN_URL`
+  replaces `{keycloak}` in both URLs (see below).
 - Timeouts: 2 s to connect, 5 s per answer, for the admin calls and the token requests.
+
+### Decision: Keycloak URL for the admin calls
+
+The issuer is the URL the browser uses (it must match the `iss` claim of the users' tokens). In the
+global docker compose of the infra repo that is `http://localhost:8081/realms/npd`, and inside the API
+container `localhost` is the container itself: the token request is refused and every user creation
+answers 503 `IDENTITY_PROVIDER_UNAVAILABLE`. The resource server already has the same problem solved
+with its own setting (`SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI` → `keycloak:8080`).
+
+**Chosen: optional `KEYCLOAK_ADMIN_URL` (`app.keycloak.admin-url`).**
+
+| Option | Why not / why |
+|--------|---------------|
+| A. Keep one URL and make `localhost:8081` reachable from the container (`host.docker.internal` as issuer, `network_mode`) | Depends on the Docker installation, and the browser and the container would need the same host name. |
+| **B. Optional base URL for the token and admin calls** | **Chosen.** Empty by default, so Railway and IDE runs keep deriving everything from the issuer; the compose sets `http://keycloak:8080`. The token keeps the public `iss` because Keycloak's hostname is fixed (`KC_HOSTNAME`), and the Admin API accepts it from the internal address (checked: `GET /admin/realms/npd/users` → 200). |
+| C. Full token and admin URLs as two settings | Two values that must point to the same server and realm; B derives both from one. |
+
+- `KEYCLOAK_ADMIN_URL` is only the server, without the realm: `http://keycloak:8080` →
+  `http://keycloak:8080/realms/{realm}/protocol/openid-connect/token` and
+  `http://keycloak:8080/admin/realms/{realm}`. The realm always comes from the issuer.
+- When set, it must be an `http(s)` URL; a trailing slash is ignored.
 
 ## 3. Keycloak Admin REST calls
 
@@ -139,6 +162,7 @@ New error codes: `EMAIL_TAKEN` (409) and `IDENTITY_PROVIDER_UNAVAILABLE` (503), 
 | Variable | Property | Notes |
 |----------|----------|-------|
 | `KEYCLOAK_ISSUER_URI` (existing) | `app.keycloak.issuer-uri` | Same realm URL as the resource server |
+| `KEYCLOAK_ADMIN_URL` | `app.keycloak.admin-url` | Optional, empty by default; server URL for the token and admin calls when the issuer is not reachable from the API (`http://keycloak:8080` in the infra compose). See §2 |
 | `KEYCLOAK_ADMIN_CLIENT_ID` | `app.keycloak.admin-client-id` | Default `npd-rp-api-admin` |
 | `KEYCLOAK_ADMIN_CLIENT_SECRET` | `app.keycloak.admin-client-secret` | Required: the app does not start without it |
 | `KEYCLOAK_FRONTEND_CLIENT_ID` | `app.keycloak.frontend-client-id` | Required; `client_id` of the invitation link |

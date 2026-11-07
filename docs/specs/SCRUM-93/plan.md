@@ -14,7 +14,8 @@ How: [design.md](design.md).
 | 2 | `feature/SCRUM-93-app-user-registration` | Merged ([#27](https://github.com/SUCCESS-NPD-InfosGroup-team/NPD-RP-Backend/pull/27)) |
 | 3 | `feature/SCRUM-93-create-user-endpoint` | Merged ([#28](https://github.com/SUCCESS-NPD-InfosGroup-team/NPD-RP-Backend/pull/28)) |
 | 4 | `feature/SCRUM-93-list-users` | Merged ([#29](https://github.com/SUCCESS-NPD-InfosGroup-team/NPD-RP-Backend/pull/29)) |
-| 5 | `feature/SCRUM-93-last-access` | This PR |
+| 5 | `feature/SCRUM-93-last-access` | Merged ([#30](https://github.com/SUCCESS-NPD-InfosGroup-team/NPD-RP-Backend/pull/30)) |
+| 6 | `fix/SCRUM-93-keycloak-admin-url` | This PR |
 
 ## 0a. AGENTS.md in English and PR size — merged
 
@@ -83,9 +84,19 @@ This folder. Depends on 0b only for the rule it follows; can be merged in any or
 - OpenAPI and end-to-end tests.
 - 384 lines. Depends on 3 (it answers the `Location` of the creation).
 
-## 5. Last access and state — part 7 of 7
+## 5. Last access and state — part 7 of 7 — merged
 
 - After authentication, update `last_access_at` of the calling user at most once every 5 minutes, and
   move `PENDING` to `ACTIVE` on the first access (design §5).
 - Tests of the throttling and the state change.
 - 399 lines. Depends on 2.
+
+## 6. Keycloak URL for the admin calls — fix
+
+- Optional `KEYCLOAK_ADMIN_URL` (`app.keycloak.admin-url`): server URL for the token and admin calls,
+  so the API reaches Keycloak at `keycloak:8080` inside the infra compose while the issuer stays
+  `localhost:8081` (design §2). Without it, every user creation in Docker answered 503.
+- `KeycloakAdminProperties` builds both URLs from it when set; `.env.example` documents it.
+- Tests: URLs from the admin URL (with and without trailing slash), still from the issuer when empty,
+  the app does not start with an invalid value.
+- 124 lines. Depends on 1a. Needs `KEYCLOAK_ADMIN_URL=http://keycloak:8080` in the infra compose (infra repo PR).
