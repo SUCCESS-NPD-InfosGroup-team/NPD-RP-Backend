@@ -39,7 +39,7 @@ class KeycloakAdminClientConfigTest {
 	private static final String USERS_COUNT_URL = "http://keycloak.test/admin/realms/npd-rp/users/count";
 
 	private static final KeycloakAdminProperties PROPERTIES = new KeycloakAdminProperties(
-			"http://keycloak.test/realms/npd-rp", "npd-rp-api-admin", "s3cret", Duration.ofSeconds(2),
+			"http://keycloak.test/realms/npd-rp", null, "npd-rp-api-admin", "s3cret", Duration.ofSeconds(2),
 			Duration.ofSeconds(5), "npd-rp-web", "http://localhost:5173/recursos", Duration.ofHours(48));
 
 	private final RestClient.Builder builder = RestClient.builder();

@@ -18,6 +18,10 @@ import org.springframework.validation.annotation.Validated;
  *
  * @param issuerUri realm that issues the tokens, the same as the resource server's
  *        ({@code {keycloak}/realms/{realm}}); the token and admin URLs come from it
+ * @param adminUrl optional Keycloak server URL ({@code {keycloak}}) for the token and admin calls, when
+ *        the API cannot reach Keycloak at the issuer's address (inside docker compose,
+ *        {@code http://keycloak:8080}); empty or missing to use the issuer's server. The realm always
+ *        comes from the issuer
  * @param adminClientId client id of the service account
  * @param adminClientSecret secret of the service account
  * @param connectTimeout how long to wait to connect to Keycloak
@@ -30,6 +34,7 @@ import org.springframework.validation.annotation.Validated;
 @ConfigurationProperties("app.keycloak")
 public record KeycloakAdminProperties(
 		@NotNull @Pattern(regexp = "https?://.+/realms/[^/]+/?") String issuerUri,
+		@Pattern(regexp = "(https?://.+)?") String adminUrl,
 		@NotBlank String adminClientId,
 		@NotBlank String adminClientSecret,
 		@NotNull Duration connectTimeout,
@@ -46,7 +51,7 @@ public record KeycloakAdminProperties(
 	 * @return {@code {keycloak}/realms/{realm}/protocol/openid-connect/token}
 	 */
 	URI tokenUri() {
-		return URI.create(issuer() + "/protocol/openid-connect/token");
+		return URI.create(server() + realmPath() + "/protocol/openid-connect/token");
 	}
 
 	/**
@@ -55,13 +60,30 @@ public record KeycloakAdminProperties(
 	 * @return {@code {keycloak}/admin/realms/{realm}}
 	 */
 	URI adminUri() {
+		return URI.create(server() + "/admin" + realmPath());
+	}
+
+	/** The admin URL when set, otherwise the issuer up to {@code /realms/}; never with a trailing slash. */
+	private String server() {
+		if (adminUrl == null || adminUrl.isBlank()) {
+			String issuer = issuer();
+			return issuer.substring(0, issuer.lastIndexOf(REALMS));
+		}
+		return withoutTrailingSlash(adminUrl);
+	}
+
+	/** {@code /realms/{realm}}, taken from the issuer. */
+	private String realmPath() {
 		String issuer = issuer();
-		int realms = issuer.lastIndexOf(REALMS);
-		return URI.create(issuer.substring(0, realms) + "/admin" + issuer.substring(realms));
+		return issuer.substring(issuer.lastIndexOf(REALMS));
 	}
 
 	private String issuer() {
-		return issuerUri.endsWith("/") ? issuerUri.substring(0, issuerUri.length() - 1) : issuerUri;
+		return withoutTrailingSlash(issuerUri);
+	}
+
+	private static String withoutTrailingSlash(String url) {
+		return url.endsWith("/") ? url.substring(0, url.length() - 1) : url;
 	}
 
 }

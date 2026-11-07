@@ -99,4 +99,4 @@ This folder. Depends on 0b only for the rule it follows; can be merged in any or
 - `KeycloakAdminProperties` builds both URLs from it when set; `.env.example` documents it.
 - Tests: URLs from the admin URL (with and without trailing slash), still from the issuer when empty,
   the app does not start with an invalid value.
-- ~110 lines. Depends on 1a. Needs `KEYCLOAK_ADMIN_URL=http://keycloak:8080` in the infra compose (infra repo PR).
+- 124 lines. Depends on 1a. Needs `KEYCLOAK_ADMIN_URL=http://keycloak:8080` in the infra compose (infra repo PR).
