@@ -7,7 +7,6 @@ import com.npdinfosgroup.api.planner.dto.request.ContractEndFilter;
 import com.npdinfosgroup.api.planner.dto.request.CreateProjectCommand;
 import com.npdinfosgroup.api.planner.dto.request.CreateProjectRequest;
 import com.npdinfosgroup.api.planner.dto.request.ProjectSearchCriteria;
-import com.npdinfosgroup.api.planner.dto.response.PageResponse;
 import com.npdinfosgroup.api.planner.dto.response.ProjectKpisResponse;
 import com.npdinfosgroup.api.planner.dto.response.ProjectListItemResponse;
 import com.npdinfosgroup.api.planner.dto.response.ProjectResponse;

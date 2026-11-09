@@ -13,8 +13,6 @@ import com.npdinfosgroup.api.planner.dto.request.ProjectSearchCriteria;
 import com.npdinfosgroup.api.planner.dto.response.ClientResponse;
 import com.npdinfosgroup.api.planner.dto.response.IdName;
 import com.npdinfosgroup.api.planner.dto.response.ItemsResponse;
-import com.npdinfosgroup.api.planner.dto.response.PageInfo;
-import com.npdinfosgroup.api.planner.dto.response.PageResponse;
 import com.npdinfosgroup.api.planner.dto.response.ProjectKpisResponse;
 import com.npdinfosgroup.api.planner.dto.response.ProjectListItemResponse;
 import com.npdinfosgroup.api.planner.dto.response.ProjectOptionResponse;
