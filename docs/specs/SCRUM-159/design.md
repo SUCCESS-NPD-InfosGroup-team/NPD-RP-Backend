@@ -44,7 +44,7 @@ Authorization: Bearer <jwt>
        active: true        → request goes on
        active: false       → 401 UNAUTHORIZED
        Keycloak unreachable, timeout, 5xx, or our client rejected
-                           → 503 IDENTITY_PROVIDER_UNAVAILABLE
+                           → 503 SESSION_CHECK_UNAVAILABLE
 ```
 
 - **Where:** `access/client/KeycloakSessionValidator`, a bean registered in a new
@@ -65,22 +65,27 @@ Authorization: Bearer <jwt>
 
 ## 4. Decision: answer when Keycloak cannot be reached
 
-**Chosen: refuse the request with 503 `IDENTITY_PROVIDER_UNAVAILABLE` (fail closed).**
+**Chosen: refuse the request with 503 `SESSION_CHECK_UNAVAILABLE` (fail closed).**
 
 | Option | Why not / why |
 |--------|---------------|
 | Accept the token unchecked (fail open) | A Keycloak outage would bring back the bug (CA-03). |
 | 401 | Simple, but the frontend treats 401 as "session ended" and sends the user to the login page during a short Keycloak hiccup, and the user cannot tell an outage from a logout. |
-| **503 `IDENTITY_PROVIDER_UNAVAILABLE`** | **Chosen.** Same code the user creation already answers when Keycloak is down; the frontend can show "try again" and keep the session. |
+| 503 `IDENTITY_PROVIDER_UNAVAILABLE` | The code the user creation answers when Keycloak is down, but its Spanish text says the account was not created, which is wrong on any other request. |
+| **503 `SESSION_CHECK_UNAVAILABLE` (new)** | **Chosen.** Its own text ("no se pudo verificar tu sesión… intenta de nuevo"); the frontend can show "try again" and keep the session. Changed during PR 2: the first version of this design reused `IDENTITY_PROVIDER_UNAVAILABLE`. |
 
 How it reaches the response: the validator fails with an `OAuth2Error` whose code is
 `temporarily_unavailable` (an OAuth2 code, not one of ours). Spring Security wraps the decoder's
 `JwtValidationException` in an `InvalidBearerTokenException` and calls the authentication entry point.
 `shared/security/ProblemDetailsSecurityHandler.commence` looks for that error in the cause and answers
-503 `IDENTITY_PROVIDER_UNAVAILABLE` instead of 401, but only when it is the **only** error: the
+503 `SESSION_CHECK_UNAVAILABLE` instead of 401, but only when it is the **only** error: the
 validators do not stop at the first failure, so an expired token is also sent to Keycloak, and while
 Keycloak is down it must still answer 401. It only uses Spring Security types and the shared
 `ErrorCode`, so `shared` still does not depend on `access`.
+
+Every secured endpoint can now answer this 503. `shared/config/SessionCheckOpenApiConfig` adds it to
+every operation of the OpenAPI specification that documents a 401 (or extends the description of its
+existing 503), instead of repeating it on each controller method.
 
 ## 5. Tests
 

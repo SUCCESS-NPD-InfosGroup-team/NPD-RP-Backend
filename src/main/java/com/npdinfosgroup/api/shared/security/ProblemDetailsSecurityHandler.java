@@ -14,6 +14,8 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ProblemDetail;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.AuthenticationException;
+import org.springframework.security.oauth2.core.OAuth2ErrorCodes;
+import org.springframework.security.oauth2.jwt.JwtValidationException;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.access.AccessDeniedHandler;
 import org.springframework.security.web.csrf.CsrfException;
@@ -23,7 +25,8 @@ import tools.jackson.databind.json.JsonMapper;
 
 /**
  * Answers 401 (no valid token) and 403 (role without permission) as ProblemDetails, like every
- * other error of the API.
+ * other error of the API, and 503 when Keycloak could not check whether the token's session is still
+ * active (see {@code docs/specs/SCRUM-159/design.md}).
  * <p>
  * These errors happen in the security filters, before the request reaches a controller, so
  * {@code GlobalExceptionHandler} never sees them. Only loaded with the web server: the planner import
@@ -54,7 +57,9 @@ class ProblemDetailsSecurityHandler implements AuthenticationEntryPoint, AccessD
 	}
 
 	/**
-	 * Answers 401 when the token is missing, invalid or expired.
+	 * Answers 401 when the token is missing, invalid, expired or its session has ended, and 503
+	 * {@code SESSION_CHECK_UNAVAILABLE} when the only reason is that Keycloak could not be asked: the
+	 * user should retry, not sign in again.
 	 *
 	 * @param request current request
 	 * @param response response to write
@@ -64,8 +69,30 @@ class ProblemDetailsSecurityHandler implements AuthenticationEntryPoint, AccessD
 	@Override
 	public void commence(HttpServletRequest request, HttpServletResponse response,
 			AuthenticationException authException) throws IOException {
+		if (onlySessionNotChecked(authException)) {
+			write(request, response, ErrorCode.SESSION_CHECK_UNAVAILABLE);
+			return;
+		}
 		response.setHeader(HttpHeaders.WWW_AUTHENTICATE, "Bearer");
 		write(request, response, ErrorCode.UNAUTHORIZED);
+	}
+
+	/**
+	 * Whether the token was refused only because Keycloak could not check its session. The validators
+	 * all run, so an expired token can carry that error too; it must still answer 401.
+	 *
+	 * @param authException why authentication failed; the decoder's validation errors are in its causes
+	 * @return {@code true} when {@code temporarily_unavailable} is the only validation error
+	 */
+	static boolean onlySessionNotChecked(AuthenticationException authException) {
+		for (Throwable cause = authException; cause != null; cause = cause.getCause()) {
+			if (cause instanceof JwtValidationException validation) {
+				return !validation.getErrors().isEmpty() && validation.getErrors()
+					.stream()
+					.allMatch(error -> OAuth2ErrorCodes.TEMPORARILY_UNAVAILABLE.equals(error.getErrorCode()));
+			}
+		}
+		return false;
 	}
 
 	/**

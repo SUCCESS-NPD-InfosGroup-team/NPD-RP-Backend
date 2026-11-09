@@ -6,14 +6,14 @@ How: [design.md](design.md).
 | # | Branch | Status |
 |---|--------|--------|
 | 0 | `docs/SCRUM-159-token-revocation-spec` | Merged ([#33](https://github.com/SUCCESS-NPD-InfosGroup-team/NPD-RP-Backend/pull/33)) |
-| 1 | `fix/SCRUM-159-introspection-validator` | This PR |
-| 2 | `fix/SCRUM-159-identity-provider-unavailable` | Pending |
+| 1 | `fix/SCRUM-159-introspection-validator` | Merged ([#34](https://github.com/SUCCESS-NPD-InfosGroup-team/NPD-RP-Backend/pull/34)) |
+| 2 | `fix/SCRUM-159-identity-provider-unavailable` | This PR |
 
 ## 0. Spec, design and plan — merged
 
 This folder. 181 lines.
 
-## 1. Introspection validator — part 1 of 2
+## 1. Introspection validator — part 1 of 2 — merged
 
 - `KeycloakAdminProperties.introspectionUri()`.
 - `KeycloakIntrospectionConfig` (its `RestClient` with Basic credentials and the timeouts, shared with
@@ -25,7 +25,8 @@ This folder. 181 lines.
 
 ## 2. 503 when Keycloak cannot be reached — part 2 of 2
 
-- `ProblemDetailsSecurityHandler.commence`: 503 `IDENTITY_PROVIDER_UNAVAILABLE` when the only
-  validation error is `temporarily_unavailable`, 401 otherwise (design §4).
-- Tests of both answers.
-- ~80 lines. Depends on 1.
+- `ProblemDetailsSecurityHandler.commence`: 503 `SESSION_CHECK_UNAVAILABLE` (new error code with its
+  Spanish texts) when the only validation error is `temporarily_unavailable`, 401 otherwise (design §4).
+- `SessionCheckOpenApiConfig`: the 503 in the OpenAPI description of every secured endpoint.
+- Tests: 503 and 401 (expired token while Keycloak is down) end to end; the OpenAPI customizer.
+- 205 lines. Depends on 1.
