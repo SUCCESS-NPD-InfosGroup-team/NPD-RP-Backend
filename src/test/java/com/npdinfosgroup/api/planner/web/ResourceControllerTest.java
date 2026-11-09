@@ -436,6 +436,23 @@ class ResourceControllerTest {
 			.expectBody()
 			.jsonPath("$.code").isEqualTo("UNAUTHORIZED");
 		post(TestSecurityConfiguration.INVALID_TOKEN, validRequest("1113")).expectStatus().isUnauthorized();
+		post(TestSecurityConfiguration.EXPIRED_SESSION_NOT_CHECKED, validRequest("1113")).expectStatus()
+			.isUnauthorized()
+			.expectBody()
+			.jsonPath("$.code").isEqualTo("UNAUTHORIZED");
+		assertThat(employeeCount()).isEqualTo(2);
+	}
+
+	/** If Keycloak cannot check the session, the request is refused with 503 and can be retried. */
+	@Test
+	void refusesTheRequestWhenTheSessionCannotBeChecked() {
+		post(TestSecurityConfiguration.SESSION_NOT_CHECKED, validRequest("1114")).expectStatus()
+			.isEqualTo(503)
+			.expectHeader().contentType("application/problem+json")
+			.expectBody()
+			.jsonPath("$.code").isEqualTo("SESSION_CHECK_UNAVAILABLE")
+			.jsonPath("$.instance").isEqualTo(RESOURCES);
+		assertThat(employeeCount()).isEqualTo(2);
 	}
 
 	/** A record that does not exist answers 404, and a malformed body 400. */

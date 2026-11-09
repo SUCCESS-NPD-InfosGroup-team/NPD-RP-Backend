@@ -1,4 +1,4 @@
-package com.npdinfosgroup.api.planner.dto.response;
+package com.npdinfosgroup.api.shared.dto;
 
 import java.util.List;
 

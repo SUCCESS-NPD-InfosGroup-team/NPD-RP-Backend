@@ -26,6 +26,8 @@ import com.npdinfosgroup.api.planner.persistence.repository.ClientRepository;
 import com.npdinfosgroup.api.planner.persistence.repository.EmployeeRepository;
 import com.npdinfosgroup.api.planner.persistence.repository.ProjectSummaryRepository;
 import com.npdinfosgroup.api.planner.service.validator.ResourceRequestValidator;
+import com.npdinfosgroup.api.shared.dto.PageInfo;
+import com.npdinfosgroup.api.shared.dto.PageResponse;
 import com.npdinfosgroup.api.shared.exception.NotFoundException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;

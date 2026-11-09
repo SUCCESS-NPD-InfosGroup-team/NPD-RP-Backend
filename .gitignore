@@ -36,3 +36,9 @@ build/
 
 ### Planner Excel and its import report (personal data) ###
 *.xlsx
+
+### Local launcher script ###
+start_env.bat
+
+### skills
+.claude/skills/*

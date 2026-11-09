@@ -1,119 +1,119 @@
-# Cómo ejecutar la importación del planificador
+# How to run the planner import
 
-Guía práctica: qué pasa cuando se ejecuta la importación y qué comando usar según dónde estés. Las reglas de la importación (qué se rechaza, qué se marca) están en el [README](README.md).
+Practical guide: what happens when the import runs and which command to use depending on where you are. The import rules (what is rejected, what is flagged) are in the [README](README.md).
 
-> **El Excel tiene datos personales.** Guárdalo fuera de cualquier repositorio, por ejemplo en `C:\Users\<tú>\Documents\npd-import\planificador.xlsx`, y no hagas commit ni de él ni de su reporte.
+> **The Excel has personal data.** Keep it outside any repository, for example in `C:\Users\<you>\Documents\npd-import\planificador.xlsx`, and never commit it or its report.
 
-## Flujo
+## Flow
 
-La importación no es un endpoint: es la misma aplicación arrancada en modo comando. Arranca, importa, escribe el reporte y se detiene.
+The import is not an endpoint: it is the same application started in command mode. It starts, imports, writes the report and stops.
 
 ```mermaid
 flowchart TD
-    A["Arranque con planner.import.file<br/>y web-application-type=none"] --> B["Flyway aplica las migraciones pendientes<br/>(V1…V5)"]
-    B --> C["Hibernate valida el esquema<br/>(ddl-auto=validate)"]
-    C --> D["Contexto sin servidor web:<br/>no se cargan la seguridad ni los controladores"]
-    D --> E["PlannerImportRunner<br/>(solo existe si se pasa planner.import.file)"]
-    E --> F["PlannerWorkbookReader<br/>lee la hoja PLANIFICADOR"]
-    F --> G["PlannerImportService<br/>una sola transacción"]
+    A["Start with planner.import.file<br/>and web-application-type=none"] --> B["Flyway applies the pending migrations<br/>(V1…V5)"]
+    B --> C["Hibernate validates the schema<br/>(ddl-auto=validate)"]
+    C --> D["Context without a web server:<br/>security and controllers are not loaded"]
+    D --> E["PlannerImportRunner<br/>(only exists if planner.import.file is given)"]
+    E --> F["PlannerWorkbookReader<br/>reads the PLANIFICADOR sheet"]
+    F --> G["PlannerImportService<br/>one single transaction"]
     G --> H["ImportReportWriter<br/>reporte-import-planificador.xlsx"]
-    H --> I["Log con conteos<br/>y la aplicación se detiene"]
+    H --> I["Log with counts<br/>and the application stops"]
 ```
 
-1. **Arranque.** La aplicación arranca con dos valores:
-   - `planner.import.file`: la ruta del Excel.
-   - `spring.main.web-application-type=none`: arrancar sin servidor web, así no abre puerto y se detiene al terminar.
+1. **Startup.** The application starts with two values:
+   - `planner.import.file`: the path of the Excel.
+   - `spring.main.web-application-type=none`: start without a web server, so it opens no port and stops when it finishes.
 
-   Se pueden pasar como argumentos (`--planner.import.file=…`) o como variables de entorno (`PLANNER_IMPORT_FILE`, `SPRING_MAIN_WEB_APPLICATION_TYPE`), que es lo que se usa con Docker.
-2. **Migraciones.** Flyway aplica las migraciones que falten y Hibernate valida que las tablas coincidan con las entidades. Si la base está vacía, aquí se crea el esquema completo.
-3. **Contexto sin web.** Sin servidor web no se cargan `SecurityConfig` ni el manejador de 401/403, que llevan `@ConditionalOnWebApplication`, y la importación no necesita Keycloak.
-4. **`PlannerImportRunner`.** Solo existe cuando se pasa `planner.import.file`. Sin esa propiedad, la aplicación arranca normal como API y no importa nada.
+   They can be passed as arguments (`--planner.import.file=…`) or as environment variables (`PLANNER_IMPORT_FILE`, `SPRING_MAIN_WEB_APPLICATION_TYPE`), which is what Docker uses.
+2. **Migrations.** Flyway applies the missing migrations and Hibernate checks that the tables match the entities. If the database is empty, the whole schema is created here.
+3. **Context without web.** Without a web server, `SecurityConfig` and the 401/403 handler, which carry `@ConditionalOnWebApplication`, are not loaded, and the import does not need Keycloak.
+4. **`PlannerImportRunner`.** It only exists when `planner.import.file` is given. Without that property, the application starts normally as the API and imports nothing.
 5. **`PlannerWorkbookReader`.**
-   - Abre el Excel y lee la hoja `PLANIFICADOR`; si no existe, lee la primera.
-   - Busca la fila de encabezados (la que tiene `COD EMPL`) entre las 10 primeras filas.
-   - Reconoce cada columna por su nombre, así que columnas extra o en otro orden no la rompen.
-6. **`PlannerImportService`.** Todo pasa en una sola transacción: si algo falla, no se guarda nada.
-   - Limpia los valores.
-   - Crea los clientes, proyectos y catálogos que falten.
-   - Crea o actualiza a cada empleado por `COD EMPL`.
-   - Asigna los líderes al final, cuando ya existen todos los empleados.
+   - Opens the Excel and reads the `PLANIFICADOR` sheet; if it does not exist, it reads the first one.
+   - Looks for the header row (the one with `COD EMPL`) among the first 10 rows.
+   - Recognizes each column by its name, so extra columns or a different order do not break it.
+6. **`PlannerImportService`.** Everything happens in one single transaction: if something fails, nothing is saved.
+   - Cleans the values.
+   - Creates the missing clients, projects and catalogs.
+   - Creates or updates each employee by `COD EMPL`.
+   - Assigns the leaders at the end, when every employee exists.
 
-   Ejecutarla otra vez actualiza los datos; no los duplica.
+   Running it again updates the data; it does not duplicate it.
 7. **`ImportReportWriter`.**
-   - Escribe `reporte-import-planificador.xlsx` en la carpeta del Excel, con las hojas Resumen, Rechazadas y Observaciones.
-   - Para otra ruta se usa `planner.import.report` (`PLANNER_IMPORT_REPORT` en Docker).
-8. **Fin.** El log solo muestra conteos, nunca datos personales, y la aplicación se detiene:
+   - Writes `reporte-import-planificador.xlsx` in the Excel's folder, with the sheets Resumen, Rechazadas and Observaciones.
+   - For another path, use `planner.import.report` (`PLANNER_IMPORT_REPORT` in Docker).
+8. **End.** The log only shows counts, never personal data, and the application stops:
    ```
    Planner import finished: 162 rows read, 162 imported, 0 rejected, 37 flagged. Report: …
    ```
 
-La importación no escribe en `audit_log`, porque la auditoría registra solo los cambios hechos por la API.
+The import does not write to `audit_log`, because the audit only records the changes made through the API.
 
-Código: [`planner/importer`](../../src/main/java/com/npdinfosgroup/api/planner/importer).
+Code: [`planner/importer`](../../src/main/java/com/npdinfosgroup/api/planner/importer).
 
-## En este repositorio (NPD-RP-Backend)
+## In this repository (NPD-RP-Backend)
 
-Necesitas Docker Desktop encendido. Los comandos se ejecutan desde la raíz del repo y están escritos para PowerShell.
+You need Docker Desktop running. The commands run from the root of the repo and are written for PowerShell.
 
-### Con Maven (la aplicación en tu máquina)
+### With Maven (the application on your machine)
 
-`spring-boot-docker-compose` levanta solo el servicio `postgres` de `compose.yaml`:
+`spring-boot-docker-compose` starts only the `postgres` service of `compose.yaml`:
 
 ```powershell
-./mvnw spring-boot:run "-Dspring-boot.run.arguments=--spring.main.web-application-type=none --planner.import.file=C:/Users/<tú>/Documents/npd-import/planificador.xlsx"
+./mvnw spring-boot:run "-Dspring-boot.run.arguments=--spring.main.web-application-type=none --planner.import.file=C:/Users/<you>/Documents/npd-import/planificador.xlsx"
 ```
 
-Usa `/` en la ruta. Si la ruta tiene espacios, mueve el Excel a una carpeta sin espacios.
+Use `/` in the path. If the path has spaces, move the Excel to a folder without spaces.
 
-### Con Docker (la aplicación en un contenedor)
+### With Docker (the application in a container)
 
-Usa la misma imagen que `docker compose up`. Haz `build` cada vez que cambie el código:
+It uses the same image as `docker compose up`. Run `build` every time the code changes:
 
 ```powershell
 docker compose build api
 docker compose run --rm `
-  -v C:/Users/<tú>/Documents/npd-import:/import `
+  -v C:/Users/<you>/Documents/npd-import:/import `
   -e PLANNER_IMPORT_FILE=/import/planificador.xlsx `
   -e SPRING_MAIN_WEB_APPLICATION_TYPE=none `
   api
 ```
 
-- `-v` monta la carpeta del Excel en `/import`. El reporte queda en esa misma carpeta de tu equipo.
-- `run --rm` crea un contenedor de un solo uso, que se borra al terminar. Si hace falta, levanta Postgres.
+- `-v` mounts the Excel's folder on `/import`. The report ends up in that same folder on your machine.
+- `run --rm` creates a single-use container, deleted when it finishes. It starts Postgres if needed.
 
-Después, para usar la API con los datos importados:
+Then, to use the API with the imported data:
 
 ```powershell
 docker compose up -d
 ```
 
-Los dos caminos, Maven y Docker, usan la misma base: el volumen `pgdata` de este repo, publicado en `localhost:5433`.
+Both paths, Maven and Docker, use the same database: this repo's `pgdata` volume, published on `localhost:5433`.
 
-## En el repositorio de infra (docker-compose global)
+## In the infra repository (global docker-compose)
 
-Desde la carpeta que tiene `docker-compose.yaml` (`SUCCESS/`). Ahí el servicio se llama `backend`, no `api`:
+From the folder that has `docker-compose.yaml` (`SUCCESS/`). There the service is called `backend`, not `api`:
 
 ```powershell
 docker compose build backend
 docker compose run --rm `
-  -v C:/Users/<tú>/Documents/npd-import:/import `
+  -v C:/Users/<you>/Documents/npd-import:/import `
   -e PLANNER_IMPORT_FILE=/import/planificador.xlsx `
   -e SPRING_MAIN_WEB_APPLICATION_TYPE=none `
   -e SPRING_FLYWAY_LOCATIONS=classpath:db/migration `
   backend
 ```
 
-`SPRING_FLYWAY_LOCATIONS=classpath:db/migration` es necesario por cómo está hoy el compose global:
+`SPRING_FLYWAY_LOCATIONS=classpath:db/migration` is needed because of how the global compose is today:
 
-- **La carpeta de migraciones de infra está vacía.** El compose global hace que el backend lea las migraciones de `SUCCESS/db/migration`, que está vacía. Las migraciones viven en el backend (`src/main/resources/db/migration`), y esta variable le dice que use esas.
-- **La base de infra puede tener un esquema viejo.** Si tu volumen `success_pgdata` se creó con un diseño anterior (`2 - create employee and assignment` en `flyway_schema_history`), Flyway no puede validarlo y el backend no arranca. Hay que borrar solo ese volumen, lo que **elimina los datos de la base de infra**:
+- **The infra migrations folder is empty.** The global compose makes the backend read the migrations from `SUCCESS/db/migration`, which is empty. The migrations live in the backend (`src/main/resources/db/migration`), and this variable tells it to use those.
+- **The infra database may have an old schema.** If your `success_pgdata` volume was created with an earlier design (`2 - create employee and assignment` in `flyway_schema_history`), Flyway cannot validate it and the backend does not start. Delete only that volume, which **deletes the data of the infra database**:
   ```powershell
   docker compose stop
   docker volume rm success_pgdata
   ```
-  No uses `docker compose down -v`: también borra `keycloak-data`, con los usuarios y la configuración de Keycloak.
+  Do not use `docker compose down -v`: it also deletes `keycloak-data`, with Keycloak's users and configuration.
 
-Para levantar todo, incluido el frontend, con los datos importados, `backend` necesita la misma variable. Mientras el compose global no se corrija, pásala con un override. Ejemplo de `docker-compose.override.yaml` junto al global:
+To start everything, frontend included, with the imported data, `backend` needs the same variable. Until the global compose is fixed, pass it with an override. Example of a `docker-compose.override.yaml` next to the global one:
 
 ```yaml
 services:
@@ -126,20 +126,20 @@ services:
 docker compose up -d --build
 ```
 
-> No ejecutes los dos stacks a la vez: los dos publican Postgres en el puerto 5433 y la API en el 8080. Antes de usar uno, ejecuta `docker compose stop` en el otro.
+> Do not run both stacks at the same time: both publish Postgres on port 5433 and the API on 8080. Before using one, run `docker compose stop` in the other.
 
-## Staging y producción (Railway)
+## Production (Railway)
 
-El Excel no se sube a Railway. La importación se ejecuta desde tu equipo contra la base remota:
+There is no staging environment: only production runs on Railway. The Excel is not uploaded to Railway. The import runs from your machine against the remote database:
 
-1. En Railway, activa el **TCP Proxy** del Postgres (*Settings → Networking*) y anota el host y el puerto públicos.
-2. Ve al mismo commit desplegado en ese entorno (`develop` para staging, `main` para producción). Flyway aplica al arrancar las migraciones que encuentre, así que con otra rama cambiarías el esquema de ese entorno.
-3. Genera el jar y ejecútalo con la conexión en variables de entorno. El jar no incluye `spring-boot-docker-compose`, así que no levanta ningún Postgres local:
+1. In Railway, turn on the Postgres **TCP Proxy** (*Settings → Networking*) and write down the public host and port.
+2. Check out the commit deployed in production (`main`). Flyway applies on startup the migrations it finds, so with another branch you would change the production schema.
+3. Build the jar and run it with the connection in environment variables. The jar does not include `spring-boot-docker-compose`, so it starts no local Postgres:
    ```powershell
    ./mvnw package -DskipTests
    $env:DB_HOST="xxx.proxy.rlwy.net"; $env:DB_PORT="12345"; $env:DB_NAME="railway"; $env:DB_USER="postgres"; $env:DB_PASSWORD="…"
-   java -jar target/api-0.0.1-SNAPSHOT.jar --spring.main.web-application-type=none --planner.import.file=C:/Users/<tú>/Documents/npd-import/planificador.xlsx
+   java -jar target/api-0.0.1-SNAPSHOT.jar --spring.main.web-application-type=none --planner.import.file=C:/Users/<you>/Documents/npd-import/planificador.xlsx
    ```
-4. Revisa el reporte y cierra el TCP Proxy.
+4. Check the report and turn off the TCP Proxy.
 
-Pruébalo primero en staging.
+Try it first on your local database (see [In this repository](#in-this-repository-npd-rp-backend)).

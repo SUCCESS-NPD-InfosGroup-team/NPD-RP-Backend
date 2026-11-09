@@ -2,6 +2,8 @@ package com.npdinfosgroup.api.planner.dto.response;
 
 import java.util.List;
 
+import com.npdinfosgroup.api.shared.dto.PageInfo;
+
 import io.swagger.v3.oas.annotations.media.Schema;
 
 public record ResourceSearchResponse(

@@ -13,6 +13,7 @@ import com.npdinfosgroup.api.planner.dto.response.ProjectListItemResponse;
 import com.npdinfosgroup.api.planner.dto.response.ProjectResponse;
 import com.npdinfosgroup.api.planner.service.ProjectQueryService;
 import com.npdinfosgroup.api.planner.service.ProjectRegistrationService;
+import com.npdinfosgroup.api.shared.dto.PageResponse;
 import com.npdinfosgroup.api.shared.security.CurrentUser;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
