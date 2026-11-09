@@ -55,6 +55,15 @@ public record KeycloakAdminProperties(
 	}
 
 	/**
+	 * Endpoint that tells whether a user's access token is still active (its session has not ended).
+	 *
+	 * @return {@code {keycloak}/realms/{realm}/protocol/openid-connect/token/introspect}
+	 */
+	URI introspectionUri() {
+		return URI.create(server() + realmPath() + "/protocol/openid-connect/token/introspect");
+	}
+
+	/**
 	 * Base URL of the Admin REST API for the realm.
 	 *
 	 * @return {@code {keycloak}/admin/realms/{realm}}
