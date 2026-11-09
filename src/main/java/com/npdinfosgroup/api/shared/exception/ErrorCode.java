@@ -47,6 +47,9 @@ public enum ErrorCode {
 	/** Keycloak could not be reached; nothing was created and the request can be retried. */
 	IDENTITY_PROVIDER_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE),
 
+	/** Keycloak could not check whether the session is still active; the request can be retried. */
+	SESSION_CHECK_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE),
+
 	/** Unexpected failure. */
 	INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR);
 
