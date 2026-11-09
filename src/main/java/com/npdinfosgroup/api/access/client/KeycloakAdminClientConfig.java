@@ -51,10 +51,21 @@ class KeycloakAdminClientConfig {
 	 */
 	@Bean
 	RestClient keycloakAdminRestClient(KeycloakAdminProperties properties) {
+		return create(RestClient.builder().requestFactory(requestFactory(properties)), properties);
+	}
+
+	/**
+	 * HTTP settings of every call to Keycloak: the admin calls, the token requests and the token
+	 * introspection ({@link KeycloakIntrospectionConfig}).
+	 *
+	 * @param properties Keycloak settings
+	 * @return a request factory with the connect and read timeouts of the settings
+	 */
+	static JdkClientHttpRequestFactory requestFactory(KeycloakAdminProperties properties) {
 		HttpClient httpClient = HttpClient.newBuilder().connectTimeout(properties.connectTimeout()).build();
 		JdkClientHttpRequestFactory requestFactory = new JdkClientHttpRequestFactory(httpClient);
 		requestFactory.setReadTimeout(properties.readTimeout());
-		return create(RestClient.builder().requestFactory(requestFactory), properties);
+		return requestFactory;
 	}
 
 	/**

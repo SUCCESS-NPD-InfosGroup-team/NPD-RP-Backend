@@ -12,7 +12,7 @@ import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.web.client.RestClient;
 
 /**
- * Keycloak settings: the token and admin URLs come from the issuer, so the API needs only one Keycloak
+ * Keycloak settings: the token, introspection and admin URLs come from the issuer, so the API needs only one Keycloak
  * URL, unless the optional admin URL replaces its server; the application does not start with invalid
  * settings.
  */
@@ -26,15 +26,17 @@ class KeycloakAdminPropertiesTest {
 				"app.keycloak.invitation-redirect-uri=http://localhost:5173/recursos",
 				"app.keycloak.invitation-lifespan=48h");
 
-	/** With or without a trailing slash, the issuer gives the realm's token and admin URLs. */
+	/** With or without a trailing slash, the issuer gives the realm's token, introspection and admin URLs. */
 	@ParameterizedTest
 	@ValueSource(strings = { "https://auth.example.com/realms/npd-rp", "https://auth.example.com/realms/npd-rp/" })
-	void derivesTheTokenAndAdminUrlsFromTheIssuer(String issuer) {
+	void derivesTheKeycloakUrlsFromTheIssuer(String issuer) {
 		KeycloakAdminProperties properties = properties(issuer, null);
 
 		assertThat(properties.tokenUri())
 			.isEqualTo(URI.create("https://auth.example.com/realms/npd-rp/protocol/openid-connect/token"));
 		assertThat(properties.adminUri()).isEqualTo(URI.create("https://auth.example.com/admin/realms/npd-rp"));
+		assertThat(properties.introspectionUri()).isEqualTo(
+				URI.create("https://auth.example.com/realms/npd-rp/protocol/openid-connect/token/introspect"));
 	}
 
 	/** An empty admin URL, as {@code KEYCLOAK_ADMIN_URL=} binds it, still uses the issuer's server. */
@@ -46,7 +48,7 @@ class KeycloakAdminPropertiesTest {
 	}
 
 	/**
-	 * With an admin URL (inside docker compose), the token and admin calls go to that server, with or
+	 * With an admin URL (inside docker compose), the token, introspection and admin calls go to that server, with or
 	 * without a trailing slash, while the realm still comes from the public issuer.
 	 */
 	@ParameterizedTest
@@ -57,6 +59,8 @@ class KeycloakAdminPropertiesTest {
 		assertThat(properties.tokenUri())
 			.isEqualTo(URI.create("http://keycloak:8080/realms/npd/protocol/openid-connect/token"));
 		assertThat(properties.adminUri()).isEqualTo(URI.create("http://keycloak:8080/admin/realms/npd"));
+		assertThat(properties.introspectionUri())
+			.isEqualTo(URI.create("http://keycloak:8080/realms/npd/protocol/openid-connect/token/introspect"));
 	}
 
 	/** With every setting, the admin client is created. */

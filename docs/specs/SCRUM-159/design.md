@@ -24,7 +24,7 @@ lifespan.**
 |--------|---------------|
 | A. Short access token lifespan only | No code, but the token still works for up to the lifespan after logout: CA-01 is not met. Kept as a second barrier (CA-04). |
 | B. Opaque token introspection instead of JWT (`.opaqueToken()`) | Also calls Keycloak per request, and replaces the `Jwt` principal everywhere: the role converter of `SecurityConfig`, `LastAccessInterceptor` (reads `JwtAuthenticationToken`), `CurrentUser` and `TestSecurityConfiguration` would all change. |
-| **C. JWT + introspection validator** | **Chosen.** An `OAuth2TokenValidator<Jwt>` asks Keycloak's introspection endpoint whether the token is still active. The token is first checked locally as today, so forged or expired tokens never reach Keycloak. The principal, roles, last access and test setup stay the same. Cost: one call to Keycloak per authenticated request. |
+| **C. JWT + introspection validator** | **Chosen.** An `OAuth2TokenValidator<Jwt>` asks Keycloak's introspection endpoint whether the token is still active. The signature is first checked locally as today, so forged tokens never reach Keycloak. The principal, roles, last access and test setup stay the same. Cost: one call to Keycloak per authenticated request. |
 | D. Back-channel logout | Keycloak posts a logout token to the API, which stores the ended sessions and rejects their tokens. No call per request, but a new public endpoint, logout-token validation, storage of the ended sessions (in the DB to survive restarts) and a Keycloak setting per client. Much more code for the same result. |
 
 ### No cache of the introspection answers
@@ -37,8 +37,10 @@ as Keycloak. To revisit only if the latency becomes a problem.
 
 ```
 Authorization: Bearer <jwt>
-  → NimbusJwtDecoder: signature, exp/nbf, iss            (as today; fails → 401)
-  → KeycloakSessionValidator: POST .../token/introspect   (new)
+  → NimbusJwtDecoder: signature                         (as today; fails → 401, Keycloak not asked)
+  → validators, all of them run and their errors add up:
+       exp/nbf, iss                                       (as today; fail → 401)
+       KeycloakSessionValidator: POST .../token/introspect (new)
        active: true        → request goes on
        active: false       → 401 UNAUTHORIZED
        Keycloak unreachable, timeout, 5xx, or our client rejected
@@ -75,7 +77,9 @@ How it reaches the response: the validator fails with an `OAuth2Error` whose cod
 `temporarily_unavailable` (an OAuth2 code, not one of ours). Spring Security wraps the decoder's
 `JwtValidationException` in an `InvalidBearerTokenException` and calls the authentication entry point.
 `shared/security/ProblemDetailsSecurityHandler.commence` looks for that error in the cause and answers
-503 `IDENTITY_PROVIDER_UNAVAILABLE` instead of 401. It only uses Spring Security types and the shared
+503 `IDENTITY_PROVIDER_UNAVAILABLE` instead of 401, but only when it is the **only** error: the
+validators do not stop at the first failure, so an expired token is also sent to Keycloak, and while
+Keycloak is down it must still answer 401. It only uses Spring Security types and the shared
 `ErrorCode`, so `shared` still does not depend on `access`.
 
 ## 5. Tests
@@ -84,10 +88,11 @@ How it reaches the response: the validator fails with an `OAuth2Error` whose cod
   body); `active: true` → success; `active: false` → `invalid_token`; 5xx, timeout, connection refused
   and 401 from Keycloak → `temporarily_unavailable`.
 - `KeycloakAdminProperties.introspectionUri()`: from the issuer and from the admin URL.
-- `ProblemDetailsSecurityHandler`: 503 with `temporarily_unavailable` in the cause, 401 otherwise.
-- Wiring: with `ApplicationContextRunner`, the auto-configured decoder (RSA public key from a test file)
-  rejects a correctly signed token when the validator bean says it is not active. This guards the
-  reliance on Boot adding validator beans.
+- `ProblemDetailsSecurityHandler`: 503 when `temporarily_unavailable` is the only error in the cause;
+  401 when it comes with another error (expired token) and in every other case.
+- Wiring: with `WebApplicationContextRunner`, the decoder Spring Boot builds (RSA public key from a test
+  file) refuses a correctly signed, unexpired token with `temporarily_unavailable` when Keycloak is on a
+  closed port. This guards the reliance on Boot adding validator beans.
 - The `@SpringBootTest` tests keep `TestSecurityConfiguration`, which replaces the whole `JwtDecoder`,
   so they never call Keycloak.
 
