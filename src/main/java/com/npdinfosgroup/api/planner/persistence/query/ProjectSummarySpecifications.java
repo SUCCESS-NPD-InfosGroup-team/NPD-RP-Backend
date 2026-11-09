@@ -1,6 +1,7 @@
 package com.npdinfosgroup.api.planner.persistence.query;
 
 import java.time.LocalDate;
+import java.util.Locale;
 
 import com.npdinfosgroup.api.planner.persistence.entity.Employee;
 import com.npdinfosgroup.api.planner.persistence.entity.ProjectSummary;
@@ -13,6 +14,9 @@ import org.springframework.data.jpa.domain.Specification;
  * parameters.
  */
 public final class ProjectSummarySpecifications {
+
+	/** Escape character of the LIKE patterns built from user text. */
+	static final char LIKE_ESCAPE = '\\';
 
 	private ProjectSummarySpecifications() {
 	}
@@ -45,6 +49,51 @@ public final class ProjectSummarySpecifications {
 	 */
 	public static Specification<ProjectSummary> contractEndingBy(LocalDate date) {
 		return (root, query, cb) -> cb.lessThanOrEqualTo(root.get("contractEndDate"), date);
+	}
+
+	/**
+	 * Projects whose contract with the client ends between two dates, both included. Projects without
+	 * contract end are left out.
+	 *
+	 * @param from first day
+	 * @param to last day
+	 * @return the filter
+	 */
+	public static Specification<ProjectSummary> contractEndingBetween(LocalDate from, LocalDate to) {
+		return (root, query, cb) -> cb.between(root.get("contractEndDate"), from, to);
+	}
+
+	/**
+	 * Projects without a client contract end («Sin fecha»).
+	 *
+	 * @return the filter
+	 */
+	public static Specification<ProjectSummary> withoutContractEnd() {
+		return (root, query, cb) -> cb.isNull(root.get("contractEndDate"));
+	}
+
+	/**
+	 * Projects whose name or whose client's name contains a text, ignoring case. The {@code %},
+	 * {@code _} and {@code \} the user types are matched literally, not as wildcards.
+	 *
+	 * @param text text to look for, already stripped and not blank
+	 * @return the filter
+	 */
+	public static Specification<ProjectSummary> nameContains(String text) {
+		String pattern = "%" + escapeLike(text.toLowerCase(Locale.ROOT)) + "%";
+		return (root, query, cb) -> cb.or(
+				cb.like(cb.lower(root.get("name")), pattern, LIKE_ESCAPE),
+				cb.like(cb.lower(root.get("clientName")), pattern, LIKE_ESCAPE));
+	}
+
+	/**
+	 * Escapes the LIKE wildcards of a user text so they are matched literally.
+	 *
+	 * @param text user text
+	 * @return the text with {@code \}, {@code %} and {@code _} escaped with a backslash
+	 */
+	static String escapeLike(String text) {
+		return text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
 	}
 
 	/**

@@ -1,0 +1,93 @@
+# Doxygen configuration of the NPD-RP backend.
+#
+# Generates browsable HTML documentation (classes, packages, call and collaboration graphs) from the
+# Javadoc that AGENTS.md already makes mandatory: no comment style changes are needed.
+#
+# Run from the repository root (Doxygen only creates the last folder of OUTPUT_DIRECTORY):
+#     mkdir -p target/doxygen && doxygen docs/doxygen/Doxyfile
+# Output: target/doxygen/html/index.html (target/ is ignored by git).
+# Requires Doxygen >= 1.9 and Graphviz (dot) for the diagrams.
+#
+# Only the values that differ from Doxygen's defaults are listed; see `doxygen -g` for the rest.
+
+#---------------------------------------------------------------------------
+# Project
+#---------------------------------------------------------------------------
+PROJECT_NAME           = "NPD-RP Backend"
+PROJECT_BRIEF          = "API del planificador de recursos NPD (Spring Boot 4, Java 21)"
+OUTPUT_DIRECTORY       = target/doxygen
+# The Javadoc is written in English; Doxygen's Spanish labels are outdated since 1.9.6.
+OUTPUT_LANGUAGE        = English
+CREATE_SUBDIRS         = NO
+
+#---------------------------------------------------------------------------
+# Java / Javadoc
+#---------------------------------------------------------------------------
+# First sentence of each Javadoc comment is the brief description, as in Javadoc.
+JAVADOC_AUTOBRIEF      = YES
+OPTIMIZE_OUTPUT_JAVA   = YES
+# Package-private is the default visibility in this code base (guidelines.md, section 2), so it is
+# documented; private members are not.
+EXTRACT_PACKAGE        = YES
+EXTRACT_PRIVATE        = NO
+EXTRACT_STATIC         = YES
+# Lists undocumented DTOs, entities and enum constants too, so {@link} to them resolves.
+EXTRACT_ALL            = YES
+# Records, DTOs and entities are intentionally undocumented (AGENTS.md): do not warn about them.
+WARN_IF_UNDOCUMENTED   = NO
+WARN_IF_DOC_ERROR      = YES
+WARN_NO_PARAMDOC       = YES
+WARN_LOGFILE           = target/doxygen/warnings.log
+SORT_MEMBER_DOCS       = NO
+SORT_BRIEF_DOCS        = NO
+
+#---------------------------------------------------------------------------
+# Input
+#---------------------------------------------------------------------------
+# Other README.md files would compete with the main page; AGENTS.md uses @-includes Doxygen
+# reads as commands. Both stay readable on GitHub.
+INPUT                  = README.md \
+                         CONTRIBUTING.md \
+                         guidelines.md \
+                         docs/planner-import/ejecucion.md \
+                         src/main/java
+USE_MDFILE_AS_MAINPAGE = README.md
+FILE_PATTERNS          = *.java *.md
+RECURSIVE              = YES
+EXCLUDE_PATTERNS       = */.gitkeep
+IMAGE_PATH             = docs/database
+# Spring and Lombok annotations are noise in the signatures.
+EXCLUDE_SYMBOLS        = lombok.*
+
+#---------------------------------------------------------------------------
+# Source browsing
+#---------------------------------------------------------------------------
+SOURCE_BROWSER         = YES
+INLINE_SOURCES         = NO
+STRIP_CODE_COMMENTS    = NO
+REFERENCED_BY_RELATION = YES
+REFERENCES_RELATION    = YES
+
+#---------------------------------------------------------------------------
+# Output
+#---------------------------------------------------------------------------
+GENERATE_HTML          = YES
+GENERATE_TREEVIEW      = YES
+HTML_COLORSTYLE        = LIGHT
+SEARCHENGINE           = YES
+GENERATE_LATEX         = NO
+
+#---------------------------------------------------------------------------
+# Diagrams (Graphviz)
+#---------------------------------------------------------------------------
+HAVE_DOT               = YES
+DOT_IMAGE_FORMAT       = svg
+INTERACTIVE_SVG        = YES
+CLASS_GRAPH            = YES
+COLLABORATION_GRAPH    = YES
+UML_LOOK               = YES
+UML_LIMIT_NUM_FIELDS   = 10
+CALL_GRAPH             = NO
+CALLER_GRAPH           = NO
+DOT_GRAPH_MAX_NODES    = 60
+DOT_MULTI_TARGETS      = YES
