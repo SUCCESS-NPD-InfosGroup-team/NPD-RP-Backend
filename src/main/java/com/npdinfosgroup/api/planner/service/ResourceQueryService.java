@@ -75,14 +75,14 @@ public class ResourceQueryService {
 	}
 
 	/**
-	 * The situation of a resource (Asignado, Pendiente de confirmación, Sin proyecto), as
-	 * {@code resource_v} calculates it. Runs inside the caller's transaction.
+	 * What {@code resource_v} calculates for a resource: its situation (Asignado, Pendiente de
+	 * confirmación, Sin proyecto) and the start of its assignment. Runs inside the caller's transaction.
 	 *
 	 * @param id employee id of an existing resource
-	 * @return the situation code
+	 * @return its row of the view
 	 */
-	String situationOf(long id) {
-		return situations.findById(id).map(ResourceSituation::getSituation).orElseThrow();
+	ResourceSituation situationOf(long id) {
+		return situations.findById(id).orElseThrow();
 	}
 
 }

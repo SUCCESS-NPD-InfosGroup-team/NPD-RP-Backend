@@ -12,6 +12,7 @@ public record ResourceResponse(long id, String employeeNumber, String name, Stri
 		LocalDate hireDate,
 		@Schema(description = "En periodo de prueba") boolean onProbation,
 		@Schema(description = "Día 90 desde la fecha de inicio de contrato") LocalDate probationEndDate,
+		@Schema(description = "Mes de vacaciones (1-12), calculado cada año", example = "5") Short vacationMonth,
 		CodeLabel status,
 		@Schema(description = "Calculada: ASIGNADO, PENDIENTE_CONFIRMACION o SIN_PROYECTO") CodeLabel situation,
 		@Schema(description = "null = Sin proyecto") AssignmentResponse assignment,

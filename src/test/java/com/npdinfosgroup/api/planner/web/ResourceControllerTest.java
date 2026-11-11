@@ -489,6 +489,54 @@ class ResourceControllerTest {
 	}
 
 	/**
+	 * SCRUM-85 CA-01: the side panel reads, besides the record, the NPD lead's employee number, the start
+	 * of the assignment (the later of the project creation and the hire date), the days to the end date
+	 * (negative once it passed, null when indefinite) and the vacation month.
+	 */
+	@Test
+	void returnsTheSidePanelFields() {
+		jdbc.sql("UPDATE project SET created_at = TIMESTAMPTZ '2023-06-01 12:00:00-05' WHERE id = :id")
+			.param("id", projectId)
+			.update();
+		long expired = insertEmployee("RT-D1", "Michelle Peña", "ACTIVO", workModeId, projectId);
+		jdbc.sql("UPDATE employee SET leader_id = :leader, project_end_date = :end WHERE id = :id")
+			.param("leader", leaderId)
+			.param("end", TODAY.minusDays(7))
+			.param("id", expired)
+			.update();
+		long upcoming = insertEmployee("RT-D2", "Kevin Rodríguez", "ACTIVO", workModeId, projectId);
+		jdbc.sql("UPDATE employee SET project_end_date = :end WHERE id = :id")
+			.param("end", TODAY.plusDays(24))
+			.param("id", upcoming)
+			.update();
+		long indefinite = insertEmployee("RT-D3", "Karla Pitti", "ACTIVO", workModeId, projectId);
+		Short vacationMonth = jdbc.sql("SELECT vacation_month FROM employee WHERE id = :id")
+			.param("id", expired)
+			.query(Short.class)
+			.single();
+
+		client.get().uri(RESOURCES + "/" + expired).header(AUTHORIZATION, "Bearer guest").exchange()
+			.expectStatus().isOk()
+			.expectBody()
+			.jsonPath("$.vacationMonth").value(Number.class, actual -> assertThat(actual.intValue()).isEqualTo(vacationMonth.intValue()))
+			.jsonPath("$.situation.code").isEqualTo("PENDIENTE_CONFIRMACION")
+			.jsonPath("$.assignment.leader.name").isEqualTo("Lorena Batista")
+			.jsonPath("$.assignment.leaderEmployeeNumber").isEqualTo("RT-L1")
+			.jsonPath("$.assignment.startDate").isEqualTo("2024-01-15")
+			.jsonPath("$.assignment.daysToEndDate").isEqualTo(-7);
+		client.get().uri(RESOURCES + "/" + upcoming).header(AUTHORIZATION, "Bearer npd-leader").exchange()
+			.expectStatus().isOk()
+			.expectBody()
+			.jsonPath("$.assignment.daysToEndDate").isEqualTo(24)
+			.jsonPath("$.assignment.leaderEmployeeNumber").doesNotExist();
+		client.get().uri(RESOURCES + "/" + indefinite).header(AUTHORIZATION, "Bearer customer-success").exchange()
+			.expectStatus().isOk()
+			.expectBody()
+			.jsonPath("$.assignment.indefinite").isEqualTo(true)
+			.jsonPath("$.assignment.daysToEndDate").doesNotExist();
+	}
+
+	/**
 	 * The "Líder NPD" selector offers who leads someone today, except those on Baja; whoever leads
 	 * nobody is not offered.
 	 */
