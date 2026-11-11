@@ -99,7 +99,7 @@ index is needed.
 | Package | Class | Role |
 |---------|-------|------|
 | `history/web` | `AuditController` | The route above. |
-| `history/service` | `AuditService.findLastOperation(entityType, id)` | Reads the rows of the last operation, in a read-only transaction. |
+| `history/service` | `AuditQueryService.findResourceLastChange(id)` | Reads the rows of the last operation, in a read-only transaction. A separate service from `AuditService`, which only writes the log inside the callers' transactions: reading for the API and writing for the modules change for different reasons. |
 | `history/service/mapper` | `AuditMapper` | Builds the response and resolves the labels. |
 | `history/dto/response` | `LastChangeResponse`, `FieldChangeResponse` | The answer. |
 
@@ -123,6 +123,6 @@ role with a valid token. No rule changes.
   later of project creation and hire date, days to end positive and negative, `null` when indefinite,
   vacation month).
 - `AuditControllerTest` (`@SpringBootTest`, random port, Testcontainers): `CREATE` operation, `UPDATE`
-  operation with several fields and labels, only the last operation is returned, `204` without changes,
-  any role can read it, `401` without a token.
-- `AuditServiceTest` / mapper unit tests: label fallback and ordering.
+  operation with several fields and labels, label fallback, only the last operation is returned, rows
+  of another table ignored, `204` without changes for every role, `401` without a token, `400` for a
+  non-numeric id.

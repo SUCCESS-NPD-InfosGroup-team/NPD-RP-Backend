@@ -24,11 +24,13 @@ This folder.
 - Registration and edit services pass the row; OpenAPI descriptions of the new fields.
 - Tests: `ResourceControllerTest` for each new field (positive and negative days, indefinite, without
   lead).
+- 97 lines.
 
 ## 2. Last change endpoint — part 2 of 2
 
-- `AuditService.findLastOperation`, `AuditMapper`, `LastChangeResponse`, `FieldChangeResponse`,
+- `AuditQueryService.findResourceLastChange`, `AuditMapper`, `LastChangeResponse`, `FieldChangeResponse`,
   `AuditController` with its OpenAPI (design §3).
 - Spanish labels `audit.field.<field>` in `messages.properties`.
 - Tests: `AuditControllerTest` end to end (create, update with several fields, only the last operation,
-  204, any role, 401) and the label fallback.
+  204, any role, 401, 400) and the label fallback.
+- 363 lines.
