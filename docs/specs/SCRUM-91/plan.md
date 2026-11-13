@@ -5,8 +5,8 @@ How: [design.md](design.md). Backend subtask: SCRUM-177.
 
 | # | Branch | Depends on | Estimate | Status |
 |---|--------|------------|----------|--------|
-| 0 | `docs/SCRUM-177-audit-log-spec` | — | 282 lines | In review |
-| 1 | `feature/SCRUM-177-audit-log-queries` | PR 0 | ~250 lines | Pending |
+| 0 | `docs/SCRUM-177-audit-log-spec` | — | 291 lines | Merged ([#44](https://github.com/SUCCESS-NPD-InfosGroup-team/NPD-RP-Backend/pull/44)) |
+| 1 | `feature/SCRUM-177-audit-log-queries` | PR 0 | 253 lines | In review |
 | 2 | `feature/SCRUM-177-audit-log-service` | PR 1 | ~350 lines | Pending |
 | 3 | `feature/SCRUM-177-audit-log-endpoint` | PR 2 | ~300 lines | Pending |
 
