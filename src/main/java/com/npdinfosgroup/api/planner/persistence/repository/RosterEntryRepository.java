@@ -6,8 +6,10 @@ import org.springframework.data.repository.Repository;
 
 /**
  * Rows of the roster, from the {@code resource_v} view (read only), filtered with
- * {@link com.npdinfosgroup.api.planner.persistence.query.RosterEntrySpecifications}.
+ * {@link com.npdinfosgroup.api.planner.persistence.query.RosterEntrySpecifications}, with the totals of
+ * its groups from {@link RosterGroupTotals}.
  */
-public interface RosterEntryRepository extends Repository<RosterEntry, Long>, JpaSpecificationExecutor<RosterEntry> {
+public interface RosterEntryRepository
+		extends Repository<RosterEntry, Long>, JpaSpecificationExecutor<RosterEntry>, RosterGroupTotals {
 
 }

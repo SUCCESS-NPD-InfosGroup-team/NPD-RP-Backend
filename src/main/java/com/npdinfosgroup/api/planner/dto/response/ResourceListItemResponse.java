@@ -13,9 +13,13 @@ public record ResourceListItemResponse(long id, String employeeNumber, String na
 		LocalDate hireDate,
 		@Schema(description = "En periodo de prueba") boolean onProbation,
 		@Schema(description = "Día 90 desde la fecha de inicio de contrato") LocalDate probationEndDate,
-		@Schema(description = "Proyecto de la fila; null = «Sin proyecto». Coincide con el `projectId` de su grupo") Long projectId,
+		@Schema(description = "Proyecto de la fila; null = «Sin proyecto». Coincide con el `projectId` de su grupo. Usar `project.id`",
+				deprecated = true) Long projectId,
 		@Schema(description = "Inicio de la barra: la fecha más tardía entre la creación del proyecto y la contratación") LocalDate assignmentStart,
 		@Schema(description = "Fecha final en el proyecto; null con indefinido o sin proyecto") LocalDate assignmentEnd,
 		@Schema(description = "En un proyecto sin fecha final") boolean indefinite,
-		@Schema(description = "Días hasta la fecha final (negativo si ya pasó); null sin fecha final") Long daysToAssignmentEnd) {
+		@Schema(description = "Días hasta la fecha final (negativo si ya pasó); null sin fecha final") Long daysToAssignmentEnd,
+		@Schema(description = "Proyecto actual; null = «Sin proyecto»") IdName project,
+		@Schema(description = "Cliente del proyecto; null = «Sin proyecto»") IdName client,
+		@Schema(description = "false = proyecto inactivo («No especificado», a corregir); null = «Sin proyecto»") Boolean projectActive) {
 }

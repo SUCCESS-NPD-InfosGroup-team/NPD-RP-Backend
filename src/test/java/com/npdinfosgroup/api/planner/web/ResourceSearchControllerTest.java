@@ -129,7 +129,8 @@ class ResourceSearchControllerTest {
 
 	/**
 	 * Each row carries what the timeline needs: where the bar starts (the later of the project creation and
-	 * the hire date), the end date, the days left, "indefinido" and probation.
+	 * the hire date), the end date, the days left, "indefinido" and probation. It also carries its project
+	 * and client, and whether the project is the inactive "No especificado".
 	 */
 	@Test
 	void describesEachRow() {
@@ -147,7 +148,18 @@ class ResourceSearchControllerTest {
 			.jsonPath("$.items[0].assignmentStart").isEqualTo("2026-08-03")
 			.jsonPath("$.items[0].assignmentEnd").isEqualTo(TODAY.plusDays(24).toString())
 			.jsonPath("$.items[0].daysToAssignmentEnd").isEqualTo(24)
-			.jsonPath("$.items[0].indefinite").isEqualTo(false);
+			.jsonPath("$.items[0].indefinite").isEqualTo(false)
+			.jsonPath("$.items[0].project.id").isEqualTo(banescoProjectId)
+			.jsonPath("$.items[0].project.name").isEqualTo("RT Programa de automatización")
+			.jsonPath("$.items[0].client.id").isEqualTo(banescoId)
+			.jsonPath("$.items[0].client.name").isEqualTo("RT BANESCO")
+			.jsonPath("$.items[0].projectActive").isEqualTo(true);
+
+		search("?q=1015", "guest").expectStatus()
+			.isOk()
+			.expectBody()
+			.jsonPath("$.items[0].project.name").isEqualTo("No especificado")
+			.jsonPath("$.items[0].projectActive").isEqualTo(false);
 
 		search("?q=612", "guest").expectStatus()
 			.isOk()
@@ -166,6 +178,9 @@ class ResourceSearchControllerTest {
 			.expectBody()
 			.jsonPath("$.items[0].situation.code").isEqualTo("SIN_PROYECTO")
 			.jsonPath("$.items[0].projectId").doesNotExist()
+			.jsonPath("$.items[0].project").doesNotExist()
+			.jsonPath("$.items[0].client").doesNotExist()
+			.jsonPath("$.items[0].projectActive").doesNotExist()
 			.jsonPath("$.items[0].assignmentStart").doesNotExist()
 			.jsonPath("$.items[0].indefinite").isEqualTo(false);
 	}

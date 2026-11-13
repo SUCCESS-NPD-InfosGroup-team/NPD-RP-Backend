@@ -49,15 +49,4 @@ public final class RosterEntrySpecifications {
 		return (root, query, cb) -> root.get(attribute).in(values);
 	}
 
-	/**
-	 * Rows of one group of the roster: a project, or the people without project.
-	 *
-	 * @param projectId project id, or {@code null} for the people without project
-	 * @return the filter
-	 */
-	public static Specification<RosterEntry> inGroup(Long projectId) {
-		return projectId == null ? (root, query, cb) -> cb.isNull(root.get("projectId"))
-				: equalTo("projectId", projectId);
-	}
-
 }

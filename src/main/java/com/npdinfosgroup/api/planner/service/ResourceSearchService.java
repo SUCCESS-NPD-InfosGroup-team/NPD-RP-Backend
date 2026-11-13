@@ -167,22 +167,31 @@ public class ResourceSearchService {
 						row.getSituation(), LocaleContextHolder.getLocale())),
 				row.getHireDate(), row.isOnProbation(), row.getProbationEndDate(), row.getProjectId(),
 				hasProject ? row.getAssignmentStartDate() : null, end, hasProject && end == null,
-				end == null ? null : ChronoUnit.DAYS.between(today, end));
+				end == null ? null : ChronoUnit.DAYS.between(today, end),
+				hasProject ? new IdName(row.getProjectId(), row.getProjectName()) : null, client(row),
+				hasProject ? row.getProjectActive() : null);
+	}
+
+	private static IdName client(RosterEntry row) {
+		return row.getClientId() == null ? null : new IdName(row.getClientId(), row.getClientName());
 	}
 
 	/**
 	 * The groups of the rows of a page, in order, each with how many rows it has in all the pages, so the
-	 * screen can show "2 colaboradores" or "1 de 2" on a group cut by the page end.
+	 * screen can show "2 colaboradores" or "1 de 2" on a group cut by the page end. The totals of every
+	 * group come from a single query, whatever the number of groups on the page.
 	 */
 	private List<ResourceGroupResponse> groups(List<RosterEntry> rows, Specification<RosterEntry> filters) {
+		if (rows.isEmpty()) {
+			return List.of();
+		}
 		Map<Long, RosterEntry> firstOfGroup = new LinkedHashMap<>();
 		rows.forEach(row -> firstOfGroup.putIfAbsent(row.getProjectId(), row));
+		Map<Long, Long> totals = roster.countByGroup(filters);
 		return firstOfGroup.values()
 			.stream()
 			.map(row -> new ResourceGroupResponse(groupType(row), row.getProjectId(), row.getProjectName(),
-					row.getClientId() == null ? null : new IdName(row.getClientId(), row.getClientName()),
-					row.getContractEndDate(),
-					roster.count(filters.and(RosterEntrySpecifications.inGroup(row.getProjectId())))))
+					client(row), row.getContractEndDate(), totals.getOrDefault(row.getProjectId(), 0L)))
 			.toList();
 	}
 
