@@ -3,7 +3,9 @@ package com.npdinfosgroup.api.planner.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -13,6 +15,7 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 import com.npdinfosgroup.api.planner.dto.request.UpcomingEventCriteria;
 import com.npdinfosgroup.api.planner.dto.request.UpcomingEventType;
@@ -20,6 +23,7 @@ import com.npdinfosgroup.api.planner.dto.response.EventNoticeResponse;
 import com.npdinfosgroup.api.planner.dto.response.IdName;
 import com.npdinfosgroup.api.planner.dto.response.UpcomingEventResponse;
 import com.npdinfosgroup.api.planner.dto.response.UpcomingEventsPageResponse;
+import com.npdinfosgroup.api.planner.dto.response.UpcomingEventsStripResponse;
 import com.npdinfosgroup.api.planner.persistence.entity.UpcomingEvent;
 import com.npdinfosgroup.api.planner.persistence.repository.UpcomingEventRepository;
 import com.npdinfosgroup.api.shared.exception.ApiException;
@@ -31,6 +35,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor.SpecificationFluentQuery;
 
 /**
  * The upcoming events list without a database: the counts per type, the mapping of each row, the
@@ -110,6 +115,37 @@ class UpcomingEventQueryServiceTest {
 		ArgumentCaptor<Pageable> pageable = ArgumentCaptor.forClass(Pageable.class);
 		verify(events).findAll(any(Specification.class), pageable.capture());
 		assertThat(pageable.getValue()).isEqualTo(PageRequest.of(2, 10, Sort.by("date", "id")));
+	}
+
+	/**
+	 * The strip: the total of the 30-day window with one count, and the four nearest events by date,
+	 * read without a page count and mapped like the list.
+	 */
+	@Test
+	@SuppressWarnings("unchecked")
+	void summarisesTheNextThirtyDays() {
+		UpcomingEvent probation = event("PROBATION_END-2", "PROBATION_END", TODAY.plusDays(11), 2L);
+		SpecificationFluentQuery<UpcomingEvent> query = mock();
+		when(query.sortBy(any(Sort.class))).thenReturn(query);
+		when(query.limit(anyInt())).thenReturn(query);
+		when(query.all()).thenReturn(List.of(probation));
+		when(events.count(any(Specification.class))).thenReturn(8L);
+		when(events.findBy(any(Specification.class), any(Function.class)))
+			.thenAnswer(call -> call.<Function<SpecificationFluentQuery<UpcomingEvent>, ?>>getArgument(1).apply(query));
+
+		UpcomingEventsStripResponse strip = service.summary();
+
+		assertThat(strip.windowDays()).isEqualTo(30);
+		assertThat(strip.total()).isEqualTo(8);
+		assertThat(strip.nearest()).singleElement().satisfies(event -> {
+			assertThat(event.type()).isEqualTo(UpcomingEventType.PROBATION_END);
+			assertThat(event.daysRemaining()).isEqualTo(11);
+			assertThat(event.resource().employeeNumber()).isEqualTo("E-2");
+		});
+		verify(events).count(any(Specification.class));
+		verify(query).sortBy(Sort.by("date", "id"));
+		verify(query).limit(4);
+		verify(events, never()).findAll(any(Specification.class), any(Pageable.class));
 	}
 
 	/** Only the windows of the "Ventana" filter are accepted, before any query. */

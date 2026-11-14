@@ -16,6 +16,7 @@ import com.npdinfosgroup.api.planner.dto.response.EventResourceResponse;
 import com.npdinfosgroup.api.planner.dto.response.IdName;
 import com.npdinfosgroup.api.planner.dto.response.UpcomingEventResponse;
 import com.npdinfosgroup.api.planner.dto.response.UpcomingEventsPageResponse;
+import com.npdinfosgroup.api.planner.dto.response.UpcomingEventsStripResponse;
 import com.npdinfosgroup.api.planner.dto.response.UpcomingEventsSummary;
 import com.npdinfosgroup.api.planner.persistence.entity.UpcomingEvent;
 import com.npdinfosgroup.api.planner.persistence.query.UpcomingEventSpecifications;
@@ -48,6 +49,12 @@ public class UpcomingEventQueryService {
 
 	/** By date, and by id so events of the same day keep their order between pages. */
 	private static final Sort LIST_ORDER = Sort.by("date", "id");
+
+	/** Days ahead the strip of Recursos summarises (HU-06 CA-01), the default window of the list. */
+	static final int SUMMARY_WINDOW_DAYS = 30;
+
+	/** Events the strip of Recursos shows. */
+	static final int NEAREST = 4;
 
 	private final UpcomingEventRepository events;
 
@@ -97,6 +104,28 @@ public class UpcomingEventQueryService {
 		List<UpcomingEventResponse> items = page.getContent().stream().map(event -> toResponse(event, today)).toList();
 		return new UpcomingEventsPageResponse(new UpcomingEventsSummary(total, byType), items,
 				new PageInfo(page.getNumber(), page.getSize(), page.getTotalElements(), page.getTotalPages()));
+	}
+
+	/**
+	 * The strip of Recursos: how many events are due in the next 30 days and the nearest ones still to
+	 * come, in two queries.
+	 * <p>
+	 * The total uses the same window as the list opened without filters, pending confirmations
+	 * included, so "Ver los N eventos" lands on a list with the same N. The nearest events leave the
+	 * pending ones out: they are already late and are seen in the list.
+	 *
+	 * @return the total and up to four events, by date
+	 */
+	@Transactional(readOnly = true)
+	public UpcomingEventsStripResponse summary() {
+		LocalDate today = LocalDate.now(clock);
+		LocalDate lastDay = today.plusDays(SUMMARY_WINDOW_DAYS);
+		long total = events.count(UpcomingEventSpecifications.inWindow(today, lastDay));
+		// The fluent query reads only the rows; a Page would also run a count the strip does not use
+		List<UpcomingEvent> nearest = events.findBy(UpcomingEventSpecifications.upcoming(today, lastDay),
+				query -> query.sortBy(LIST_ORDER).limit(NEAREST).all());
+		return new UpcomingEventsStripResponse(SUMMARY_WINDOW_DAYS, total,
+				nearest.stream().map(event -> toResponse(event, today)).toList());
 	}
 
 	/**

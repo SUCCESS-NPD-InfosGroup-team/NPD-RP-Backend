@@ -3,6 +3,7 @@ package com.npdinfosgroup.api.planner.web;
 import com.npdinfosgroup.api.planner.dto.request.UpcomingEventCriteria;
 import com.npdinfosgroup.api.planner.dto.request.UpcomingEventType;
 import com.npdinfosgroup.api.planner.dto.response.UpcomingEventsPageResponse;
+import com.npdinfosgroup.api.planner.dto.response.UpcomingEventsStripResponse;
 import com.npdinfosgroup.api.planner.service.UpcomingEventQueryService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -83,6 +84,31 @@ class UpcomingEventController {
 			@RequestParam(required = false) UpcomingEventType type,
 			@ParameterObject Pageable pageable) {
 		return ResponseEntity.ok(queryService.list(new UpcomingEventCriteria(windowDays, clientId, leaderId, type), pageable));
+	}
+
+	/**
+	 * The strip at the top of Recursos (HU-06 CA-01): how many events are due in the next 30 days and
+	 * the four nearest ones still to come.
+	 *
+	 * @return 200 with the total and the nearest events
+	 */
+	@GetMapping(path = "/summary", version = "v1")
+	@Operation(summary = "Resumen de arribos proximos", description = """
+			Franja "Arribos proximos" de Recursos (HU-06 CA-01). Sin parametros: resume toda la base para \
+			los proximos 30 dias. Todos los roles, solo lectura.
+
+			- `total` es el numero de "Ver los N eventos": los eventos de la ventana de 30 dias, \
+			pendientes de confirmacion incluidos. Es el mismo `summary.total` que devuelve la lista \
+			`GET /upcoming-events?windowDays=30` sin filtros.
+			- `nearest` trae hasta 4 eventos de hoy en adelante, ordenados por fecha, con la misma forma \
+			que las filas de la lista. No incluye los pendientes de confirmacion (fechas ya pasadas): se \
+			ven en la lista.
+			- Las fechas se calculan en el servidor con la zona America/Bogota.""")
+	@ApiResponse(responseCode = "200", description = "El total y los eventos mas cercanos")
+	@ApiResponse(responseCode = "401", description = "Sin token o token invalido (`UNAUTHORIZED`)",
+			content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemDetail.class)))
+	ResponseEntity<UpcomingEventsStripResponse> summary() {
+		return ResponseEntity.ok(queryService.summary());
 	}
 
 }
