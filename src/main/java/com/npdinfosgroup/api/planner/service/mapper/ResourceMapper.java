@@ -1,6 +1,8 @@
 package com.npdinfosgroup.api.planner.service.mapper;
 
+import java.time.Clock;
 import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -17,6 +19,7 @@ import com.npdinfosgroup.api.planner.dto.response.TerminationResponse;
 import com.npdinfosgroup.api.planner.persistence.entity.CatalogEntity;
 import com.npdinfosgroup.api.planner.persistence.entity.Employee;
 import com.npdinfosgroup.api.planner.persistence.entity.Project;
+import com.npdinfosgroup.api.planner.persistence.entity.ResourceSituation;
 import org.springframework.context.MessageSource;
 import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.stereotype.Component;
@@ -29,13 +32,17 @@ public class ResourceMapper {
 
 	private final MessageSource messages;
 
+	private final Clock clock;
+
 	/**
 	 * Creates the mapper.
 	 *
 	 * @param messages source of the situation labels, of "Indefinido" and of "Sí"/"No"
+	 * @param clock gives today for the days to the end date
 	 */
-	ResourceMapper(MessageSource messages) {
+	ResourceMapper(MessageSource messages, Clock clock) {
 		this.messages = messages;
+		this.clock = clock;
 	}
 
 	/**
@@ -47,12 +54,14 @@ public class ResourceMapper {
 	 * Reads the related catalogs of the employee, so it must run inside the transaction that loaded it.
 	 *
 	 * @param employee the stored resource
-	 * @param situation its situation, calculated by {@code resource_v}
+	 * @param view its row of {@code resource_v}, with the calculated situation and assignment start; null
+	 *        when only the stored values matter (the audit)
 	 * @param updatedBy who changed it last through the API, if anyone
 	 * @return the response
 	 */
-	public ResourceResponse toResponse(Employee employee, String situation, String updatedBy) {
+	public ResourceResponse toResponse(Employee employee, ResourceSituation view, String updatedBy) {
 		Locale locale = LocaleContextHolder.getLocale();
+		String situation = view == null ? null : view.getSituation();
 		List<String> fieldsToFix = new ArrayList<>();
 		if (employee.getWorkModality() != null && !employee.getWorkModality().isActive()) {
 			fieldsToFix.add("workModeId");
@@ -64,10 +73,10 @@ public class ResourceMapper {
 				idName(employee.getJobTitle()), idName(employee.getJobPosition()), employee.getLevel(),
 				idName(employee.getBusinessUnit()), idName(employee.getWorkModality()), idName(employee.getGender()),
 				idName(employee.getTalentReview()), employee.getHireDate(), employee.isOnProbation(),
-				employee.getProbationEndDate(),
+				employee.getProbationEndDate(), employee.getVacationMonth(),
 				new CodeLabel(employee.getStatus().getCode(), employee.getStatus().getName()),
 				new CodeLabel(situation, messages.getMessage("resource.situation." + situation, null, situation, locale)),
-				assignment(employee), termination(employee), List.copyOf(fieldsToFix), employee.getVersion(),
+				assignment(employee, view == null ? null : view.getAssignmentStartDate()), termination(employee), List.copyOf(fieldsToFix), employee.getVersion(),
 				employee.getUpdatedAt(), updatedBy);
 	}
 
@@ -116,18 +125,32 @@ public class ResourceMapper {
 		return values;
 	}
 
-	private static AssignmentResponse assignment(Employee employee) {
+	/**
+	 * Values of a stored resource as the audit log stores them, to compare a record before and after an
+	 * edit. The situation is not audited: the database calculates it.
+	 * <p>
+	 * Reads the related catalogs of the employee, so it must run inside the transaction that loaded it.
+	 *
+	 * @param employee the stored resource
+	 * @return the values, in form order
+	 */
+	public Map<String, String> auditValues(Employee employee) {
+		return auditValues(toResponse(employee, null, null));
+	}
+
+	private AssignmentResponse assignment(Employee employee, LocalDate startDate) {
 		Project project = employee.getProject();
 		if (project == null) {
 			return null;
 		}
 		Employee leader = employee.getLeader();
+		LocalDate end = employee.getProjectEndDate();
 		return new AssignmentResponse(new IdName(project.getClient().getId(), project.getClient().getName()),
 				new AssignmentProjectResponse(project.getId(), project.getName(), project.getContractEndDate()),
 				leader == null ? null : new IdName(leader.getId(), leader.getFullName()),
 				idName(employee.getClientRole()), idName(employee.getEquipmentProvider()),
-				employee.getProjectEndDate(), employee.getProjectEndDate() == null,
-				employee.getClientContactEmail());
+				end, end == null, employee.getClientContactEmail(), leader == null ? null : leader.getCode(), startDate,
+				end == null ? null : ChronoUnit.DAYS.between(LocalDate.now(clock), end));
 	}
 
 	private static TerminationResponse termination(Employee employee) {

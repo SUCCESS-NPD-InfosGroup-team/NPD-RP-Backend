@@ -11,7 +11,9 @@ import java.util.Optional;
 
 import com.npdinfosgroup.api.planner.dto.request.AssignmentRequest;
 import com.npdinfosgroup.api.planner.dto.request.RegisterResourceRequest;
+import com.npdinfosgroup.api.planner.dto.request.ResourceForm;
 import com.npdinfosgroup.api.planner.dto.request.TerminationRequest;
+import com.npdinfosgroup.api.planner.dto.request.UpdateResourceRequest;
 import com.npdinfosgroup.api.planner.persistence.entity.Catalog;
 import com.npdinfosgroup.api.planner.persistence.entity.Employee;
 import com.npdinfosgroup.api.planner.persistence.entity.Project;
@@ -32,7 +34,8 @@ import org.springframework.stereotype.Component;
  * <p>
  * Combines the Jakarta constraints of the request with the rules that depend on other fields or on
  * the database: the project fields only when there is a project, the termination only on Baja, dates,
- * inactive "No especificado" values and duplicates.
+ * inactive "No especificado" values and duplicates. Registration and edit share the rules; on an edit
+ * the record being edited does not count as a duplicate of itself.
  */
 @Component
 public class ResourceRequestValidator {
@@ -44,7 +47,8 @@ public class ResourceRequestValidator {
 	private static final List<String> FORM_ORDER = List.of("employeeNumber", "name", "email", "jobTitleId",
 			"positionId", "level", "businessUnitId", "workModeId", "genderId", "talentReviewId", "hireDate", "onProbation", "status",
 			"termination.date", "termination.reasonId", "assignment.projectId", "assignment.leaderId",
-			"assignment.clientRoleId", "assignment.equipmentId", "assignment.endDate", "assignment.clientContactEmail");
+			"assignment.clientRoleId", "assignment.equipmentId", "assignment.endDate", "assignment.clientContactEmail",
+			"version");
 
 	/** Scope of the field messages of this form ({@code validation.resource.<field>.<CODE>}). */
 	static final String MESSAGE_SCOPE = "resource";
@@ -52,6 +56,8 @@ public class ResourceRequestValidator {
 	private static final String EMPLOYEE_NUMBER = "employeeNumber";
 
 	private static final String ASSIGNMENT_END_DATE = "assignment.endDate";
+
+	private static final String ASSIGNMENT_LEADER = "assignment.leaderId";
 
 	private final Validator validator;
 
@@ -91,6 +97,33 @@ public class ResourceRequestValidator {
 	 *         employee number is already registered
 	 */
 	public short validateNew(RegisterResourceRequest request) {
+		return validate(request, null);
+	}
+
+	/**
+	 * Validates the edit of a resource. The same rules as a registration apply, so imported values
+	 * that can no longer be chosen ("No especificado", an inactive project, a lead on Baja, an end
+	 * date that already passed) must be corrected before the record can be saved.
+	 *
+	 * @param id id of the resource being edited
+	 * @param request the resource as it should be saved
+	 * @return the id of its employment status
+	 * @throws ValidationException with every invalid field, when there is at least one
+	 * @throws ApiException {@link ErrorCode#EMPLOYEE_NUMBER_TAKEN} when the only problem is that
+	 *         another resource has the employee number
+	 */
+	public short validateUpdate(long id, UpdateResourceRequest request) {
+		return validate(request, id);
+	}
+
+	/**
+	 * Collects every problem of a resource and throws them together.
+	 *
+	 * @param request the resource
+	 * @param id id of the edited resource, or {@code null} for a new one
+	 * @return the id of its employment status
+	 */
+	private short validate(ResourceForm request, Long id) {
 		List<FieldProblem> problems = new ArrayList<>(ConstraintProblems.of(validator.validate(request), ""));
 		Optional<Short> statusId = checkStatus(request.status(), problems);
 		checkCatalog(problems, "jobTitleId", Catalog.JOB_TITLES, request.jobTitleId());
@@ -103,12 +136,12 @@ public class ResourceRequestValidator {
 			checkTermination(request.termination(), request.hireDate(), problems);
 		}
 		else if (request.assignment() != null) {
-			checkAssignment(request.assignment(), problems);
+			checkAssignment(request.assignment(), id, problems);
 		}
-		checkEmailFree(request.email(), problems);
+		checkEmailFree(request.email(), id, problems);
 
 		Optional<Employee> existing = hasProblem(problems, EMPLOYEE_NUMBER) ? Optional.empty()
-				: employees.findFirstByCodeIgnoreCase(request.employeeNumber().strip());
+				: findOtherWithNumber(request.employeeNumber().strip(), id);
 		if (existing.isPresent() && problems.isEmpty()) {
 			throw employeeNumberTaken(existing.get());
 		}
@@ -127,7 +160,7 @@ public class ResourceRequestValidator {
 	 * @param request the resource
 	 * @return {@code true} on Baja
 	 */
-	public static boolean isTerminated(RegisterResourceRequest request) {
+	public static boolean isTerminated(ResourceForm request) {
 		return request.status() != null && TERMINATED.equals(request.status().strip().toUpperCase(Locale.ROOT));
 	}
 
@@ -180,7 +213,7 @@ public class ResourceRequestValidator {
 		}
 	}
 
-	private void checkAssignment(AssignmentRequest assignment, List<FieldProblem> problems) {
+	private void checkAssignment(AssignmentRequest assignment, Long id, List<FieldProblem> problems) {
 		problems.addAll(ConstraintProblems.of(validator.validate(assignment), "assignment."));
 		if (assignment.projectId() != null) {
 			projects.findById(assignment.projectId())
@@ -188,13 +221,16 @@ public class ResourceRequestValidator {
 				.ifPresentOrElse(active -> addIf(!active, problems, "assignment.projectId", FieldErrorCode.INACTIVE_PROJECT),
 						() -> problems.add(FieldProblem.of("assignment.projectId", FieldErrorCode.UNKNOWN_ID)));
 		}
-		if (assignment.leaderId() != null) {
+		if (assignment.leaderId() != null && assignment.leaderId().equals(id)) {
+			problems.add(FieldProblem.of(ASSIGNMENT_LEADER, FieldErrorCode.SELF_LEADER));
+		}
+		else if (assignment.leaderId() != null) {
 			employees.findById(assignment.leaderId())
 				.map(leader -> leader.getStatus().getCode())
 				.ifPresentOrElse(
-						status -> addIf(TERMINATED.equals(status), problems, "assignment.leaderId",
+						status -> addIf(TERMINATED.equals(status), problems, ASSIGNMENT_LEADER,
 								FieldErrorCode.INACTIVE_LEADER),
-						() -> problems.add(FieldProblem.of("assignment.leaderId", FieldErrorCode.UNKNOWN_ID)));
+						() -> problems.add(FieldProblem.of(ASSIGNMENT_LEADER, FieldErrorCode.UNKNOWN_ID)));
 		}
 		checkCatalog(problems, "assignment.clientRoleId", Catalog.CLIENT_ROLES, assignment.clientRoleId());
 		checkCatalog(problems, "assignment.equipmentId", Catalog.EQUIPMENT, assignment.equipmentId());
@@ -209,11 +245,21 @@ public class ResourceRequestValidator {
 		}
 	}
 
-	private void checkEmailFree(String email, List<FieldProblem> problems) {
-		if (email != null && !email.isBlank() && !hasProblem(problems, "email")
-				&& employees.existsByEmailIgnoreCase(email.strip())) {
+	private void checkEmailFree(String email, Long id, List<FieldProblem> problems) {
+		if (email == null || email.isBlank() || hasProblem(problems, "email")) {
+			return;
+		}
+		boolean taken = id == null ? employees.existsByEmailIgnoreCase(email.strip())
+				: employees.existsByEmailIgnoreCaseAndIdNot(email.strip(), id);
+		if (taken) {
 			problems.add(FieldProblem.of("email", FieldErrorCode.EMAIL_TAKEN));
 		}
+	}
+
+	/** Another resource with the employee number; on an edit, the edited one does not count. */
+	private Optional<Employee> findOtherWithNumber(String employeeNumber, Long id) {
+		return id == null ? employees.findFirstByCodeIgnoreCase(employeeNumber)
+				: employees.findFirstByCodeIgnoreCaseAndIdNot(employeeNumber, id);
 	}
 
 	private void checkCatalog(List<FieldProblem> problems, String field, Catalog catalog, Number id) {

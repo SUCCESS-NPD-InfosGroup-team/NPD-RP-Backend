@@ -18,7 +18,7 @@ The database must have the migrations (Flyway applies them when the application 
 ./mvnw spring-boot:run -Dspring-boot.run.arguments="--planner.import.file=C:/import/planner.xlsx --spring.main.web-application-type=none"
 ```
 
-**Another database** (staging or production): build the jar and pass the connection with the `DB_*` variables of `application.properties`:
+**Another database** (production): build the jar and pass the connection with the `DB_*` variables of `application.properties`:
 
 ```sh
 ./mvnw package -DskipTests

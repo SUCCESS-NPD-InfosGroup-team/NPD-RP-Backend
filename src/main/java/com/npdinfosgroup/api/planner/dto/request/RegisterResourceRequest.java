@@ -25,5 +25,5 @@ public record RegisterResourceRequest(
 		@Schema(description = "En periodo de prueba. La fecha en que termina (día 90) la calcula el sistema") @NotNull Boolean onProbation,
 		@Schema(description = "Estado", allowableValues = { "ACTIVO", "LICENCIA", "BAJA" }) @NotBlank String status,
 		@Schema(description = "Desvinculación; obligatoria con Estado = BAJA y se ignora con los demás") TerminationRequest termination,
-		@Schema(description = "Proyecto; null = «Sin proyecto por ahora». Se ignora con Estado = BAJA") AssignmentRequest assignment) {
+		@Schema(description = "Proyecto; null = «Sin proyecto por ahora». Se ignora con Estado = BAJA") AssignmentRequest assignment) implements ResourceForm {
 }

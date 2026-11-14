@@ -1,5 +1,7 @@
 package com.npdinfosgroup.api.planner.persistence.entity;
 
+import java.time.LocalDate;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
@@ -19,5 +21,8 @@ public class ResourceSituation {
 
 	@Column(name = "assignment_situation", columnDefinition = "text")
 	private String situation;
+
+	@Column(name = "assignment_start_date")
+	private LocalDate assignmentStartDate;
 
 }

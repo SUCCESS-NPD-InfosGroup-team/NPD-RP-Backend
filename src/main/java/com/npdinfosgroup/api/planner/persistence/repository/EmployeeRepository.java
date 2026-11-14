@@ -33,6 +33,24 @@ public interface EmployeeRepository extends JpaRepository<Employee, Long>, Emplo
 	boolean existsByEmailIgnoreCase(String email);
 
 	/**
+	 * Employee with an employee number other than the given one, for the edit of that employee.
+	 *
+	 * @param code employee number
+	 * @param id id of the employee being edited
+	 * @return another employee with the number, if any
+	 */
+	Optional<Employee> findFirstByCodeIgnoreCaseAndIdNot(String code, Long id);
+
+	/**
+	 * Whether an e-mail belongs to an employee other than the given one, for the edit of that employee.
+	 *
+	 * @param email e-mail
+	 * @param id id of the employee being edited
+	 * @return {@code true} if another employee has it
+	 */
+	boolean existsByEmailIgnoreCaseAndIdNot(String email, Long id);
+
+	/**
 	 * An employee with every related catalog, project, client and lead, in one query, to build their
 	 * full record.
 	 *
@@ -73,5 +91,15 @@ public interface EmployeeRepository extends JpaRepository<Employee, Long>, Emplo
 			ORDER BY l.fullName""")
 	List<ProjectLead> findProjectLeads(@Param("projectIds") Collection<Long> projectIds,
 			@Param("excludedStatus") String excludedStatus);
+
+	/**
+	 * How many employees with a status have no project, for the «Colaboradores sin proyecto» KPI of
+	 * the Projects module.
+	 *
+	 * @param statusCode status code of the employees counted (Activo)
+	 * @return the number of employees
+	 */
+	@Query("SELECT count(e) FROM Employee e WHERE e.projectId IS NULL AND e.status.code = :statusCode")
+	long countWithoutProject(@Param("statusCode") String statusCode);
 
 }
