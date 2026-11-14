@@ -6,8 +6,8 @@ Tests", and stays under 400 changed lines (`git diff --shortstat origin/develop.
 
 | # | Branch | Content | Est. lines | Depends on | Status |
 |---|--------|---------|------------|------------|--------|
-| 1 | `docs/SCRUM-181-upcoming-events-summary` | `spec.md`, `design.md` and `plan.md` of this folder. | ~260 | — | In review |
-| 2 | `feature/SCRUM-181-upcoming-events-summary` | The summary endpoint with its tests (design decisions 1 to 3). | ~280 | PR 1 | Pending |
+| 1 | `docs/SCRUM-181-upcoming-events-summary` | `spec.md`, `design.md` and `plan.md` of this folder. | ~230 | — | Merged ([#48](https://github.com/SUCCESS-NPD-InfosGroup-team/NPD-RP-Backend/pull/48)) |
+| 2 | `feature/SCRUM-181-upcoming-events-summary` | The summary endpoint with its tests (design decisions 1 to 3). | ~280 | PR 1 | In review |
 
 ## PR 2 — Summary of the upcoming events for the Recursos strip
 

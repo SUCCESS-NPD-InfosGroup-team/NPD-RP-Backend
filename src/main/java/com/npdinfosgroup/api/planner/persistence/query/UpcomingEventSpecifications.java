@@ -41,6 +41,18 @@ public final class UpcomingEventSpecifications {
 	}
 
 	/**
+	 * Events between today and the last day of the window, both included, without the assignment ends
+	 * already passed: what is still coming, for the strip of Recursos.
+	 *
+	 * @param today today in the application time zone
+	 * @param lastDay last day of the window
+	 * @return the filter
+	 */
+	public static Specification<UpcomingEvent> upcoming(LocalDate today, LocalDate lastDay) {
+		return (root, query, cb) -> cb.between(root.get("date"), today, lastDay);
+	}
+
+	/**
 	 * Events of one type of the list.
 	 *
 	 * @param type type shown in the list

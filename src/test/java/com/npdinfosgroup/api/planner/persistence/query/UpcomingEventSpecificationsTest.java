@@ -64,6 +64,19 @@ class UpcomingEventSpecificationsTest {
 			.containsExactly(TODAY.minusDays(3), TODAY.plusDays(10), TODAY.plusDays(10), TODAY.plusDays(20));
 	}
 
+	/**
+	 * What is still coming leaves out the passed assignment end and keeps the last day of the window, but
+	 * not the day after.
+	 */
+	@Test
+	void upcomingLeavesOutPendingAndLaterEvents() {
+		Specification<UpcomingEvent> banesco = UpcomingEventSpecifications.ofClient(fixture.banescoId);
+		assertThat(dates(banesco.and(UpcomingEventSpecifications.upcoming(TODAY, TODAY.plusDays(20)))))
+			.containsExactly(TODAY.plusDays(10), TODAY.plusDays(10), TODAY.plusDays(20));
+		assertThat(dates(banesco.and(UpcomingEventSpecifications.upcoming(TODAY, TODAY.plusDays(19)))))
+			.containsExactly(TODAY.plusDays(10), TODAY.plusDays(10));
+	}
+
 	/** A passed assignment end is "Pendiente de confirmacion"; the others are upcoming assignment ends. */
 	@Test
 	void splitsAssignmentEndsByToday() {

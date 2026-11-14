@@ -1,9 +1,11 @@
 package com.npdinfosgroup.api.planner.web;
 
 import static com.npdinfosgroup.api.planner.UpcomingEventFixture.TODAY;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.http.HttpHeaders.AUTHORIZATION;
 
 import java.util.List;
+import java.util.Map;
 
 import com.npdinfosgroup.api.TestSecurityConfiguration;
 import com.npdinfosgroup.api.TestcontainersConfiguration;
@@ -96,6 +98,47 @@ class UpcomingEventControllerTest {
 			.jsonPath("$.summary.total").isEqualTo(4);
 	}
 
+	/**
+	 * The strip of Recursos: the same total as the list opened without filters, and as nearest events the
+	 * first four rows of that list once Ana's passed assignment end is left out. Carla's vacation (first
+	 * day of next month) moves with the day the test runs, so the order is taken from the list itself.
+	 */
+	@Test
+	@SuppressWarnings("unchecked")
+	void summarisesTheStrip() {
+		Map<String, Object> list = list("guest", "windowDays=30").expectStatus()
+			.isOk()
+			.expectBody(Map.class)
+			.returnResult()
+			.getResponseBody();
+		Object listTotal = ((Map<String, Object>) list.get("summary")).get("total");
+		List<Object> upcomingIds = ((List<Map<String, Object>>) list.get("items")).stream()
+			.filter(item -> !"PENDING_CONFIRMATION".equals(item.get("type")))
+			.limit(4)
+			.map(item -> item.get("id"))
+			.toList();
+
+		summary("npd-leader").expectStatus()
+			.isOk()
+			.expectBody()
+			.jsonPath("$.windowDays").isEqualTo(30)
+			.jsonPath("$.total").isEqualTo(listTotal)
+			.jsonPath("$.nearest[*].id").isEqualTo(upcomingIds)
+			.jsonPath("$.nearest[?(@.type == 'PENDING_CONFIRMATION')]").isEmpty()
+			.jsonPath("$.nearest[?(@.type == 'ASSIGNMENT_END')].resource.name").isEqualTo(List.of("UE Beto"))
+			.jsonPath("$.nearest[?(@.type == 'ASSIGNMENT_END')].daysRemaining").isEqualTo(List.of(10))
+			.jsonPath("$.nearest[?(@.type == 'ASSIGNMENT_END')].client.name").isEqualTo(List.of("UE BANESCO"));
+		assertThat(upcomingIds).hasSizeBetween(3, 4);
+	}
+
+	/** Any role can read the strip; without a token it is refused. */
+	@Test
+	void anyRoleCanReadTheStrip() {
+		summary("guest").expectStatus().isOk();
+		summary("customer-success").expectStatus().isOk();
+		client.get().uri(EVENTS + "/summary").exchange().expectStatus().isUnauthorized();
+	}
+
 	/** Only windows of 30, 60 or 90 days and known types are accepted. */
 	@Test
 	void rejectsUnknownWindowsAndTypes() {
@@ -119,6 +162,10 @@ class UpcomingEventControllerTest {
 
 	private RestTestClient.ResponseSpec list(String token, String query) {
 		return client.get().uri(EVENTS + "?" + query).header(AUTHORIZATION, "Bearer " + token).exchange();
+	}
+
+	private RestTestClient.ResponseSpec summary(String token) {
+		return client.get().uri(EVENTS + "/summary").header(AUTHORIZATION, "Bearer " + token).exchange();
 	}
 
 }
