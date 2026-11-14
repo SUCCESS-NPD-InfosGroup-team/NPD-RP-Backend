@@ -154,6 +154,6 @@ All in the ProblemDetails format of the global handler (CA-08).
   value; edits are one entry per field; order (newest first, form order inside an edit); each filter
   alone and combined; `field` hides "Alta"; `from` / `to` are Bogotá days and both included; paging
   totals count "Alta" once; rows of another resource or table are ignored; filter lists.
-- `AuditControllerTest` (`@SpringBootTest`, random port): 200 for the Operations administrator, 403 for
+- `AuditLogControllerTest` (`@SpringBootTest`, random port): 200 for the Operations administrator, 403 for
   the other roles, 401 without a token, empty page for a resource without changes and for an unknown id,
   400 for a bad date and for `from` after `to`.
