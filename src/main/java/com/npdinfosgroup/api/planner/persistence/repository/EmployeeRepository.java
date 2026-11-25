@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Optional;
 
 import com.npdinfosgroup.api.planner.persistence.entity.Employee;
+import com.npdinfosgroup.api.planner.persistence.query.EmployeeVersion;
 import com.npdinfosgroup.api.planner.persistence.query.ProjectLead;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -91,6 +92,17 @@ public interface EmployeeRepository extends JpaRepository<Employee, Long>, Emplo
 			ORDER BY l.fullName""")
 	List<ProjectLead> findProjectLeads(@Param("projectIds") Collection<Long> projectIds,
 			@Param("excludedStatus") String excludedStatus);
+
+	/**
+	 * The versions of some employees, in one query, for lists that send them back on an action.
+	 *
+	 * @param ids employee ids; must not be empty
+	 * @return one row per employee found
+	 */
+	@Query("""
+			SELECT new com.npdinfosgroup.api.planner.persistence.query.EmployeeVersion(e.id, e.version)
+			FROM Employee e WHERE e.id IN :ids""")
+	List<EmployeeVersion> findVersions(@Param("ids") Collection<Long> ids);
 
 	/**
 	 * How many employees with a status have no project, for the «Colaboradores sin proyecto» KPI of
