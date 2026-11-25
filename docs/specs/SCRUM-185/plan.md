@@ -6,8 +6,8 @@ How: [design.md](design.md).
 | # | Branch | Depends on | Estimate | Status |
 |---|--------|------------|----------|--------|
 | 0 | `docs/SCRUM-185-228-project-detail-edit-spec` | — | docs | Pending |
-| 1 | `feature/SCRUM-185-project-header` | PR 0 | ~150 lines | Pending |
-| 2 | `feature/SCRUM-185-project-members` | PR 0 | ~300 lines | Pending |
+| 1 | `feature/SCRUM-185-project-header` | PR 0 | 111 | Pending |
+| 2 | `feature/SCRUM-185-project-members` | PR 0 | 391 | Pending |
 
 PRs 1 and 2 are independent: both branch from `develop` after PR 0 and can be merged in any order. The
 frontend (SCRUM-188) works against the contract of `design.md` until each one is merged.
