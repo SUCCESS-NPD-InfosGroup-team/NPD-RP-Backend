@@ -9,9 +9,11 @@ import com.npdinfosgroup.api.planner.dto.request.CreateProjectRequest;
 import com.npdinfosgroup.api.planner.dto.request.ProjectSearchCriteria;
 import com.npdinfosgroup.api.planner.dto.response.ProjectKpisResponse;
 import com.npdinfosgroup.api.planner.dto.response.ProjectListItemResponse;
+import com.npdinfosgroup.api.planner.dto.response.ProjectMembersResponse;
 import com.npdinfosgroup.api.planner.dto.response.ProjectResponse;
 import com.npdinfosgroup.api.planner.service.ProjectQueryService;
 import com.npdinfosgroup.api.planner.service.ProjectRegistrationService;
+import com.npdinfosgroup.api.planner.service.ProjectTeamService;
 import com.npdinfosgroup.api.shared.dto.PageResponse;
 import com.npdinfosgroup.api.shared.security.CurrentUser;
 import io.swagger.v3.oas.annotations.Operation;
@@ -35,7 +37,8 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
 /**
- * Projects of the clients: the list of the Projects module and its KPIs, creating one and reading one.
+ * Projects of the clients: the list of the Projects module and its KPIs, creating one, and reading one
+ * with its team.
  */
 @RestController
 @RequestMapping("/api/{version}/planner/projects")
@@ -56,6 +59,8 @@ class ProjectController {
 
 	private final ProjectRegistrationService registrationService;
 
+	private final ProjectTeamService teamService;
+
 	private final CurrentUser currentUser;
 
 	/**
@@ -63,12 +68,14 @@ class ProjectController {
 	 *
 	 * @param queryService reads projects
 	 * @param registrationService creates projects
+	 * @param teamService reads the team of a project
 	 * @param currentUser who makes the request, for the audit log
 	 */
 	ProjectController(ProjectQueryService queryService, ProjectRegistrationService registrationService,
-			CurrentUser currentUser) {
+			ProjectTeamService teamService, CurrentUser currentUser) {
 		this.queryService = queryService;
 		this.registrationService = registrationService;
+		this.teamService = teamService;
 		this.currentUser = currentUser;
 	}
 
@@ -208,6 +215,32 @@ class ProjectController {
 			content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemDetail.class)))
 	ResponseEntity<ProjectResponse> get(@Parameter(description = "Id del proyecto") @PathVariable long id) {
 		return ResponseEntity.ok(queryService.get(id));
+	}
+
+	/**
+	 * The team of a project for the table and the timeline of the project detail (HU-13).
+	 *
+	 * @param id project id
+	 * @return 200 with the members
+	 */
+	@GetMapping(path = "/{id}/members", version = "v1")
+	@Operation(summary = "Equipo del proyecto", description = """
+			Colaboradores del proyecto para la tabla y la línea de tiempo del detalle (HU-13), sin los de \
+			Baja: los mismos que cuenta `teamSize`. Todos los roles; también para proyectos inactivos.
+
+			- Orden fijo: primero Pendiente de confirmación, luego por fecha final (la más próxima \
+			primero, los indefinidos al final) y luego por nombre.
+			- La barra de cada persona va de `assignmentStart` a `assignmentEnd`; la del proyecto, de su \
+			`startDate` a su `contractEndDate` («Ver proyecto»).
+			- `version` es la del colaborador, para «Quitar del proyecto» y «Editar».
+			- Máximo 200 filas; `total` siempre es el tamaño real del equipo.""")
+	@ApiResponse(responseCode = "200", description = "El equipo; `items` vacío = «Proyecto sin equipo»")
+	@ApiResponse(responseCode = "401", description = "Sin token o token inválido (`UNAUTHORIZED`)",
+			content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemDetail.class)))
+	@ApiResponse(responseCode = "404", description = "No existe (`NOT_FOUND`)",
+			content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemDetail.class)))
+	ResponseEntity<ProjectMembersResponse> members(@Parameter(description = "Id del proyecto") @PathVariable long id) {
+		return ResponseEntity.ok(teamService.members(id));
 	}
 
 }
