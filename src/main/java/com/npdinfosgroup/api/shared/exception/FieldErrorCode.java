@@ -39,6 +39,8 @@ public enum FieldErrorCode {
 	/** The chosen NPD lead is the edited resource itself. */
 	SELF_LEADER,
 
+	NOT_NPD_LEADER,
+
 	/** The date has already passed. */
 	DATE_IN_PAST,
 
