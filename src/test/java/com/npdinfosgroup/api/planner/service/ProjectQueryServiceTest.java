@@ -1,6 +1,7 @@
 package com.npdinfosgroup.api.planner.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -9,13 +10,18 @@ import java.time.Clock;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.Optional;
 
 import com.npdinfosgroup.api.planner.dto.request.ProjectSearchCriteria;
+import com.npdinfosgroup.api.planner.dto.response.IdName;
 import com.npdinfosgroup.api.planner.dto.response.ProjectKpisResponse;
+import com.npdinfosgroup.api.planner.dto.response.ProjectResponse;
 import com.npdinfosgroup.api.planner.persistence.entity.ProjectSummary;
+import com.npdinfosgroup.api.planner.persistence.query.ProjectLead;
 import com.npdinfosgroup.api.planner.persistence.repository.ClientRepository;
 import com.npdinfosgroup.api.planner.persistence.repository.EmployeeRepository;
 import com.npdinfosgroup.api.planner.persistence.repository.ProjectSummaryRepository;
+import com.npdinfosgroup.api.shared.exception.NotFoundException;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.jpa.domain.Specification;
 
@@ -80,6 +86,45 @@ class ProjectQueryServiceTest {
 		when(summaries.findAll(any(Specification.class))).thenReturn(List.of());
 
 		assertThat(service.kpis(noFilters)).isEqualTo(new ProjectKpisResponse(0, 0, 0, 0, 0, 0));
+	}
+
+	/**
+	 * The header of the detail gives the figures of the list row: days to the contract end with the
+	 * Bogota date, the counts and the leads of the project.
+	 */
+	@Test
+	void givesTheHeaderOfOneProject() {
+		ProjectSummary project = project(1L, 4L, 1L, TODAY.plusDays(25));
+		when(project.getId()).thenReturn(7L);
+		when(project.getIndefiniteCount()).thenReturn(2L);
+		when(project.getNextAssignmentEnd()).thenReturn(TODAY.plusDays(3));
+		when(summaries.findById(7L)).thenReturn(Optional.of(project));
+		when(employees.findProjectLeads(List.of(7L), "BAJA")).thenReturn(List.of(new ProjectLead(7L, 755L, "Jorge Ruiz")));
+
+		ProjectResponse header = service.get(7L);
+
+		assertThat(header.daysToContractEnd()).isEqualTo(25L);
+		assertThat(header.teamSize()).isEqualTo(4);
+		assertThat(header.pendingConfirmation()).isEqualTo(1);
+		assertThat(header.indefiniteCount()).isEqualTo(2);
+		assertThat(header.nextAssignmentEnd()).isEqualTo(TODAY.plusDays(3));
+		assertThat(header.leads()).containsExactly(new IdName(755L, "Jorge Ruiz"));
+	}
+
+	/** A project without team or contract end has zeros, no leads and no "D-N"; an unknown id is a 404. */
+	@Test
+	void givesAnEmptyHeaderAndRejectsUnknownProjects() {
+		ProjectSummary project = project(1L, null, null, null);
+		when(project.getId()).thenReturn(8L);
+		when(summaries.findById(8L)).thenReturn(Optional.of(project));
+
+		ProjectResponse header = service.get(8L);
+
+		assertThat(header.daysToContractEnd()).isNull();
+		assertThat(header.teamSize()).isZero();
+		assertThat(header.indefiniteCount()).isZero();
+		assertThat(header.leads()).isEmpty();
+		assertThatThrownBy(() -> service.get(9L)).isInstanceOf(NotFoundException.class);
 	}
 
 	/** Blank text does not filter; the rest is stripped and cut at 150 characters. */

@@ -189,15 +189,18 @@ class ProjectController {
 	}
 
 	/**
-	 * A project with its client and team size.
+	 * A project with its client and the team figures of its row in the list, for the header of the
+	 * project detail (HU-13).
 	 *
 	 * @param id project id
 	 * @return 200 with the project
 	 */
 	@GetMapping(path = "/{id}", version = "v1")
 	@Operation(summary = "Ver proyecto", description = """
-			Un proyecto con su cliente y su número de colaboradores; la misma forma que la respuesta de \
-			«Crear proyecto». Todos los roles.""")
+			Encabezado del detalle de un proyecto (HU-13): su cliente y las mismas cifras de su fila en la \
+			lista (`daysToContractEnd`, `teamSize`, `pendingConfirmation`, `indefiniteCount`, \
+			`nextAssignmentEnd`, `leads`). La misma forma que la respuesta de «Crear proyecto». Incluye los \
+			proyectos inactivos. Todos los roles.""")
 	@ApiResponse(responseCode = "200", description = "El proyecto")
 	@ApiResponse(responseCode = "401", description = "Sin token o token inválido (`UNAUTHORIZED`)",
 			content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemDetail.class)))

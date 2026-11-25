@@ -333,6 +333,30 @@ class ProjectControllerTest {
 			.jsonPath("$.existingClientId").value(Number.class, id -> assertThat(id.longValue()).isEqualTo(tigoId));
 	}
 
+	/**
+	 * The header of the detail has the same figures as the row of the list: the lead and the pending
+	 * confirmation of "PJ Oracle Fusion", and none for the project whose only collaborator is on Baja.
+	 */
+	@Test
+	void givesTheDetailHeaderWithTheListFigures() {
+		client.get().uri(PROJECTS + "/{id}", fusionId).header(AUTHORIZATION, "Bearer npd-leader").exchange()
+			.expectStatus().isOk()
+			.expectBody()
+			.jsonPath("$.teamSize").isEqualTo(1)
+			.jsonPath("$.pendingConfirmation").isEqualTo(1)
+			.jsonPath("$.indefiniteCount").isEqualTo(0)
+			.jsonPath("$.nextAssignmentEnd").doesNotExist()
+			.jsonPath("$.daysToContractEnd").doesNotExist()
+			.jsonPath("$.leads[*].name").isEqualTo(List.of("PJ Lorena Batista"));
+
+		client.get().uri(PROJECTS + "/{id}", portalId).header(AUTHORIZATION, "Bearer guest").exchange()
+			.expectStatus().isOk()
+			.expectBody()
+			.jsonPath("$.teamSize").isEqualTo(0)
+			.jsonPath("$.daysToContractEnd").isEqualTo(20)
+			.jsonPath("$.leads").isEmpty();
+	}
+
 	/** Only an Operations administrator creates projects; everybody with a token reads them. */
 	@Test
 	void checksRolesAndUnknownProject() {
