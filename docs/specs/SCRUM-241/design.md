@@ -203,8 +203,7 @@ and `RoleResponse.code` changes its example.
 |------|------|
 | `V10` (through `ResourceControllerTest`, Testcontainers) | The fixtures that use a lead set `is_npd_lead = true` in their `INSERT`; without it the register and edit tests would get `NOT_NPD_LEADER`. |
 | `ResourceControllerTest.listsNpdLeads` | A marked lead with no collaborators is listed; an employee who leads someone but is not marked is not; a marked lead on Baja is not. |
-| `ResourceControllerTest` / `ResourceUpdateControllerTest` | Register with a non-lead → 400 `NOT_NPD_LEADER`; edit keeping a non-lead saved lead → 200; edit changing to a non-lead → 400; register and edit do not change `is_npd_lead` of the resource. |
-| `ResourceRequestValidatorTest` | Order of the four lead checks; `NOT_NPD_LEADER` only when the lead changes. |
+| `ResourceControllerTest` / `ResourceUpdateControllerTest` | Register with a non-lead → 400 `NOT_NPD_LEADER`; a non-lead on Baja → `INACTIVE_LEADER` (Baja is checked first); edit keeping a non-lead saved lead → 200; edit changing to a non-lead → 400; register and edit do not change `is_npd_lead` of the resource. These end-to-end tests cover every branch of the lead checks, so there is no separate unit test of the validator. |
 | `PlannerImportServiceTest` | `markNpdLeads` gets the ids of the found leads, once, without the missing and self leads. |
 | `PlannerImportRepository` (Testcontainers, existing import test) | After an import the leads are marked; a second import keeps a mark it did not set. |
 | `CreateUserRequestValidatorTest`, `UserControllerTest`, `UserRegistrationServiceTest` | `npd-leader` → 400 `ROLE_NOT_ASSIGNABLE` and Keycloak is never called; the other three roles as today. |
