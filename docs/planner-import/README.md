@@ -43,6 +43,7 @@ Planner import finished: 162 rows read, 162 imported, 0 rejected, 37 flagged. Re
 - Cleans every value: joins spaces and line breaks, treats `*`, `-`, `N/A` and blanks as empty, and fixes known typos (`Pesencial`, `NPD-ADMNISTRACION`, `Hibrido . 1 al mes`).
 - Creates the clients, projects, job titles, positions and client roles that do not exist yet, matching names case-insensitively.
 - Creates or updates each employee by `COD EMPL`, then assigns leaders by `COD LIDER` once every employee exists.
+- Marks as NPD lead (`employee.is_npd_lead`, migration V10) every employee found as the leader of another row. Only those leads can be chosen in the "Líder NPD" selector of the platform. The import never removes the mark, so running it again keeps the leads marked by hand or from Usuarios (SCRUM-241).
 - Runs in a single transaction: if anything fails, nothing is saved.
 - **Running it again does not duplicate data**: employees are updated by code (`version` goes up), catalogs are reused. Employees missing from the new Excel are not deleted.
 
@@ -58,8 +59,9 @@ Planner import finished: 162 rows read, 162 imported, 0 rejected, 37 flagged. Re
 | `FECHA FINAL` = `INDEFINIDO` | No end date |
 | End date already passed | Flagged; the employee shows as `PENDIENTE_CONFIRMACION` in `resource_v` |
 | `MES FINAL` does not match the end date | Flagged; the date wins |
-| `COD LIDER` is not an employee (Maribel Escala `1`, Vanessa Gill `731`) | No leader; flagged |
+| `COD LIDER` is not an employee (Maribel Escala `1`, Vanessa Gill `731`) | No leader; flagged; nobody is marked as NPD lead |
 | `LIDER TLP` name does not match the `COD LIDER` employee | The code wins; flagged |
+| `COD LIDER` is an employee | That employee is marked as NPD lead, even if they are on Baja (a lead on Baja is not offered in the selector) |
 | Invalid or repeated email | Saved empty; flagged |
 | Client contact from another client's domain | Imported as is; flagged |
 | Termination reason while status is Activo | Imported as is; flagged |

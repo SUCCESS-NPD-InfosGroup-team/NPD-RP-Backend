@@ -37,6 +37,7 @@ flowchart TD
    - Creates the missing clients, projects and catalogs.
    - Creates or updates each employee by `COD EMPL`.
    - Assigns the leaders at the end, when every employee exists.
+   - Marks those leaders as NPD leads (`is_npd_lead`), so they can be chosen in the "Líder NPD" selector. It never removes the mark.
 
    Running it again updates the data; it does not duplicate it.
 7. **`ImportReportWriter`.**
