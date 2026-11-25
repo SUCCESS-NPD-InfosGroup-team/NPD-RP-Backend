@@ -101,9 +101,7 @@ public class ProjectQueryService {
 			.stream()
 			.map(project -> new ProjectListItemResponse(project.getId(), project.getName(), clientOf(project),
 					project.isActive(), project.getStartDate(), project.getContractEndDate(),
-					project.getContractEndDate() == null ? null
-							: ChronoUnit.DAYS.between(today, project.getContractEndDate()),
-					project.getTeamSize(), project.getPendingConfirmation(), project.getIndefiniteCount(),
+					daysToContractEnd(project, today), project.getTeamSize(), project.getPendingConfirmation(), project.getIndefiniteCount(),
 					project.getNextAssignmentEnd(), leads.getOrDefault(project.getId(), List.of())))
 			.toList();
 		return new PageResponse<>(items,
@@ -137,7 +135,8 @@ public class ProjectQueryService {
 	}
 
 	/**
-	 * A project with its client and team size.
+	 * A project with its client and the same team figures as its row in the list (team size, «N por
+	 * confirmar», indefinite, next end and NPD leads), for the header of the project detail.
 	 *
 	 * @param id project id
 	 * @return the project
@@ -145,9 +144,13 @@ public class ProjectQueryService {
 	 */
 	@Transactional(readOnly = true)
 	public ProjectResponse get(long id) {
+		LocalDate today = LocalDate.now(clock);
 		ProjectSummary project = projectSummaries.findById(id).orElseThrow(() -> new NotFoundException(id));
+		List<IdName> leads = leadsOf(List.of(project)).getOrDefault(project.getId(), List.of());
 		return new ProjectResponse(project.getId(), project.getName(), clientOf(project), project.isActive(),
-				project.getStartDate(), project.getContractEndDate(), project.getTeamSize());
+				project.getStartDate(), project.getContractEndDate(), daysToContractEnd(project, today),
+				countOf(project.getTeamSize()), countOf(project.getPendingConfirmation()),
+				countOf(project.getIndefiniteCount()), project.getNextAssignmentEnd(), leads);
 	}
 
 	/**
@@ -219,6 +222,18 @@ public class ProjectQueryService {
 		}
 		String text = search.strip();
 		return text.length() > MAX_SEARCH_LENGTH ? text.substring(0, MAX_SEARCH_LENGTH) : text;
+	}
+
+	/**
+	 * Days from today to the client contract end, so the list and the detail show the same "D-N".
+	 *
+	 * @param project the project
+	 * @param today today in the application time zone
+	 * @return the days, negative if the contract already ended, or {@code null} without contract end
+	 */
+	private static Long daysToContractEnd(ProjectSummary project, LocalDate today) {
+		return project.getContractEndDate() == null ? null
+				: ChronoUnit.DAYS.between(today, project.getContractEndDate());
 	}
 
 	/**
