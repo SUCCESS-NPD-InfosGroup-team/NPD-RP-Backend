@@ -7,25 +7,25 @@ How the backend edits and deactivates a project, described in [spec.md](spec.md)
 
 ## Overview
 
-Two write requests in the `planner` module. Only the Operations administrator (P-14); every other role
+Three write requests in the `planner` module. Only the Operations administrator (P-14); every other role
 gets 403.
 
 | # | Request | What it does |
 |---|---------|--------------|
 | 1 | `PUT /api/v1/planner/projects/{id}` | Edits the name and the client contract end (CA-01, CA-06). |
 | 2 | `POST /api/v1/planner/projects/{id}/deactivation` | Deactivates a project without team (CA-01). |
+| 3 | `POST /api/v1/planner/projects/{id}/reactivation` | Reactivates an inactive project (CA-05). |
 
 Plus two additive fields in `ProjectResponse` (create, read, edit): `version` and `updatedAt`.
 
-## Decision 1 — Deactivation is its own request
+## Decision 1 — Deactivation and reactivation are their own requests
 
 **Options considered**
 
 - **A. `active: false` in the `PUT`.** One route, but the edit form would mix two actions with different
   rules (the team check) and different confirmations in the screen.
-- **B. `POST .../deactivation` (chosen).** One action, one rule, one 409. A future reactivation (CA-05)
-  becomes `POST .../reactivation` without touching the edit. Same style as
-  `POST .../members/removal` of SCRUM-127.
+- **B. `POST .../deactivation` and `POST .../reactivation` (chosen).** One action, one rule, one error
+  each. Same style as `POST .../members/removal` of SCRUM-127.
 
 ## Decision 2 — `version` on the project
 
@@ -72,7 +72,8 @@ The frontend can warn before saving: in `GET /projects/{id}/members` (SCRUM-185)
 
 ### `ProjectResponse` — two new fields
 
-Returned by "Crear proyecto", "Ver proyecto" (with the fields of SCRUM-185), the deactivation, and inside `project` of the edit answer.
+Returned by "Crear proyecto", "Ver proyecto" (with the fields of SCRUM-185), the deactivation and the
+reactivation, and inside `project` of the edit answer.
 
 ```json
 {
@@ -127,7 +128,7 @@ Errors:
 | `404` | `NOT_FOUND` | The project does not exist. | |
 | `409` | `PROJECT_NAME_TAKEN` | Another project of the same client has that name. | `existingProjectId` |
 | `409` | `CONCURRENT_MODIFICATION` | `version` is not the current one, or one of the people that move with the contract end was saved by someone else at the same moment (nothing is saved). | `currentVersion`, `updatedAt`, `updatedBy` |
-| `409` | `PROJECT_INACTIVE` (new) | The project is inactive (reactivation is not defined yet, CA-05). | |
+| `409` | `PROJECT_INACTIVE` (new) | The project is inactive: reactivate it first (CA-05). | |
 | `503` | `SERVICE_UNAVAILABLE` | The database did not answer; nothing saved. | |
 
 ### 2. Deactivate — `POST /api/v1/planner/projects/{id}/deactivation`
@@ -148,9 +149,26 @@ Errors:
 | `409` | `PROJECT_HAS_TEAM` (new) | The project has people (Baja excluded). The frontend can offer "Quitar del proyecto". | `teamSize` |
 | `409` | `CONCURRENT_MODIFICATION` | `version` is not the current one. | `currentVersion`, `updatedAt`, `updatedBy` |
 
-The team check and the update run in one transaction, so a person assigned between the check and the
-write cannot leave an inactive project with people: the deactivation re-counts the team inside the
-transaction before writing.
+The team is counted in the same transaction as the write, right before it. An assignment saved by
+someone else in that same instant is not blocked (no row lock); the risk is accepted because only the
+Operations administrator does both actions.
+
+### 3. Reactivate — `POST /api/v1/planner/projects/{id}/reactivation`
+
+```json
+{ "version": 4 }
+```
+
+Answer `200`: the `ProjectResponse` with `"active": true` and the new `version`. Already active: `200`
+with no change. The contract end is kept as it was, even if it already passed.
+
+Errors:
+
+| Status | `code` | When | Extra properties |
+|--------|--------|------|------------------|
+| `400` | `VALIDATION_FAILED` | `version` missing; or the client of the project is inactive (`field` = `clientId`, code `INACTIVE_CLIENT`, the imported «No especificado» project). | `errors[]` |
+| `401` / `403` / `404` | | As in the edit. | |
+| `409` | `CONCURRENT_MODIFICATION` | `version` is not the current one. | `currentVersion`, `updatedAt`, `updatedBy` |
 
 ### New error codes
 
@@ -161,8 +179,8 @@ transaction before writing.
 
 ## Security
 
-`SecurityConfig`: `PUT /api/*/planner/projects/*` and `POST /api/*/planner/projects/*/deactivation`
-only for the Operations administrator. Keep the matchers specific: SCRUM-127 adds
+`SecurityConfig`: `PUT /api/*/planner/projects/*`, `POST /api/*/planner/projects/*/deactivation` and
+`POST /api/*/planner/projects/*/reactivation` only for the Operations administrator. Keep the matchers specific: SCRUM-127 adds
 `POST /api/*/planner/projects/*/members` and `.../members/removal` with the same role.
 
 ## Tests
@@ -178,4 +196,6 @@ only for the Operations administrator. Keep the matchers specific: SCRUM-127 add
   change on one of those people rolls back the whole edit (409).
 - Deactivate: without team; with team (409 `PROJECT_HAS_TEAM`, `teamSize`); only people on Baja (allowed);
   already inactive (200, no audit); stale `version`; audit row `active`; 403; 404.
+- Reactivate: inactive project; already active (200, no audit); client inactive (400 `INACTIVE_CLIENT`);
+  contract end in the past kept; stale `version`; audit row `active`; 403; 404.
 - The 201 of "Crear proyecto" returns `version` 0.
