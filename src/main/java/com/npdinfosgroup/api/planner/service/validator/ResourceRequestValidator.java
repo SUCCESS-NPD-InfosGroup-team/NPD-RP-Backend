@@ -97,23 +97,26 @@ public class ResourceRequestValidator {
 	 *         employee number is already registered
 	 */
 	public short validateNew(RegisterResourceRequest request) {
-		return validate(request, null);
+		return validate(request, null, null);
 	}
 
 	/**
 	 * Validates the edit of a resource. The same rules as a registration apply, so imported values
 	 * that can no longer be chosen ("No especificado", an inactive project, a lead on Baja, an end
-	 * date that already passed) must be corrected before the record can be saved.
+	 * date that already passed) must be corrected before the record can be saved. The only exception
+	 * is a lead that is no longer an NPD lead: it is checked only when the lead changes, so the
+	 * collaborators of an unmarked lead can still be edited.
 	 *
 	 * @param id id of the resource being edited
 	 * @param request the resource as it should be saved
+	 * @param currentLeaderId the lead saved today, or {@code null} if it has none
 	 * @return the id of its employment status
 	 * @throws ValidationException with every invalid field, when there is at least one
 	 * @throws ApiException {@link ErrorCode#EMPLOYEE_NUMBER_TAKEN} when the only problem is that
 	 *         another resource has the employee number
 	 */
-	public short validateUpdate(long id, UpdateResourceRequest request) {
-		return validate(request, id);
+	public short validateUpdate(long id, UpdateResourceRequest request, Long currentLeaderId) {
+		return validate(request, id, currentLeaderId);
 	}
 
 	/**
@@ -121,9 +124,10 @@ public class ResourceRequestValidator {
 	 *
 	 * @param request the resource
 	 * @param id id of the edited resource, or {@code null} for a new one
+	 * @param currentLeaderId lead saved today, or {@code null} for a new resource or one without lead
 	 * @return the id of its employment status
 	 */
-	private short validate(ResourceForm request, Long id) {
+	private short validate(ResourceForm request, Long id, Long currentLeaderId) {
 		List<FieldProblem> problems = new ArrayList<>(ConstraintProblems.of(validator.validate(request), ""));
 		Optional<Short> statusId = checkStatus(request.status(), problems);
 		checkCatalog(problems, "jobTitleId", Catalog.JOB_TITLES, request.jobTitleId());
@@ -136,7 +140,7 @@ public class ResourceRequestValidator {
 			checkTermination(request.termination(), request.hireDate(), problems);
 		}
 		else if (request.assignment() != null) {
-			checkAssignment(request.assignment(), id, problems);
+			checkAssignment(request.assignment(), id, currentLeaderId, problems);
 		}
 		checkEmailFree(request.email(), id, problems);
 
@@ -213,7 +217,8 @@ public class ResourceRequestValidator {
 		}
 	}
 
-	private void checkAssignment(AssignmentRequest assignment, Long id, List<FieldProblem> problems) {
+	private void checkAssignment(AssignmentRequest assignment, Long id, Long currentLeaderId,
+			List<FieldProblem> problems) {
 		problems.addAll(ConstraintProblems.of(validator.validate(assignment), "assignment."));
 		if (assignment.projectId() != null) {
 			projects.findById(assignment.projectId())
@@ -225,11 +230,9 @@ public class ResourceRequestValidator {
 			problems.add(FieldProblem.of(ASSIGNMENT_LEADER, FieldErrorCode.SELF_LEADER));
 		}
 		else if (assignment.leaderId() != null) {
+			boolean leaderChanges = !assignment.leaderId().equals(currentLeaderId);
 			employees.findById(assignment.leaderId())
-				.map(leader -> leader.getStatus().getCode())
-				.ifPresentOrElse(
-						status -> addIf(TERMINATED.equals(status), problems, ASSIGNMENT_LEADER,
-								FieldErrorCode.INACTIVE_LEADER),
+				.ifPresentOrElse(leader -> checkLeader(leader, leaderChanges, problems),
 						() -> problems.add(FieldProblem.of(ASSIGNMENT_LEADER, FieldErrorCode.UNKNOWN_ID)));
 		}
 		checkCatalog(problems, "assignment.clientRoleId", Catalog.CLIENT_ROLES, assignment.clientRoleId());
@@ -242,6 +245,19 @@ public class ResourceRequestValidator {
 		}
 		else if (assignment.endDate() != null && assignment.endDate().isBefore(LocalDate.now(clock))) {
 			problems.add(FieldProblem.of(ASSIGNMENT_END_DATE, FieldErrorCode.DATE_IN_PAST));
+		}
+	}
+
+	/**
+	 * A lead on Baja is never valid. A lead who is not an NPD lead is rejected only when it is newly
+	 * chosen (SCRUM-241 CA-05): keeping the lead saved today is allowed.
+	 */
+	private static void checkLeader(Employee leader, boolean leaderChanges, List<FieldProblem> problems) {
+		if (TERMINATED.equals(leader.getStatus().getCode())) {
+			problems.add(FieldProblem.of(ASSIGNMENT_LEADER, FieldErrorCode.INACTIVE_LEADER));
+		}
+		else if (leaderChanges && !leader.isNpdLead()) {
+			problems.add(FieldProblem.of(ASSIGNMENT_LEADER, FieldErrorCode.NOT_NPD_LEADER));
 		}
 	}
 

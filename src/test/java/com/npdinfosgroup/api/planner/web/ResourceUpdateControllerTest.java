@@ -159,6 +159,28 @@ class ResourceUpdateControllerTest {
 			.single()).isTrue();
 	}
 
+	/**
+	 * SCRUM-241 CA-05: a resource whose saved lead is no longer an NPD lead can still be saved with
+	 * that lead, but cannot be moved to another employee who is not an NPD lead.
+	 */
+	@Test
+	void checksTheNpdLeadOnlyWhenTheLeadChanges() {
+		jdbc.sql("UPDATE employee SET is_npd_lead = false WHERE id = :id").param("id", leaderId).update();
+		Map<String, Object> request = currentRecord();
+		request.put("name", "Ana María Torres");
+
+		put(ADMIN, resourceId, request).expectStatus().isOk();
+
+		long unmarked = insertEmployee("RT-C1", "Carlos Sinmarca", workModeId, null, null);
+		Map<String, Object> newLead = currentRecord();
+		assignmentOf(newLead).put("leaderId", unmarked);
+		put(ADMIN, resourceId, newLead).expectStatus()
+			.isBadRequest()
+			.expectBody()
+			.jsonPath("$.errors[*].field").isEqualTo(List.of("assignment.leaderId"))
+			.jsonPath("$.errors[*].code").isEqualTo(List.of("NOT_NPD_LEADER"));
+	}
+
 	/** CA-07: saving the record as it was changes nothing: same version and no audit rows. */
 	@Test
 	void savesNothingWhenNothingChanged() {

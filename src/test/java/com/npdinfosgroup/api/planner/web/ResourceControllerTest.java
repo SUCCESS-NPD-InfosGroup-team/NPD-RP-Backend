@@ -575,6 +575,34 @@ class ResourceControllerTest {
 		assertThat(isNpdLead("RT-L1")).isTrue();
 	}
 
+	/**
+	 * SCRUM-241 CA-05, CA-07: only an NPD lead can be chosen when registering. An employee without the
+	 * mark gets NOT_NPD_LEADER; one on Baja gets INACTIVE_LEADER, whether marked or not.
+	 */
+	@Test
+	void rejectsALeadWhoIsNotAnNpdLead() {
+		long unmarked = insertEmployee("RT-C1", "Ana Sinmarca", "ACTIVO", workModeId, null);
+		long unmarkedOnBaja = insertEmployee("RT-C2", "Beto Sinmarca", "BAJA", workModeId, null);
+		Map<String, Object> request = validRequest("1102");
+		Map<String, Object> assignment = assignment();
+		request.put("assignment", assignment);
+
+		assignment.put("leaderId", unmarked);
+		post(ADMIN, request).expectStatus()
+			.isBadRequest()
+			.expectBody()
+			.jsonPath("$.errors[*].field").isEqualTo(List.of("assignment.leaderId"))
+			.jsonPath("$.errors[*].code").isEqualTo(List.of("NOT_NPD_LEADER"));
+
+		assignment.put("leaderId", unmarkedOnBaja);
+		post(ADMIN, request).expectStatus()
+			.isBadRequest()
+			.expectBody()
+			.jsonPath("$.errors[*].code").isEqualTo(List.of("INACTIVE_LEADER"));
+
+		assertThat(employeeCount()).isEqualTo(4);
+	}
+
 	private RestTestClient.ResponseSpec post(String token, Object body) {
 		return client.post()
 			.uri(RESOURCES)

@@ -7,8 +7,8 @@ Tests", and stays under 400 changed lines (`git diff --shortstat origin/develop.
 | # | Branch | Content | Est. lines | Depends on | Status |
 |---|--------|---------|------------|------------|--------|
 | 1 | `docs/SCRUM-241-npd-lead-flag` | `spec.md`, `design.md` and `plan.md` of this folder. | ~350 | — | Merged ([#54](https://github.com/SUCCESS-NPD-InfosGroup-team/NPD-RP-Backend/pull/54)) |
-| 2 | `fix/SCRUM-241-npd-lead-column` | V10, the entity, the import and the "Líder NPD" selector (design decisions 1 to 5). | ~250 | PR 1 | In progress |
-| 3 | `fix/SCRUM-241-npd-lead-validation` | `NOT_NPD_LEADER` when registering and editing a resource (decision 6). | ~220 | PR 2 | Pending |
+| 2 | `fix/SCRUM-241-npd-lead-column` | V10, the entity, the import and the "Líder NPD" selector (design decisions 1 to 5). | ~250 | PR 1 | Merged ([#58](https://github.com/SUCCESS-NPD-InfosGroup-team/NPD-RP-Backend/pull/58)) |
+| 3 | `fix/SCRUM-241-npd-lead-validation` | `NOT_NPD_LEADER` when registering and editing a resource (decision 6). | ~220 | PR 2 | In progress |
 | 4 | `fix/SCRUM-241-block-npd-lead-user` | "Crear usuario" stops offering and accepting `npd-leader` (decision 7). | ~150 | PR 1 | Pending |
 
 PR 4 does not depend on PR 2 or 3 and can be reviewed in parallel.
@@ -39,7 +39,8 @@ After merging, every developer has the leads marked when they start the API, wit
 - `ResourceUpdateService.update` passes the saved lead.
 - OpenAPI of `POST` and `PUT /api/v1/planner/resources` (`leaderId` from `GET /npd-leads`, 400 with
   `NOT_NPD_LEADER`).
-- Tests: `ResourceRequestValidatorTest`, `ResourceControllerTest`, `ResourceUpdateControllerTest`.
+- Tests: `ResourceControllerTest`, `ResourceUpdateControllerTest` (end to end, every branch of the lead checks)
+  and the new `validateUpdate` signature in `ResourceUpdateServiceTest`.
 
 ## PR 4 — No NPD leads from "Crear usuario"
 

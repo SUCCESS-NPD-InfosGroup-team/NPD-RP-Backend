@@ -91,7 +91,7 @@ public class ResourceUpdateService {
 		if (request.version() != null && !request.version().equals(employee.getVersion())) {
 			throw concurrentModification(employee);
 		}
-		short statusId = validator.validateUpdate(id, request);
+		short statusId = validator.validateUpdate(id, request, employee.getLeaderId());
 		Map<String, String> before = mapper.auditValues(employee);
 		ResourceFields.copy(request, statusId, employee);
 		save(employee);

@@ -79,6 +79,7 @@ class ResourceController {
 			- `assignment = null` es «Sin proyecto por ahora»: no se piden proyecto, líder ni fecha final.
 			- Con `assignment` son obligatorios `projectId` (proyecto existente y activo; el cliente sale \
 			de él), `leaderId` y `endDate` (no pasada) o `indefinite = true`.
+			- `leaderId` es un líder NPD que no está de Baja, de `GET /api/v1/planner/resources/npd-leads`; 			otro empleado da `NOT_NPD_LEADER`.
 			- Con `status = BAJA` son obligatorios `termination.date` (no antes de `hireDate`) y \
 			`termination.reasonId`, y el recurso se guarda sin proyecto aunque llegue `assignment`.
 			- `onProbation` es obligatorio: indica si entra en periodo de prueba. `probationEndDate` \
@@ -88,7 +89,8 @@ class ResourceController {
 			- Todos los errores de validación llegan juntos en `errors`. Si el único problema es el \
 			N° de empleado repetido, la respuesta es 409.""")
 	@ApiResponse(responseCode = "201", description = "Recurso registrado; `Location` apunta a su registro")
-	@ApiResponse(responseCode = "400", description = "Uno o más campos inválidos (`VALIDATION_FAILED`, detalle en `errors`)",
+	@ApiResponse(responseCode = "400", description = """
+			Uno o más campos inválidos (`VALIDATION_FAILED`, detalle en `errors`; el líder puede dar 			`SELF_LEADER`, `UNKNOWN_ID`, `INACTIVE_LEADER` o `NOT_NPD_LEADER`)""",
 			content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemDetail.class)))
 	@ApiResponse(responseCode = "401", description = "Sin token o token inválido (`UNAUTHORIZED`)",
 			content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemDetail.class)))
@@ -140,13 +142,14 @@ class ResourceController {
 	@Operation(summary = "Editar recurso", description = """
 			Reemplaza el registro de un recurso por el que envía el formulario de edición (HU-02). Solo \
 			Operations administrator.
-
 			- Se envía el registro completo, con la `version` que devolvió `GET /planner/resources/{id}`. Si otra \
 			persona lo guardó después, responde 409 `CONCURRENT_MODIFICATION` con `currentVersion`, \
 			`updatedBy`, `updatedAt` y `updatedFields` (los campos que cambió, con los nombres de la \
 			auditoría, por ejemplo `assignment.project`), y no se guarda nada: hay que recargar el registro.
 			- Mismas reglas que el registro: obligatorios `name`, `positionId`, `status` (y los demás \
 			marcados en el esquema); `leaderId` solo con proyecto; el rol en el cliente es opcional.
+			- Un `leaderId` nuevo debe ser un líder NPD de `GET /api/v1/planner/resources/npd-leads` \
+			(`NOT_NPD_LEADER`); se puede guardar el líder actual aunque ya no lo sea.
 			- `assignment.endDate` no puede haber pasado, o va `indefinite = true`.
 			- Una persona tiene un solo proyecto: otro `assignment.projectId` la mueve a ese proyecto. \
 			`assignment = null` la deja «Sin proyecto».
@@ -158,7 +161,9 @@ class ResourceController {
 			anterior y nuevo); si no cambia nada, no se guarda nada y la `version` sigue igual.
 			- Todos los errores de validación llegan juntos en `errors`.""")
 	@ApiResponse(responseCode = "200", description = "Recurso guardado, con su nueva `version`")
-	@ApiResponse(responseCode = "400", description = "Uno o más campos inválidos (`VALIDATION_FAILED`, detalle en `errors`)",
+	@ApiResponse(responseCode = "400", description = """
+			Uno o más campos inválidos (`VALIDATION_FAILED`, detalle en `errors`;
+			el líder puede dar `SELF_LEADER`, `UNKNOWN_ID`, `INACTIVE_LEADER` o `NOT_NPD_LEADER`)""",
 			content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemDetail.class)))
 	@ApiResponse(responseCode = "401", description = "Sin token o token inválido (`UNAUTHORIZED`)",
 			content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemDetail.class)))
