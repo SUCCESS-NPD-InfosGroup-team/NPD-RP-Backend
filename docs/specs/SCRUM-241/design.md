@@ -67,8 +67,8 @@ UPDATE employee SET is_npd_lead = true WHERE id IN (:ids) AND NOT is_npd_lead
   UPDATE`, so an import never resets it (spec CA-03, CA-09).
 - A row whose lead is not found, or is the employee itself, is already left without a lead and
   flagged in the report; it marks nobody.
-- One statement for the whole run, inside the import transaction. The log line at the end adds how many
-  leads were marked. The import report (`reporte-import-planificador.xlsx`) does not change.
+- One statement for the whole run, inside the import transaction. The import report
+  (`reporte-import-planificador.xlsx`) and the final log line do not change.
 - `PlannerImportRepository` keeps using `JdbcClient`: it is the one exception allowed by AGENTS.md.
 
 `docs/planner-import/README.md` gets one line saying that the import marks the leads.
@@ -91,18 +91,18 @@ same JPA entity. The mapping has to allow that insert.
 
   ```java
   @Column(name = "is_npd_lead", nullable = false)
-  private boolean npdLead;
+  private boolean isNpdLead;
   ```
 
 **Why C is still safe for this bug (spec CA-09):** `ResourceFields.copy`, used by register and edit, does
-not read or write `npdLead`, and the resource forms (`RegisterResourceRequest`, `UpdateResourceRequest`)
+not read or write `isNpdLead`, and the resource forms (`RegisterResourceRequest`, `UpdateResourceRequest`)
 have no field for it.
 
 - A new resource is created with the Java default (`false`), which matches the database default.
 - An edit loads the employee, so the saved value is kept, and Hibernate only writes it back unchanged.
 
 The tests of register and edit check that the mark of the saved row does not change. HU-10 sets
-`npdLead = true` on the employee it creates, with no change to this mapping.
+`isNpdLead = true` (Lombok's `setNpdLead(true)`) on the employee it creates, with no change to this mapping.
 
 ## Decision 5 — The "Líder NPD" selector reads the mark
 
@@ -111,7 +111,7 @@ The tests of register and edit check that the mark of the saved row does not cha
 ```java
 @Query("""
         SELECT l FROM Employee l
-        WHERE l.npdLead = true AND l.status.code <> :excludedStatus
+        WHERE l.isNpdLead = true AND l.status.code <> :excludedStatus
         ORDER BY l.fullName""")
 List<Employee> findNpdLeadsExcludingStatus(@Param("excludedStatus") String excludedStatus);
 ```

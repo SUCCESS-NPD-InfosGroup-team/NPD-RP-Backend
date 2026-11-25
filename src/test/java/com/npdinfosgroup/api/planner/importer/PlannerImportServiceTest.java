@@ -213,4 +213,52 @@ class PlannerImportServiceTest {
 			.containsEntry("leader_id", null);
 	}
 
+	/**
+	 * SCRUM-241 CA-03: the employee found by COD LIDER is marked as NPD lead; the collaborators who
+	 * lead nobody are not. Rows default to COD LIDER 900, so 900 itself has no lead (leader-self).
+	 */
+	@Test
+	void marksLeadersAsNpdLeads() {
+		service.importRows(List.of(row(3, "900").build(), row(4, "100").build(), row(5, "101").build()), TODAY);
+
+		assertThat(isNpdLead("900")).isTrue();
+		assertThat(isNpdLead("100")).isFalse();
+		assertThat(isNpdLead("101")).isFalse();
+	}
+
+	/**
+	 * SCRUM-241 CA-03: a COD LIDER that is not an employee, or that is the employee themselves, marks
+	 * nobody.
+	 */
+	@Test
+	void doesNotMarkMissingOrSelfLeaders() {
+		service.importRows(List.of(row(3, "200").with(PlannerColumn.LEADER_CODE, "777").build(),
+				row(4, "300").with(PlannerColumn.LEADER_CODE, "300").build()), TODAY);
+
+		assertThat(jdbc.sql("SELECT count(*) FROM employee WHERE is_npd_lead").query(Long.class).single()).isZero();
+	}
+
+	/**
+	 * SCRUM-241 CA-03: importing again never removes a mark, not even one the import did not set (an
+	 * employee marked outside the import who leads nobody in the Excel).
+	 */
+	@Test
+	void reimportKeepsNpdLeadMarks() {
+		List<PlannerRow> rows = List.of(row(3, "900").build(), row(4, "100").build());
+		service.importRows(rows, TODAY);
+		jdbc.sql("UPDATE employee SET is_npd_lead = true WHERE code = '100'").update();
+
+		service.importRows(rows, TODAY);
+
+		assertThat(isNpdLead("900")).isTrue();
+		assertThat(isNpdLead("100")).isTrue();
+	}
+
+	private boolean isNpdLead(String code) {
+		return jdbc.sql("SELECT is_npd_lead FROM employee WHERE code = :code")
+			.param("code", code)
+			.query(Boolean.class)
+			.single();
+	}
+
 }

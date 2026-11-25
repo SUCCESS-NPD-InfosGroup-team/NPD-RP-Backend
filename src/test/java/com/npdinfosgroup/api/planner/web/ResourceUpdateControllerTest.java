@@ -96,6 +96,7 @@ class ResourceUpdateControllerTest {
 		reasonId = catalogId("termination_reason", "RENUNCIA_VOLUNTARIA");
 		leaderId = insertEmployee("RT-L1", "Lorena Batista", workModeId, null, null);
 		resourceId = insertEmployee("RT-1", "Ana Torres", workModeId, projectId, leaderId);
+		jdbc.sql("UPDATE employee SET is_npd_lead = true WHERE id = :id").param("id", leaderId).update();
 	}
 
 	/** Leaves the database as the other tests expect it. */
@@ -138,6 +139,24 @@ class ResourceUpdateControllerTest {
 			.extracting(ResourceUpdateControllerTest::change)
 			.containsExactlyInAnyOrder("name: Ana Torres -> Ana María Torres",
 					"email: null -> ana.torres@infosgroup.com", "level: 3 -> 4");
+	}
+
+	/**
+	 * SCRUM-241 CA-09: editing keeps the NPD lead mark of the edited employee, whatever the form
+	 * changes, because the resource form has no field for it.
+	 */
+	@Test
+	void editingKeepsTheNpdLeadMark() {
+		jdbc.sql("UPDATE employee SET is_npd_lead = true WHERE id = :id").param("id", resourceId).update();
+		Map<String, Object> request = currentRecord();
+		request.put("name", "Ana María Torres");
+
+		put(ADMIN, resourceId, request).expectStatus().isOk();
+
+		assertThat(jdbc.sql("SELECT is_npd_lead FROM employee WHERE id = :id")
+			.param("id", resourceId)
+			.query(Boolean.class)
+			.single()).isTrue();
 	}
 
 	/** CA-07: saving the record as it was changes nothing: same version and no audit rows. */

@@ -6,8 +6,8 @@ Tests", and stays under 400 changed lines (`git diff --shortstat origin/develop.
 
 | # | Branch | Content | Est. lines | Depends on | Status |
 |---|--------|---------|------------|------------|--------|
-| 1 | `docs/SCRUM-241-npd-lead-flag` | `spec.md`, `design.md` and `plan.md` of this folder. | ~350 | — | Pending |
-| 2 | `fix/SCRUM-241-npd-lead-column` | V10, the entity, the import and the "Líder NPD" selector (design decisions 1 to 5). | ~250 | PR 1 | Pending |
+| 1 | `docs/SCRUM-241-npd-lead-flag` | `spec.md`, `design.md` and `plan.md` of this folder. | ~350 | — | Merged ([#54](https://github.com/SUCCESS-NPD-InfosGroup-team/NPD-RP-Backend/pull/54)) |
+| 2 | `fix/SCRUM-241-npd-lead-column` | V10, the entity, the import and the "Líder NPD" selector (design decisions 1 to 5). | ~250 | PR 1 | In progress |
 | 3 | `fix/SCRUM-241-npd-lead-validation` | `NOT_NPD_LEADER` when registering and editing a resource (decision 6). | ~220 | PR 2 | Pending |
 | 4 | `fix/SCRUM-241-block-npd-lead-user` | "Crear usuario" stops offering and accepting `npd-leader` (decision 7). | ~150 | PR 1 | Pending |
 
@@ -18,7 +18,7 @@ PR 4 does not depend on PR 2 or 3 and can be reviewed in parallel.
 **Part 1 of 3 code PRs. Jira: SCRUM-241.**
 
 - `V10__employee_npd_lead.sql`: the column, the backfill from `leader_id` and its comment.
-- `Employee.npdLead`, a plain column that HU-10 can write; `ResourceFields` does not touch it.
+- `Employee.isNpdLead`, a plain column that HU-10 can write; `ResourceFields` does not touch it.
 - `PlannerImportRepository.markNpdLeads(ids)` and its call at the end of
   `PlannerImportService.assignLeaders`; the final log line counts the marked leads.
 - `EmployeeRepository.findNpdLeadsExcludingStatus` replaces `findLeadsExcludingStatus`;

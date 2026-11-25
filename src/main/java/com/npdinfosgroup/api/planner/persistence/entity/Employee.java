@@ -97,6 +97,9 @@ public class Employee {
 	@Column(name = "project_end_date")
 	private LocalDate projectEndDate;
 
+	@Column(name = "is_npd_lead", nullable = false)
+	private boolean isNpdLead;
+
 	@Version
 	@Column(nullable = false)
 	private Integer version;
