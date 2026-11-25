@@ -73,18 +73,36 @@ UPDATE employee SET is_npd_lead = true WHERE id IN (:ids) AND NOT is_npd_lead
 
 `docs/planner-import/README.md` gets one line saying that the import marks the leads.
 
-## Decision 4 — JPA reads the mark but never writes it
+## Decision 4 — A plain, writable column in JPA; the resource form never touches it
 
-```java
-@Column(name = "is_npd_lead", nullable = false, insertable = false, updatable = false)
-private boolean npdLead;
-```
+SCRUM-239 (HU-10) registers an NPD lead as a new `employee` row with the mark set to `true`, through the
+same JPA entity. The mapping has to allow that insert.
 
-Registering and editing a resource go through `ResourceFields.copy`, which writes every field of the
-form. With the column read-only for Hibernate, a new employee gets the database default (`false`) and an
-edit cannot change the mark, whatever the entity holds (spec CA-09). Registration already refreshes the
-entity after the insert, so the value it returns is the real one. HU-10, which will write the mark, will
-change this mapping in its own PR.
+**Options considered**
+
+- **A. Read-only for Hibernate (`insertable = false, updatable = false`).** Register and edit could never
+  change the mark, but HU-10 could not insert a lead either: it would have to change the mapping, or
+  insert and then update the row with JPQL.
+- **B. Insert only (`updatable = false`).** HU-10 can insert a lead and an edit cannot change the mark.
+  But any later change to an existing employee (for example, unmarking someone whose role changes) is
+  silently ignored by Hibernate: the setter works, the save succeeds and the database keeps the old
+  value.
+- **C. A plain column (chosen).** Hibernate reads and writes it like any other field:
+
+  ```java
+  @Column(name = "is_npd_lead", nullable = false)
+  private boolean npdLead;
+  ```
+
+**Why C is still safe for this bug (spec CA-09):** `ResourceFields.copy`, used by register and edit, does
+not read or write `npdLead`, and the resource forms (`RegisterResourceRequest`, `UpdateResourceRequest`)
+have no field for it.
+
+- A new resource is created with the Java default (`false`), which matches the database default.
+- An edit loads the employee, so the saved value is kept, and Hibernate only writes it back unchanged.
+
+The tests of register and edit check that the mark of the saved row does not change. HU-10 sets
+`npdLead = true` on the employee it creates, with no change to this mapping.
 
 ## Decision 5 — The "Líder NPD" selector reads the mark
 

@@ -18,7 +18,7 @@ PR 4 does not depend on PR 2 or 3 and can be reviewed in parallel.
 **Part 1 of 3 code PRs. Jira: SCRUM-241.**
 
 - `V10__employee_npd_lead.sql`: the column, the backfill from `leader_id` and its comment.
-- `Employee.npdLead`, read-only for Hibernate (`insertable = false, updatable = false`).
+- `Employee.npdLead`, a plain column that HU-10 can write; `ResourceFields` does not touch it.
 - `PlannerImportRepository.markNpdLeads(ids)` and its call at the end of
   `PlannerImportService.assignLeaders`; the final log line counts the marked leads.
 - `EmployeeRepository.findNpdLeadsExcludingStatus` replaces `findLeadsExcludingStatus`;
