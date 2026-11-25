@@ -51,11 +51,28 @@ only allows appending) — whichever is smaller in the PR.
 already uses for a project (`name`, `contractEndDate`) plus `active` ("Sí"/"No", like `isInternal` of the
 client). Only the fields that changed get a row; `audit_log.action` is `UPDATE` (allowed by V5).
 
+## Decision 4 — People move with the contract end in the same transaction (CA-04)
+
+When `contractEndDate` changes from an old date `D` to a new date `D'` (both not null):
+
+1. Inside the edit transaction, read the team members (Baja excluded) with `project_end_date = D`.
+2. Set their `project_end_date = D'` through the `Employee` entity, so each one gets a new `version` and
+   the `updated_at` trigger runs.
+3. Write one audit row per person (`entity_type = employee`, field `assignment.endDate`, old `D`, new
+   `D'`), the same key "Editar recurso" uses.
+
+If one of those people is being saved by someone else at the same moment, the `@Version` check of that
+employee fails and the **whole edit** is rolled back with `409 CONCURRENT_MODIFICATION`: either the
+project and all its people move together, or nothing changes.
+
+The frontend can warn before saving: in `GET /projects/{id}/members` (SCRUM-185), the people with
+`assignmentEnd` equal to the project's `contractEndDate` are the ones that will move.
+
 ## Contract
 
 ### `ProjectResponse` — two new fields
 
-Returned by "Crear proyecto", "Ver proyecto" (with the fields of SCRUM-185) and the two requests below.
+Returned by "Crear proyecto", "Ver proyecto" (with the fields of SCRUM-185), the deactivation, and inside `project` of the edit answer.
 
 ```json
 {
@@ -86,8 +103,19 @@ Returned by "Crear proyecto", "Ver proyecto" (with the fields of SCRUM-185) and 
 The client is not part of the request: a `clientId` sent is ignored. Both editable fields are always
 sent (full replace of what the form shows).
 
-Answer `200`: the `ProjectResponse` with the new `version`. If nothing changed, `200` with the same
-`version` and no audit rows.
+Answer `200`: the `ProjectResponse` with the new `version`, plus how many people moved their end date
+with the contract end (CA-04):
+
+```json
+{
+  "project": { "id": 7, "name": "Core QA Regional", "...": "the ProjectResponse above" },
+  "membersEndDateMoved": 2
+}
+```
+
+`membersEndDateMoved` is `0` when the contract end did not change, was removed, or nobody had the old
+date. The frontend can show "2 colaboradores cambiaron su fecha final a 31/01/2027". If nothing changed,
+`200` with the same `version`, `membersEndDateMoved` 0 and no audit rows.
 
 Errors:
 
@@ -98,7 +126,7 @@ Errors:
 | `403` | `FORBIDDEN` | Not an Operations administrator. | |
 | `404` | `NOT_FOUND` | The project does not exist. | |
 | `409` | `PROJECT_NAME_TAKEN` | Another project of the same client has that name. | `existingProjectId` |
-| `409` | `CONCURRENT_MODIFICATION` | `version` is not the current one. | `currentVersion`, `updatedAt`, `updatedBy` |
+| `409` | `CONCURRENT_MODIFICATION` | `version` is not the current one, or one of the people that move with the contract end was saved by someone else at the same moment (nothing is saved). | `currentVersion`, `updatedAt`, `updatedBy` |
 | `409` | `PROJECT_INACTIVE` (new) | The project is inactive (reactivation is not defined yet, CA-05). | |
 | `503` | `SERVICE_UNAVAILABLE` | The database did not answer; nothing saved. | |
 
@@ -143,6 +171,11 @@ only for the Operations administrator. Keep the matchers specific: SCRUM-127 add
   in the same client (409) and allowed in another client; same name with other case; invalid fields all
   at once; stale `version` (409 with `currentVersion`); inactive project (409); nothing changed (same
   `version`, no audit); audit rows of each field; 403 for the other three roles; 401; 404.
+- Edit, people that move (CA-04): only the people with the old contract end move; indefinite people and
+  people with another date keep theirs; people on Baja do not move; Pendiente de confirmación with the
+  old date moves and becomes Asignado; contract end removed → nobody moves; project without contract end
+  → nobody moves; `membersEndDateMoved`; one `assignment.endDate` audit row per person; a concurrent
+  change on one of those people rolls back the whole edit (409).
 - Deactivate: without team; with team (409 `PROJECT_HAS_TEAM`, `teamSize`); only people on Baja (allowed);
   already inactive (200, no audit); stale `version`; audit row `active`; 403; 404.
 - The 201 of "Crear proyecto" returns `version` 0.

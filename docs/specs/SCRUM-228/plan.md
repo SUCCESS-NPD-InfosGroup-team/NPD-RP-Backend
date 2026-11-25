@@ -8,6 +8,7 @@ How: [design.md](design.md).
 | 0 | `docs/SCRUM-185-228-project-detail-edit-spec` | — | docs | Pending |
 | 1 | `feature/SCRUM-228-project-version` | PR 0, SCRUM-241 V10 | ~120 lines | Pending |
 | 2 | `feature/SCRUM-228-project-edit` | PR 1 | ~350 lines | Pending |
+| 2b | `feature/SCRUM-228-members-follow-contract-end` | PR 2 | ~200 lines | Pending |
 | 3 | `feature/SCRUM-228-project-deactivation` | PR 2 | ~250 lines | Pending |
 
 The frontend (SCRUM-229) works against the contract of `design.md` until each endpoint is merged.
@@ -30,6 +31,8 @@ Design: Decision 2.
 Design: contract 1, Decision 3.
 
 - `UpdateProjectRequest` (`name`, `contractEndDate`, `version`) and `UpdateProjectCommand` (with the actor).
+- Answer `{ project, membersEndDateMoved }` from the start (`membersEndDateMoved` = 0 until PR 2b), so
+  the contract with the frontend does not change between PRs.
 - `ProjectRequestValidator.validateUpdate(...)`: same name rules as creation, `DATE_IN_PAST` only when the
   date changes, all problems at once.
 - `ProjectUpdateService.update(...)`: 404, `PROJECT_INACTIVE`, version check (409 with `currentVersion`,
@@ -38,6 +41,17 @@ Design: contract 1, Decision 3.
 - `ErrorCode.PROJECT_INACTIVE` and its messages.
 - `PUT /api/v1/planner/projects/{id}` in `ProjectController`, OpenAPI; `SecurityConfig` matcher.
 - Tests: the "Edit" cases of the design.
+
+## 2b. People move with the contract end — CA-04
+
+Design: Decision 4.
+
+- `ProjectUpdateService.update(...)`: when the contract end changes from a date to another date, moves
+  the team members (Baja excluded) whose end date is the old one, in the same transaction; one
+  `assignment.endDate` audit row per person; rollback with 409 if one of them is stale.
+- `EmployeeRepository`: the query of the team members with a given end date.
+- Response `UpdateProjectResponse` (`project`, `membersEndDateMoved`); the OpenAPI of the `PUT` updated.
+- Tests: the "Edit, people that move" cases of the design.
 
 ## 3. Deactivation — part 3 of 3
 
