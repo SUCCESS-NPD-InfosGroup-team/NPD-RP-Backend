@@ -185,8 +185,8 @@ class ResourceController {
 	 */
 	@GetMapping(path = "/npd-leads", version = "v1")
 	@Operation(summary = "Líderes NPD", description = """
-			Colaboradores que hoy lideran al menos a otro y no están de Baja, por nombre, como \
-			`{ id, name }`. Todos los roles.""")
+			Empleados registrados como líderes NPD que no están de Baja, por nombre, como `{ id, name }`. \
+			Incluye a los líderes que todavía no tienen colaboradores. Todos los roles.""")
 	@ApiResponse(responseCode = "200", description = "Los líderes")
 	@ApiResponse(responseCode = "401", description = "Sin token o token inválido (`UNAUTHORIZED`)",
 			content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemDetail.class)))

@@ -63,17 +63,17 @@ public interface EmployeeRepository extends JpaRepository<Employee, Long>, Emplo
 	Optional<Employee> findDetailedById(Long id);
 
 	/**
-	 * Employees who lead at least one collaborator, by name, except those with the given status.
+	 * Employees marked as NPD leads, with or without collaborators, by name, except those with the
+	 * given status.
 	 *
 	 * @param excludedStatus status code left out (Baja)
 	 * @return the leads
 	 */
 	@Query("""
 			SELECT l FROM Employee l
-			WHERE l.status.code <> :excludedStatus
-			  AND EXISTS (SELECT 1 FROM Employee e WHERE e.leaderId = l.id)
+			WHERE l.isNpdLead = true AND l.status.code <> :excludedStatus
 			ORDER BY l.fullName""")
-	List<Employee> findLeadsExcludingStatus(@Param("excludedStatus") String excludedStatus);
+	List<Employee> findNpdLeadsExcludingStatus(@Param("excludedStatus") String excludedStatus);
 
 	/**
 	 * The NPD leads of the collaborators of some projects, by name, not counting collaborators with a

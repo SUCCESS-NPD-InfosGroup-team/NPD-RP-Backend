@@ -68,7 +68,7 @@ public class ResourceQueryService {
 	 */
 	@Transactional(readOnly = true)
 	public ItemsResponse<IdName> findNpdLeads() {
-		return new ItemsResponse<>(employees.findLeadsExcludingStatus(ResourceRequestValidator.TERMINATED)
+		return new ItemsResponse<>(employees.findNpdLeadsExcludingStatus(ResourceRequestValidator.TERMINATED)
 			.stream()
 			.map(lead -> new IdName(lead.getId(), lead.getFullName()))
 			.toList());

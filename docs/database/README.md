@@ -50,6 +50,7 @@ erDiagram
         smallint talent_review_id FK "TALENT REVIEW"
         bigint project_id FK "PROYECTO; NULL = no project"
         bigint leader_id FK "LIDER TLP (employee)"
+        boolean is_npd_lead "can be chosen as NPD lead"
         bigint client_role_id FK "ROL EN CLIENTE"
         smallint equipment_provider_id FK "EQUIPO / LAPTOP"
         varchar client_contact_email "CONTACTO POR CLIENTE"
@@ -104,6 +105,7 @@ Every table also has `created_at` and `updated_at` (kept by the `set_updated_at`
 - **Everything except client and project name belongs to the employee**: in the planner, lead, end date, client contact, laptop, role, level and modality change from person to person within the same project.
 - `email` is optional and unique case-insensitively. `code` is text (`SP11`).
 - `probation_end_date` and `vacation_month` are generated from `hire_date`; they match the planner on all its rows.
+- **An NPD lead is marked** (`is_npd_lead`, V10), not deduced from `leader_id`: a lead may have no collaborators yet. Only marked employees who are not on Baja can be chosen as someone's lead. The import marks every employee found in `COD LIDER`, and HU-10 marks the leads registered from Usuarios; nothing unmarks them yet.
 - Nobody is their own lead; a termination date is not before the hire date; level is greater than zero.
 - Concurrent edits are detected with `version` (optimistic locking).
 
@@ -183,7 +185,7 @@ The audit rows are written in the same transaction as the change, so both are sa
 |---|---|
 | CLIENTE | `project.client_id` → `client` |
 | PROYECTO ASIGNADO | `employee.project_id` → `project` |
-| LIDER TLP, COD LIDER | `employee.leader_id` → `employee` |
+| LIDER TLP, COD LIDER | `employee.leader_id` → `employee`; that employee gets `is_npd_lead = true` |
 | COD EMPL | `employee.code` |
 | NOMBRE DE EMPLEADO | `employee.full_name` |
 | PUESTO | `employee.job_title_id` → `job_title` |

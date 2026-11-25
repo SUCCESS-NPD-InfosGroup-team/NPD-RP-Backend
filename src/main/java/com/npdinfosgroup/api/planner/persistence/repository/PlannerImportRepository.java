@@ -1,6 +1,7 @@
 package com.npdinfosgroup.api.planner.persistence.repository;
 
 import java.sql.Types;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -256,6 +257,22 @@ public class PlannerImportRepository {
 		jdbc.sql("UPDATE employee SET leader_id = :leaderId WHERE id = :id")
 			.param("leaderId", leaderId, Types.BIGINT)
 			.param("id", employeeId)
+			.update();
+	}
+
+	/**
+	 * Marks employees as NPD leads ({@code is_npd_lead}). It never unmarks anyone, so running the
+	 * import again keeps the leads marked by other means.
+	 *
+	 * @param ids employees found as the leader of another row; empty marks nobody
+	 */
+	public void markNpdLeads(Collection<Long> ids) {
+		if (ids.isEmpty()) {
+			// "IN ()" is a syntax error in PostgreSQL
+			return;
+		}
+		jdbc.sql("UPDATE employee SET is_npd_lead = true WHERE id IN (:ids) AND NOT is_npd_lead")
+			.param("ids", ids)
 			.update();
 	}
 
