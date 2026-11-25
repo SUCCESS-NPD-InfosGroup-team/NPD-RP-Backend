@@ -150,7 +150,8 @@ public class ProjectQueryService {
 		return new ProjectResponse(project.getId(), project.getName(), clientOf(project), project.isActive(),
 				project.getStartDate(), project.getContractEndDate(), daysToContractEnd(project, today),
 				countOf(project.getTeamSize()), countOf(project.getPendingConfirmation()),
-				countOf(project.getIndefiniteCount()), project.getNextAssignmentEnd(), leads);
+				countOf(project.getIndefiniteCount()), project.getNextAssignmentEnd(), leads, project.getVersion(),
+				project.getUpdatedAt());
 	}
 
 	/**

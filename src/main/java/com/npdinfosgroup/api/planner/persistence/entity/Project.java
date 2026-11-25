@@ -1,5 +1,6 @@
 package com.npdinfosgroup.api.planner.persistence.entity;
 
+import java.time.Instant;
 import java.time.LocalDate;
 
 import jakarta.persistence.Column;
@@ -11,6 +12,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -36,5 +38,12 @@ public class Project {
 
 	@Column(nullable = false)
 	private boolean active;
+
+	@Version
+	@Column(nullable = false)
+	private Integer version;
+
+	@Column(name = "updated_at", insertable = false, updatable = false)
+	private Instant updatedAt;
 
 }
