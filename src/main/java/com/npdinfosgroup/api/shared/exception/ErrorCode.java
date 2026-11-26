@@ -32,6 +32,12 @@ public enum ErrorCode {
 	/** The client already has a project with that name. */
 	PROJECT_NAME_TAKEN(HttpStatus.CONFLICT),
 
+	/** The project is inactive and cannot be edited until it is reactivated. */
+	PROJECT_INACTIVE(HttpStatus.CONFLICT),
+
+	/** The project still has people and cannot be deactivated. */
+	PROJECT_HAS_TEAM(HttpStatus.CONFLICT),
+
 	/** A client with that name already exists. */
 	CLIENT_NAME_TAKEN(HttpStatus.CONFLICT),
 

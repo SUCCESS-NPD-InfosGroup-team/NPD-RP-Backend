@@ -51,8 +51,9 @@ class SecurityConfig {
 			.authorizeHttpRequests(auth -> auth
 				// The docs are off outside APP_DEV_MODE, so these routes answer 404 there
 				.requestMatchers("/actuator/health/**", "/v3/api-docs/**", "/scalar/**", "/error").permitAll()
-				.requestMatchers(HttpMethod.POST, "/api/*/planner/resources", "/api/*/planner/projects").hasRole(operationsAdministrator)
-				.requestMatchers(HttpMethod.PUT, "/api/*/planner/resources/*").hasRole(operationsAdministrator)
+				.requestMatchers(HttpMethod.POST, "/api/*/planner/resources", "/api/*/planner/projects",
+						"/api/*/planner/projects/*/deactivation", "/api/*/planner/projects/*/reactivation").hasRole(operationsAdministrator)
+				.requestMatchers(HttpMethod.PUT, "/api/*/planner/resources/*", "/api/*/planner/projects/*").hasRole(operationsAdministrator)
 				.requestMatchers(HttpMethod.GET, "/api/*/history/resources/*/audit-log").hasRole(operationsAdministrator)
 				// User management, whatever the method: only Operations administrators
 				.requestMatchers("/api/*/access/**").hasRole(operationsAdministrator)

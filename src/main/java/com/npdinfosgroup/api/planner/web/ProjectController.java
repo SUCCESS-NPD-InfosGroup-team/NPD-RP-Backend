@@ -6,14 +6,20 @@ import java.time.LocalDate;
 import com.npdinfosgroup.api.planner.dto.request.ContractEndFilter;
 import com.npdinfosgroup.api.planner.dto.request.CreateProjectCommand;
 import com.npdinfosgroup.api.planner.dto.request.CreateProjectRequest;
+import com.npdinfosgroup.api.planner.dto.request.ProjectActivationCommand;
 import com.npdinfosgroup.api.planner.dto.request.ProjectSearchCriteria;
+import com.npdinfosgroup.api.planner.dto.request.ProjectVersionRequest;
+import com.npdinfosgroup.api.planner.dto.request.UpdateProjectCommand;
+import com.npdinfosgroup.api.planner.dto.request.UpdateProjectRequest;
 import com.npdinfosgroup.api.planner.dto.response.ProjectKpisResponse;
 import com.npdinfosgroup.api.planner.dto.response.ProjectListItemResponse;
 import com.npdinfosgroup.api.planner.dto.response.ProjectMembersResponse;
 import com.npdinfosgroup.api.planner.dto.response.ProjectResponse;
+import com.npdinfosgroup.api.planner.dto.response.UpdateProjectResponse;
 import com.npdinfosgroup.api.planner.service.ProjectQueryService;
 import com.npdinfosgroup.api.planner.service.ProjectRegistrationService;
 import com.npdinfosgroup.api.planner.service.ProjectTeamService;
+import com.npdinfosgroup.api.planner.service.ProjectUpdateService;
 import com.npdinfosgroup.api.shared.dto.PageResponse;
 import com.npdinfosgroup.api.shared.security.CurrentUser;
 import io.swagger.v3.oas.annotations.Operation;
@@ -30,6 +36,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -37,8 +44,8 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
 /**
- * Projects of the clients: the list of the Projects module and its KPIs, creating one, and reading one
- * with its team.
+ * Projects of the clients: the list of the Projects module and its KPIs, creating, editing, deactivating
+ * and reactivating one, and reading one with its team.
  */
 @RestController
 @RequestMapping("/api/{version}/planner/projects")
@@ -61,6 +68,8 @@ class ProjectController {
 
 	private final ProjectTeamService teamService;
 
+	private final ProjectUpdateService updateService;
+
 	private final CurrentUser currentUser;
 
 	/**
@@ -69,13 +78,15 @@ class ProjectController {
 	 * @param queryService reads projects
 	 * @param registrationService creates projects
 	 * @param teamService reads the team of a project
+	 * @param updateService edits projects
 	 * @param currentUser who makes the request, for the audit log
 	 */
 	ProjectController(ProjectQueryService queryService, ProjectRegistrationService registrationService,
-			ProjectTeamService teamService, CurrentUser currentUser) {
+			ProjectTeamService teamService, ProjectUpdateService updateService, CurrentUser currentUser) {
 		this.queryService = queryService;
 		this.registrationService = registrationService;
 		this.teamService = teamService;
+		this.updateService = updateService;
 		this.currentUser = currentUser;
 	}
 
@@ -241,6 +252,101 @@ class ProjectController {
 			content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemDetail.class)))
 	ResponseEntity<ProjectMembersResponse> members(@Parameter(description = "Id del proyecto") @PathVariable long id) {
 		return ResponseEntity.ok(teamService.members(id));
+	}
+
+	/**
+	 * Edits the name and the client contract end of a project (HU-14). Only an Operations administrator
+	 * can do it; each change is audited with their username.
+	 *
+	 * @param id project id
+	 * @param request the new values, with the version that was read
+	 * @return 200 with the project and how many people moved their end date with the contract end
+	 */
+	@PutMapping(path = "/{id}", version = "v1")
+	@Operation(summary = "Editar proyecto", description = """
+			Cambia el nombre y el fin de contrato con el cliente de un proyecto activo (HU-14). El cliente no \
+			cambia: un `clientId` en el cuerpo se ignora. Solo Operations administrator.
+
+			- `name` es obligatorio, de hasta 150 caracteres y único dentro del cliente.
+			- `contractEndDate` es opcional (null lo quita) y, si cambia, no puede haber pasado (hoy sí se \
+			acepta); si no cambia, se acepta aunque ya haya pasado.
+			- `version` es la del proyecto que se leyó; si otra persona lo guardó después, responde 409.
+			- `membersEndDateMoved`: colaboradores cuya fecha final era el fin de contrato anterior y se \
+			movió con él.
+			- Sin cambios responde 200 con la misma `version`.""")
+	@ApiResponse(responseCode = "200", description = "Proyecto guardado")
+	@ApiResponse(responseCode = "400", description = "Uno o más campos inválidos (`VALIDATION_FAILED`, detalle en `errors`)",
+			content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemDetail.class)))
+	@ApiResponse(responseCode = "401", description = "Sin token o token inválido (`UNAUTHORIZED`)",
+			content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemDetail.class)))
+	@ApiResponse(responseCode = "403", description = "El rol no es Operations administrator (`FORBIDDEN`)",
+			content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemDetail.class)))
+	@ApiResponse(responseCode = "404", description = "No existe (`NOT_FOUND`)",
+			content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemDetail.class)))
+	@ApiResponse(responseCode = "409", description = """
+			Otro proyecto del cliente tiene ese nombre (`PROJECT_NAME_TAKEN`, con `existingProjectId`), otra \
+			persona lo guardó después de leerlo (`CONCURRENT_MODIFICATION`, con `currentVersion`, `updatedAt` \
+			y `updatedBy`) o el proyecto está inactivo (`PROJECT_INACTIVE`)""",
+			content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemDetail.class)))
+	ResponseEntity<UpdateProjectResponse> update(@Parameter(description = "Id del proyecto") @PathVariable long id,
+			@RequestBody UpdateProjectRequest request) {
+		return ResponseEntity.ok(updateService.update(new UpdateProjectCommand(id, request, currentUser.username())));
+	}
+
+	/**
+	 * Deactivates a project without team (HU-14 CA-01). Only an Operations administrator can do it.
+	 *
+	 * @param id project id
+	 * @param request the version that was read
+	 * @return 200 with the project
+	 */
+	@PostMapping(path = "/{id}/deactivation", version = "v1")
+	@Operation(summary = "Desactivar proyecto", description = """
+			Desactiva un proyecto sin equipo (los de Baja no cuentan) para que deje de aparecer como activo \
+			(HU-14). Si ya está inactivo, responde 200 sin cambios. Se audita. Solo Operations administrator.""")
+	@ApiResponse(responseCode = "200", description = "El proyecto, con `active = false`")
+	@ApiResponse(responseCode = "400", description = "Falta `version` (`VALIDATION_FAILED`)",
+			content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemDetail.class)))
+	@ApiResponse(responseCode = "403", description = "El rol no es Operations administrator (`FORBIDDEN`)",
+			content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemDetail.class)))
+	@ApiResponse(responseCode = "404", description = "No existe (`NOT_FOUND`)",
+			content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemDetail.class)))
+	@ApiResponse(responseCode = "409", description = """
+			Tiene colaboradores (`PROJECT_HAS_TEAM`, con `teamSize`) u otra persona lo guardó después de \
+			leerlo (`CONCURRENT_MODIFICATION`)""",
+			content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemDetail.class)))
+	ResponseEntity<ProjectResponse> deactivate(@Parameter(description = "Id del proyecto") @PathVariable long id,
+			@RequestBody ProjectVersionRequest request) {
+		return ResponseEntity
+			.ok(updateService.deactivate(new ProjectActivationCommand(id, request.version(), currentUser.username())));
+	}
+
+	/**
+	 * Reactivates an inactive project (HU-14 CA-05). Only an Operations administrator can do it.
+	 *
+	 * @param id project id
+	 * @param request the version that was read
+	 * @return 200 with the project
+	 */
+	@PostMapping(path = "/{id}/reactivation", version = "v1")
+	@Operation(summary = "Reactivar proyecto", description = """
+			Reactiva un proyecto inactivo (HU-14). Conserva su fin de contrato aunque ya haya pasado. Si ya \
+			está activo, responde 200 sin cambios. Se audita. Solo Operations administrator.""")
+	@ApiResponse(responseCode = "200", description = "El proyecto, con `active = true`")
+	@ApiResponse(responseCode = "400", description = """
+			Falta `version`, o el cliente está inactivo (`clientId` con `INACTIVE_CLIENT`, el proyecto \
+			«No especificado» del import) (`VALIDATION_FAILED`)""",
+			content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemDetail.class)))
+	@ApiResponse(responseCode = "403", description = "El rol no es Operations administrator (`FORBIDDEN`)",
+			content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemDetail.class)))
+	@ApiResponse(responseCode = "404", description = "No existe (`NOT_FOUND`)",
+			content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemDetail.class)))
+	@ApiResponse(responseCode = "409", description = "Otra persona lo guardó después de leerlo (`CONCURRENT_MODIFICATION`)",
+			content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemDetail.class)))
+	ResponseEntity<ProjectResponse> reactivate(@Parameter(description = "Id del proyecto") @PathVariable long id,
+			@RequestBody ProjectVersionRequest request) {
+		return ResponseEntity
+			.ok(updateService.reactivate(new ProjectActivationCommand(id, request.version(), currentUser.username())));
 	}
 
 }
