@@ -19,6 +19,8 @@ import com.npdinfosgroup.api.planner.persistence.entity.Employee;
 import com.npdinfosgroup.api.planner.persistence.entity.Project;
 import com.npdinfosgroup.api.planner.persistence.repository.EmployeeRepository;
 import com.npdinfosgroup.api.planner.persistence.repository.ProjectRepository;
+import com.npdinfosgroup.api.planner.persistence.entity.TerminationReason;
+import com.npdinfosgroup.api.planner.persistence.repository.TerminationReasonRepository;
 import com.npdinfosgroup.api.planner.service.CatalogService;
 import com.npdinfosgroup.api.shared.exception.ApiException;
 import com.npdinfosgroup.api.shared.exception.ErrorCode;
@@ -42,6 +44,9 @@ public class ResourceRequestValidator {
 
 	/** Status that ends the employment: requires a termination and leaves the project. */
 	public static final String TERMINATED = "BAJA";
+
+	/** Termination reason of a lead whose user left the NPD lead role (V12; not offered in Recursos). */
+	public static final String ROLE_CHANGE = "CAMBIO_DE_ROL";
 
 	/** Fields in form order, so the error summary reads top to bottom. */
 	private static final List<String> FORM_ORDER = List.of("employeeNumber", "name", "email", "jobTitleId",
@@ -69,6 +74,8 @@ public class ResourceRequestValidator {
 
 	private final Clock clock;
 
+	private final TerminationReasonRepository reasons;
+
 	/**
 	 * Creates the validator.
 	 *
@@ -77,14 +84,16 @@ public class ResourceRequestValidator {
 	 * @param projects project checks
 	 * @param employees lead and duplicate checks
 	 * @param clock gives today for the "already passed" rule
+	 * @param reasons gives the id of the "Cambio de rol" reason
 	 */
 	ResourceRequestValidator(Validator validator, CatalogService catalogs, ProjectRepository projects,
-			EmployeeRepository employees, Clock clock) {
+			EmployeeRepository employees, Clock clock, TerminationReasonRepository reasons) {
 		this.validator = validator;
 		this.catalogs = catalogs;
 		this.projects = projects;
 		this.employees = employees;
 		this.clock = clock;
+		this.reasons = reasons;
 	}
 
 	/**
@@ -97,7 +106,7 @@ public class ResourceRequestValidator {
 	 *         employee number is already registered
 	 */
 	public short validateNew(RegisterResourceRequest request) {
-		return validate(request, null, null);
+		return validate(request, null, null, null);
 	}
 
 	/**
@@ -106,17 +115,21 @@ public class ResourceRequestValidator {
 	 * date that already passed) must be corrected before the record can be saved. The only exception
 	 * is a lead that is no longer an NPD lead: it is checked only when the lead changes, so the
 	 * collaborators of an unmarked lead can still be edited.
+	 * <p>
+	 * A Baja by "Cambio de rol" (SCRUM-53 design §7) keeps its inactive reason, but cannot go back to
+	 * Activo or Licencia here: it comes back only by changing its user's role to NPD lead in Usuarios.
 	 *
 	 * @param id id of the resource being edited
 	 * @param request the resource as it should be saved
 	 * @param currentLeaderId the lead saved today, or {@code null} if it has none
+	 * @param currentReasonId the termination reason saved today, or {@code null} if it has none
 	 * @return the id of its employment status
 	 * @throws ValidationException with every invalid field, when there is at least one
 	 * @throws ApiException {@link ErrorCode#EMPLOYEE_NUMBER_TAKEN} when the only problem is that
 	 *         another resource has the employee number
 	 */
-	public short validateUpdate(long id, UpdateResourceRequest request, Long currentLeaderId) {
-		return validate(request, id, currentLeaderId);
+	public short validateUpdate(long id, UpdateResourceRequest request, Long currentLeaderId, Short currentReasonId) {
+		return validate(request, id, currentLeaderId, currentReasonId);
 	}
 
 	/**
@@ -125,9 +138,10 @@ public class ResourceRequestValidator {
 	 * @param request the resource
 	 * @param id id of the edited resource, or {@code null} for a new one
 	 * @param currentLeaderId lead saved today, or {@code null} for a new resource or one without lead
+	 * @param currentReasonId termination reason saved today, or {@code null} for a new resource or one without
 	 * @return the id of its employment status
 	 */
-	private short validate(ResourceForm request, Long id, Long currentLeaderId) {
+	private short validate(ResourceForm request, Long id, Long currentLeaderId, Short currentReasonId) {
 		List<FieldProblem> problems = new ArrayList<>(ConstraintProblems.of(validator.validate(request), ""));
 		Optional<Short> statusId = checkStatus(request.status(), problems);
 		checkCatalog(problems, "jobTitleId", Catalog.JOB_TITLES, request.jobTitleId());
@@ -136,8 +150,12 @@ public class ResourceRequestValidator {
 		checkCatalog(problems, "workModeId", Catalog.WORK_MODES, request.workModeId());
 		checkCatalog(problems, "genderId", Catalog.GENDERS, request.genderId());
 		checkCatalog(problems, "talentReviewId", Catalog.TALENT_REVIEWS, request.talentReviewId());
+		boolean leftByRoleChange = currentReasonId != null && currentReasonId.equals(roleChangeReasonId());
 		if (isTerminated(request)) {
-			checkTermination(request.termination(), request.hireDate(), problems);
+			checkTermination(request.termination(), request.hireDate(), leftByRoleChange, problems);
+		}
+		else if (leftByRoleChange && statusId.isPresent()) {
+			problems.add(FieldProblem.of("status", FieldErrorCode.ROLE_CHANGE_TERMINATION));
 		}
 		else if (request.assignment() != null) {
 			checkAssignment(request.assignment(), id, currentLeaderId, problems);
@@ -204,14 +222,28 @@ public class ResourceRequestValidator {
 		return statusId;
 	}
 
-	private void checkTermination(TerminationRequest termination, LocalDate hireDate, List<FieldProblem> problems) {
+	/** Id of the inactive reason "Cambio de rol", which only the user edit gives (V12). */
+	private Short roleChangeReasonId() {
+		return reasons.findByCode(ROLE_CHANGE).map(TerminationReason::getId).orElse(null);
+	}
+
+	/**
+	 * The termination of a Baja. A record that left by role change keeps that reason although it is
+	 * inactive; nobody can choose it by hand.
+	 */
+	private void checkTermination(TerminationRequest termination, LocalDate hireDate, boolean leftByRoleChange,
+			List<FieldProblem> problems) {
 		if (termination == null) {
 			problems.add(FieldProblem.of("termination.date", FieldErrorCode.REQUIRED));
 			problems.add(FieldProblem.of("termination.reasonId", FieldErrorCode.REQUIRED));
 			return;
 		}
 		problems.addAll(ConstraintProblems.of(validator.validate(termination), "termination."));
-		checkCatalog(problems, "termination.reasonId", Catalog.TERMINATION_REASONS, termination.reasonId());
+		boolean keepsRoleChange = leftByRoleChange && termination.reasonId() != null
+				&& termination.reasonId().equals(roleChangeReasonId());
+		if (!keepsRoleChange) {
+			checkCatalog(problems, "termination.reasonId", Catalog.TERMINATION_REASONS, termination.reasonId());
+		}
 		if (termination.date() != null && hireDate != null && termination.date().isBefore(hireDate)) {
 			problems.add(FieldProblem.of("termination.date", FieldErrorCode.DATE_BEFORE_HIRE));
 		}

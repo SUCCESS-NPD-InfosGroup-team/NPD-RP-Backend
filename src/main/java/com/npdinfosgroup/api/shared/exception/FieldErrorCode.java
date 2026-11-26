@@ -23,6 +23,9 @@ public enum FieldErrorCode {
 
 	ROLE_NOT_ASSIGNABLE,
 
+	/** A Baja by "Cambio de rol" cannot leave Baja in Recursos: only its user's role change brings it back. */
+	ROLE_CHANGE_TERMINATION,
+
 	/** The id does not exist in its catalog or table. */
 	UNKNOWN_ID,
 

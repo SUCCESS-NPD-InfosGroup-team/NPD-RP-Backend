@@ -57,7 +57,7 @@ class ResourceUpdateServiceTest {
 		employee.setId(7L);
 		employee.setVersion(2);
 		when(employees.findDetailedById(7L)).thenReturn(Optional.of(employee));
-		when(validator.validateUpdate(anyLong(), any(), any())).thenReturn((short) 1);
+		when(validator.validateUpdate(anyLong(), any(), any(), any())).thenReturn((short) 1);
 	}
 
 	/**

@@ -48,8 +48,8 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class NpdLeadEmployeeService {
 
-	/** Termination reason of a lead whose user left the NPD lead role (V12; not offered in Recursos). */
-	public static final String ROLE_CHANGE = "CAMBIO_DE_ROL";
+	/** Termination reason of a lead whose user left the NPD lead role. */
+	public static final String ROLE_CHANGE = ResourceRequestValidator.ROLE_CHANGE;
 
 	private static final String ACTIVE = "ACTIVO";
 

@@ -18,7 +18,7 @@ origin/develop...HEAD`). What and why: [spec.md](spec.md). How: [design.md](desi
 | 7b | `feature/SCRUM-53-npd-lead-role-changes` | `planner` service: Baja by role change, back to Activo, rename. | ~300 | PR 7a | In review ([#80](https://github.com/SUCCESS-NPD-InfosGroup-team/NPD-RP-Backend/pull/80)) |
 | 8 | `feature/SCRUM-53-role-change-npd-lead` | CA-10 and CA-11 in the edit: register, Baja, back to Activo, rename. | ~360 | PR 6, PR 7b | In review ([#81](https://github.com/SUCCESS-NPD-InfosGroup-team/NPD-RP-Backend/pull/81)) |
 | 9 | `feature/SCRUM-53-link-existing-employee` | Linking an existing NPD lead employee (HU-10 CA-05 to CA-07, CA-12, CA-13). | ~350 | PR 8 | In review ([#82](https://github.com/SUCCESS-NPD-InfosGroup-team/NPD-RP-Backend/pull/82)) |
-| 10 | `feature/SCRUM-53-role-change-termination-guard` | Guard in Recursos for Baja by "Cambio de rol" (design §7). | ~160 | PR 3 | Pending |
+| 10 | `feature/SCRUM-53-role-change-termination-guard` | Guard in Recursos for Baja by "Cambio de rol" (design §7). | ~160 | PR 3 | In review ([#83](https://github.com/SUCCESS-NPD-InfosGroup-team/NPD-RP-Backend/pull/83)) |
 
 PR 4 can be reviewed in parallel with PR 3; PR 7a, 7b and PR 10 in parallel with PRs 4 to 6. After PR 6 the
 frontend can edit name and role of every user except NPD leads; after PR 9 the whole story is served.
