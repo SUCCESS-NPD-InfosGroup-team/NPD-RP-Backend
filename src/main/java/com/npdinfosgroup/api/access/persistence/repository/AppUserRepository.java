@@ -7,6 +7,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import com.npdinfosgroup.api.access.persistence.entity.AppUser;
+import com.npdinfosgroup.api.access.persistence.entity.AppUserState;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
@@ -34,6 +35,29 @@ public interface AppUserRepository extends JpaRepository<AppUser, Long> {
 	 * @return the users found
 	 */
 	List<AppUser> findByEmailIn(Collection<String> emails);
+
+	/**
+	 * How many users other than one have a role and a state: the first, unlocked check that an edit does
+	 * not leave the platform without an active Operations administrator.
+	 *
+	 * @param role realm name of the role
+	 * @param state state of the account
+	 * @param id the user left out
+	 * @return the number of other users
+	 */
+	long countByRoleAndStateAndIdNot(String role, AppUserState state, Long id);
+
+	/**
+	 * The users with a role and a state, locked until the transaction ends and in id order, so two edits
+	 * that lock them always do it in the same order and wait for one another instead of deadlocking.
+	 *
+	 * @param role realm name of the role
+	 * @param state state of the account
+	 * @return the users, locked
+	 */
+	@Lock(LockModeType.PESSIMISTIC_WRITE)
+	@Query("SELECT u FROM AppUser u WHERE u.role = :role AND u.state = :state ORDER BY u.id")
+	List<AppUser> lockByRoleAndState(@Param("role") String role, @Param("state") AppUserState state);
 
 	/**
 	 * A user, locked until the transaction ends, to edit it.
