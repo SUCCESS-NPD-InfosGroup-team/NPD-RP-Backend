@@ -9,6 +9,7 @@ import static org.springframework.http.HttpHeaders.AUTHORIZATION;
 import static org.springframework.http.MediaType.APPLICATION_JSON;
 
 import java.net.URI;
+import java.sql.Types;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -60,6 +61,8 @@ class UserControllerTest {
 	void cleanUp() {
 		jdbc.sql("DELETE FROM audit_log WHERE entity_type = 'app_user'").update();
 		jdbc.sql("DELETE FROM app_user").update();
+		jdbc.sql("DELETE FROM employee WHERE code LIKE 'UC-%'").update();
+		jdbc.sql("DELETE FROM job_position WHERE name = 'UC Posicion'").update();
 	}
 
 	/**
@@ -78,6 +81,10 @@ class UserControllerTest {
 			.jsonPath("$.role").isEqualTo("customer-success")
 			.jsonPath("$.state").isEqualTo("PENDING")
 			.jsonPath("$.lastAccessAt").doesNotExist()
+			.jsonPath("$.createdAt").isNotEmpty()
+			.jsonPath("$.createdBy").isEqualTo("operations-administrator.user")
+			.jsonPath("$.version").isEqualTo(0)
+			.jsonPath("$.employee").doesNotExist()
 			.returnResult()
 			.getResponseHeaders()
 			.getLocation();
@@ -174,6 +181,42 @@ class UserControllerTest {
 			.jsonPath("$.items[*].fullName").isEqualTo(List.of("Carlos Pérez"));
 	}
 
+	/**
+	 * SCRUM-53 CA-09, CA-11, CA-13: each user comes with the name of who created it (or the username, if
+	 * that account is not a user), its version and, for an NPD lead, its employee record with the
+	 * collaborators that still have them as lead, Baja excluded. An NPD lead without a record has none.
+	 */
+	@Test
+	void showsTheCreatorTheVersionAndTheEmployeeRecord() {
+		jdbc.sql("INSERT INTO job_position (name) VALUES ('UC Posicion')").update();
+		long lorena = insertEmployee("UC-1", "ACTIVO", null);
+		insertEmployee("UC-2", "ACTIVO", lorena);
+		insertEmployee("UC-3", "LICENCIA", lorena);
+		insertEmployee("UC-4", "BAJA", lorena);
+		insertUser("María Pérez", "maria@example.com", "operations-administrator", "test", null);
+		long lorenaUser = insertUser("Lorena Batista", "lorena@example.com", "npd-leader", "Maria@Example.com", lorena);
+		insertUser("Omar Delgado", "omar@example.com", "npd-leader", "maria@example.com", null);
+
+		get(USERS).expectStatus()
+			.isOk()
+			.expectBody()
+			.jsonPath("$.items[*].fullName").isEqualTo(List.of("Lorena Batista", "María Pérez", "Omar Delgado"))
+			.jsonPath("$.items[*].createdBy").isEqualTo(List.of("María Pérez", "test", "María Pérez"))
+			.jsonPath("$.items[*].version").isEqualTo(List.of(0, 0, 0))
+			.jsonPath("$.items[0].employee.id").isEqualTo(Math.toIntExact(lorena))
+			.jsonPath("$.items[0].employee.employeeNumber").isEqualTo("UC-1")
+			.jsonPath("$.items[0].employee.status").isEqualTo("ACTIVO")
+			.jsonPath("$.items[0].employee.collaborators").isEqualTo(2)
+			.jsonPath("$.items[1].employee").doesNotExist()
+			.jsonPath("$.items[2].role").isEqualTo("npd-leader")
+			.jsonPath("$.items[2].employee").doesNotExist();
+		get(USERS + "/" + lorenaUser).expectStatus()
+			.isOk()
+			.expectBody()
+			.jsonPath("$.createdBy").isEqualTo("María Pérez")
+			.jsonPath("$.employee.collaborators").isEqualTo(2);
+	}
+
 	/** A user that does not exist is a 404. */
 	@Test
 	void reportsAMissingUser() {
@@ -197,6 +240,35 @@ class UserControllerTest {
 			.param("email", email)
 			.param("state", state)
 			.update();
+	}
+
+	private long insertUser(String fullName, String email, String role, String createdBy, Long employeeId) {
+		return jdbc.sql("""
+				INSERT INTO app_user (keycloak_id, full_name, email, role, state, created_at, created_by, employee_id)
+				VALUES (gen_random_uuid(), :name, :email, :role, 'ACTIVE', now(), :createdBy, :employeeId)
+				RETURNING id""")
+			.param("name", fullName)
+			.param("email", email)
+			.param("role", role)
+			.param("createdBy", createdBy)
+			.param("employeeId", employeeId, Types.BIGINT)
+			.query(Long.class)
+			.single();
+	}
+
+	private long insertEmployee(String code, String status, Long leaderId) {
+		return jdbc.sql("""
+				INSERT INTO employee (code, full_name, gender_id, job_position_id, hire_date, status_id, leader_id,
+				                      is_npd_lead)
+				VALUES (:code, :code, (SELECT id FROM gender WHERE code = 'F'),
+				        (SELECT id FROM job_position WHERE name = 'UC Posicion'), DATE '2024-01-15',
+				        (SELECT id FROM resource_status WHERE code = :status), :leaderId, :leaderId IS NULL)
+				RETURNING id""")
+			.param("code", code)
+			.param("status", status)
+			.param("leaderId", leaderId, Types.BIGINT)
+			.query(Long.class)
+			.single();
 	}
 
 	private RestTestClient.ResponseSpec get(String uri) {

@@ -78,7 +78,7 @@ Operations (inputs are `planner` commands; no `access` type crosses into `planne
 | `leaveRole(employeeId)` | Baja: `termination.date` = today (business time zone, `Clock`), reason `CAMBIO_DE_ROL`; as any Baja, it leaves its project (BD-08). Keeps `is_npd_lead` |
 | `returnToRole(employeeId)` | From Baja with reason `CAMBIO_DE_ROL` to `ACTIVO`, termination cleared, without project. Any other Baja → `EMPLOYEE_NOT_LINKABLE` (`TERMINATED`) |
 | `rename(employeeId, fullName)` | Name of a linked record (HU-11 CA-04) |
-| `countCollaborators(employeeIds)` | Per lead: employees with that `leader_id`, Baja excluded. One query for a whole page |
+| `summaries(employeeIds)` | Per record: N°, status and collaborators (employees with that `leader_id`, Baja excluded). One query for a whole page |
 
 Every write is audited as `employee` with the resource audit values (status, termination, project, name…).
 The employee is read and saved in the same transaction; its own `@Version` turns a concurrent edit from

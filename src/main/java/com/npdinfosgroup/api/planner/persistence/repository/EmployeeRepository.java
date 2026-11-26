@@ -7,6 +7,7 @@ import java.util.Optional;
 
 import com.npdinfosgroup.api.planner.persistence.entity.Employee;
 import com.npdinfosgroup.api.planner.persistence.query.EmployeeVersion;
+import com.npdinfosgroup.api.planner.persistence.query.NpdLeadEmployeeRow;
 import com.npdinfosgroup.api.planner.persistence.query.ProjectLead;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -135,5 +136,23 @@ public interface EmployeeRepository extends JpaRepository<Employee, Long>, Emplo
 	 */
 	@Query("SELECT count(e) FROM Employee e WHERE e.projectId IS NULL AND e.status.code = :statusCode")
 	long countWithoutProject(@Param("statusCode") String statusCode);
+
+	/**
+	 * The employee records of some NPD lead users, each with how many collaborators still have them as
+	 * lead, in one query for a whole page of users.
+	 *
+	 * @param ids employee ids
+	 * @param excludedStatus status code of the collaborators that do not count (Baja)
+	 * @return one row per employee found
+	 */
+	@Query("""
+			SELECT new com.npdinfosgroup.api.planner.persistence.query.NpdLeadEmployeeRow(
+			       l.id, l.code, s.code,
+			       (SELECT count(c) FROM Employee c JOIN c.status cs
+			        WHERE c.leaderId = l.id AND cs.code <> :excludedStatus))
+			FROM Employee l JOIN l.status s
+			WHERE l.id IN :ids""")
+	List<NpdLeadEmployeeRow> findNpdLeadEmployees(@Param("ids") Collection<Long> ids,
+			@Param("excludedStatus") String excludedStatus);
 
 }

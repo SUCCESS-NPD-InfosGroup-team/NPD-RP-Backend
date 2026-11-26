@@ -40,7 +40,8 @@ class LastAccessTest {
 
 	/**
 	 * The first call makes a pending user active and records the moment, and a second call right after
-	 * does not write it again. A disabled user keeps that state.
+	 * does not write it again. A disabled user keeps that state. Recording the access does not change the
+	 * {@code version}, so it never makes an edit of the user fail as concurrent (SCRUM-53).
 	 */
 	@Test
 	void recordsTheAccessAndActivatesPendingUsers() {
@@ -56,6 +57,7 @@ class LastAccessTest {
 		assertThat(first).isNotNull().isEqualTo(column("last_access_at", ana, Timestamp.class));
 		assertThat(column("state", luis, String.class)).isEqualTo("DISABLED");
 		assertThat(column("last_access_at", luis, Timestamp.class)).isNotNull();
+		assertThat(column("version", ana, Integer.class)).isZero();
 	}
 
 	private void callAs(UUID user) {

@@ -56,8 +56,10 @@ class UserRegistrationServiceTest {
 
 	private final CreateUserRequestValidator validator = mock();
 
+	private final UserQueryService queries = mock();
+
 	private final UserRegistrationService service = new UserRegistrationService(validator, users, keycloak, audit,
-			TransactionOperations.withoutTransaction(), Clock.fixed(NOW, ZoneOffset.UTC));
+			TransactionOperations.withoutTransaction(), Clock.fixed(NOW, ZoneOffset.UTC), queries);
 
 	private final CreateUserCommand command = new CreateUserCommand(
 			new CreateUserRequest(" Ana María Ríos ", " Ana.Rios@Example.com ", "customer-success"), "admin");
@@ -80,6 +82,10 @@ class UserRegistrationServiceTest {
 			return invocation.getArgument(0);
 		});
 
+		UserResponse expected = new UserResponse(7L, "Ana María Ríos", "ana.rios@example.com", "customer-success",
+				"PENDING", null, NOW, "Admin", 0, null);
+		when(queries.toResponse(any())).thenReturn(expected);
+
 		UserResponse response = service.register(command);
 
 		InOrder order = inOrder(keycloak);
@@ -93,8 +99,8 @@ class UserRegistrationServiceTest {
 			.containsExactly(KEYCLOAK_ID, AppUserState.PENDING, NOW, "admin");
 		verify(audit).recordCreation("app_user", 7L,
 				Map.of("fullName", "Ana María Ríos", "email", "ana.rios@example.com", "role", "customer-success"), "admin");
-		assertThat(response).isEqualTo(
-				new UserResponse(7L, "Ana María Ríos", "ana.rios@example.com", "customer-success", "PENDING", null));
+		verify(queries).toResponse(saved.getValue());
+		assertThat(response).isEqualTo(expected);
 	}
 
 	/** An email already in {@code app_user} is rejected before calling Keycloak. */

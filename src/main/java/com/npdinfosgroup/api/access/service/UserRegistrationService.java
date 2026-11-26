@@ -52,6 +52,8 @@ public class UserRegistrationService {
 
 	private final Clock clock;
 
+	private final UserQueryService queries;
+
 	/**
 	 * Creates the service.
 	 *
@@ -61,15 +63,17 @@ public class UserRegistrationService {
 	 * @param audit records the initial values
 	 * @param transactions runs the insert and the audit in one transaction
 	 * @param clock gives the creation moment
+	 * @param queries builds the response of the new user
 	 */
 	UserRegistrationService(CreateUserRequestValidator validator, AppUserRepository users, KeycloakAdminClient keycloak,
-			AuditService audit, TransactionOperations transactions, Clock clock) {
+			AuditService audit, TransactionOperations transactions, Clock clock, UserQueryService queries) {
 		this.validator = validator;
 		this.users = users;
 		this.keycloak = keycloak;
 		this.audit = audit;
 		this.transactions = transactions;
 		this.clock = clock;
+		this.queries = queries;
 	}
 
 	/**
@@ -101,9 +105,11 @@ public class UserRegistrationService {
 		try {
 			keycloak.assignRealmRole(keycloakId, role);
 			keycloak.sendInvitation(keycloakId);
-			AppUser user = transactions.execute(status -> save(keycloakId, fullName, email, role, command.actor()));
-			log.info("User {} created", user.getId());
-			return UserQueryService.toResponse(user);
+			// The response is built in the same transaction: if it fails, nothing is saved and the account is deleted
+			UserResponse response = transactions
+				.execute(status -> queries.toResponse(save(keycloakId, fullName, email, role, command.actor())));
+			log.info("User {} created", response.id());
+			return response;
 		}
 		catch (RuntimeException ex) {
 			deleteAccount(keycloakId);

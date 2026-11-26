@@ -7,8 +7,8 @@ origin/develop...HEAD`). What and why: [spec.md](spec.md). How: [design.md](desi
 | # | Branch | Content | Est. lines | Depends on | Status |
 |---|--------|---------|------------|------------|--------|
 | 1 | `docs/SCRUM-53-spec-design` | `spec.md` and `design.md` of this folder. | ~340 | — | Merged ([#69](https://github.com/SUCCESS-NPD-InfosGroup-team/NPD-RP-Backend/pull/69)) |
-| 2 | `docs/SCRUM-53-plan` | This `plan.md`. | ~130 | PR 1 | In review |
-| 3 | `feature/SCRUM-53-user-read-fields` | V12 and the new fields of the user list and detail (CA-09, CA-13, collaborators of CA-11). | ~330 | PR 1 | Pending |
+| 2 | `docs/SCRUM-53-plan` | This `plan.md`. | ~130 | PR 1 | Merged ([#71](https://github.com/SUCCESS-NPD-InfosGroup-team/NPD-RP-Backend/pull/71)) |
+| 3 | `feature/SCRUM-53-user-read-fields` | V12 and the new fields of the user list and detail (CA-09, CA-13, collaborators of CA-11). | ~330 | PR 1 | In review ([#72](https://github.com/SUCCESS-NPD-InfosGroup-team/NPD-RP-Backend/pull/72)) |
 | 4 | `feature/SCRUM-53-keycloak-edit-operations` | Keycloak calls to rename, change the role and close the sessions. | ~300 | PR 1 | Pending |
 | 5 | `feature/SCRUM-53-user-edit-service` | Edit service for name and role: validation, Keycloak, transaction, compensation. | ~390 | PR 3, PR 4 | Pending |
 | 6 | `feature/SCRUM-53-edit-user-endpoint` | `PUT /api/v1/access/users/{id}`, OpenAPI, messages, end-to-end tests. | ~300 | PR 5 | Pending |
@@ -28,14 +28,13 @@ The estimates include tests; a PR that grows past 400 lines is split again befor
 - `V12__app_user_employee_link.sql` (design §5): `app_user.employee_id` (unique, FK to `employee`),
   `app_user.version`, the inactive termination reason `CAMBIO_DE_ROL`, and their comments.
 - `AppUser`: `employeeId` (plain `Long`) and `version` (`@Version`).
-- `NpdLeadEmployeeService.countCollaborators(ids)` in `planner/service` (only this method here) with its
-  JPQL query in `EmployeeRepository` (`leader_id` in the ids, Baja excluded, grouped by lead), and
-  `summaries(ids)` for the `employee` field (N°, status).
+- `NpdLeadEmployeeService.summaries(ids)` in `planner/service` (only this method here): N°, status and
+  collaborators (Baja excluded) of each record, in one JPQL query of `EmployeeRepository`.
 - `UserResponse`: `createdAt`, `createdBy` (name resolved per page, design §6), `version`, `employee`.
   `UserQueryService.list` and `get` fill them with one query each per page.
 - OpenAPI of `GET /api/v1/access/users` and `/{id}` (new fields, `employee = null` for an NPD lead
   without employee record).
-- `docs/database/README.md` and the ER diagram: the new columns.
+- `docs/database/README.md`: V12 and the rule of the link (the ER diagram only has the planner tables).
 - Tests: `UserControllerTest` (new fields, creator not in `app_user`), `LastAccessTest` (the last
   access does not change `version`), the collaborators query (Baja excluded, several leads).
 
