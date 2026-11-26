@@ -26,17 +26,20 @@ class RoleControllerTest {
 	@Autowired
 	private RestTestClient client;
 
-	/** The four roles come in order, each with its code, name and description. */
+	/**
+	 * The roles that can be created come in order, each with its code, name and description. NPD lead
+	 * is left out: it has its own registration (SCRUM-241 CA-10).
+	 */
 	@Test
-	void listsTheFourRoles() {
+	void listsTheAssignableRoles() {
 		client.get().uri(ROLES).header(AUTHORIZATION, "Bearer operations-administrator").exchange()
 			.expectStatus()
 			.isOk()
 			.expectBody()
 			.jsonPath("$.items[*].code")
-			.isEqualTo(List.of("operations-administrator", "npd-leader", "customer-success", "guest"))
-			.jsonPath("$.items[1].name").isEqualTo("Líder NPD")
-			.jsonPath("$.items[3].name").isEqualTo("Invitado")
+			.isEqualTo(List.of("operations-administrator", "customer-success", "guest"))
+			.jsonPath("$.items[1].name").isEqualTo("Customer Success")
+			.jsonPath("$.items[2].name").isEqualTo("Invitado")
 			.jsonPath("$.items[0].description").isEqualTo("Gestiona recursos, proyectos y usuarios de la plataforma.");
 	}
 
