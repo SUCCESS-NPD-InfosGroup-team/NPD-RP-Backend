@@ -6,7 +6,9 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
+import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -16,6 +18,7 @@ import com.npdinfosgroup.api.planner.dto.request.NewNpdLeadCommand;
 import com.npdinfosgroup.api.planner.dto.request.NpdLeadEmployeeRequest;
 import com.npdinfosgroup.api.planner.dto.request.RegisterResourceCommand;
 import com.npdinfosgroup.api.planner.dto.request.RegisterResourceRequest;
+import com.npdinfosgroup.api.planner.dto.response.NpdLeadCandidate;
 import com.npdinfosgroup.api.planner.dto.response.NpdLeadEmployeeSummary;
 import com.npdinfosgroup.api.planner.persistence.entity.Employee;
 import com.npdinfosgroup.api.planner.persistence.repository.EmployeeRepository;
@@ -28,6 +31,7 @@ import com.npdinfosgroup.api.shared.exception.FieldErrorCode;
 import com.npdinfosgroup.api.shared.exception.FieldProblem;
 import com.npdinfosgroup.api.shared.exception.NotFoundException;
 import com.npdinfosgroup.api.shared.exception.ValidationException;
+import org.springframework.context.support.DefaultMessageSourceResolvable;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -48,6 +52,13 @@ public class NpdLeadEmployeeService {
 	public static final String ROLE_CHANGE = "CAMBIO_DE_ROL";
 
 	private static final String ACTIVE = "ACTIVO";
+
+	/** Reasons of {@link ErrorCode#EMPLOYEE_NOT_LINKABLE}: it has a user, is not an NPD lead, is on Baja. */
+	public static final String HAS_USER = "HAS_USER";
+
+	public static final String NOT_NPD_LEAD = "NOT_NPD_LEAD";
+
+	public static final String TERMINATED = "TERMINATED";
 
 	/** Prefix of the field errors, which belong to the {@code employee} object of the user edit. */
 	private static final String FIELD_PREFIX = "employee.";
@@ -192,6 +203,80 @@ public class NpdLeadEmployeeService {
 	}
 
 	/**
+	 * The employee a new NPD lead user may already be (HU-10 CA-05 to CA-07): by email first, else by N°.
+	 *
+	 * @param email the user's email
+	 * @param employeeNumber employee number of the form, or {@code null}
+	 * @return the employee, with what the confirmation shows and how it matched, if any
+	 */
+	@Transactional(readOnly = true)
+	public Optional<NpdLeadCandidate> findLinkCandidate(String email, String employeeNumber) {
+		Optional<NpdLeadCandidate> byEmail = employees.findFirstByEmailIgnoreCase(email)
+			.map(employee -> candidate(employee, "EMAIL"));
+		if (byEmail.isPresent() || employeeNumber == null || employeeNumber.isBlank()) {
+			return byEmail;
+		}
+		return employees.findFirstByCodeIgnoreCase(employeeNumber.strip())
+			.map(employee -> candidate(employee, "EMPLOYEE_NUMBER"));
+	}
+
+	/**
+	 * Links an existing NPD lead record to a user, as the administrator confirmed (HU-10 CA-05, CA-06).
+	 * The record does not change, except an empty email, which gets the user's.
+	 *
+	 * @param employeeId id of the record
+	 * @param email the user's email
+	 * @param actor who links it, for the audit
+	 * @throws NotFoundException if the record does not exist
+	 * @throws ApiException {@link ErrorCode#EMPLOYEE_NOT_LINKABLE} if it is no longer an NPD lead or is on
+	 *         Baja, or {@link ErrorCode#CONCURRENT_MODIFICATION} if it is saved meanwhile from Recursos
+	 */
+	@Transactional
+	public void link(long employeeId, String email, String actor) {
+		change(employeeId, actor, employee -> {
+			if (!employee.isNpdLead()) {
+				throw notLinkable(NOT_NPD_LEAD, null, employee.getId(), employee.getFullName());
+			}
+			if (ResourceRequestValidator.TERMINATED.equals(employee.getStatus().getCode())) {
+				throw notLinkable(TERMINATED, null, employee.getId(), employee.getFullName());
+			}
+			if (employee.getEmail() == null) {
+				employee.setEmail(email);
+			}
+		});
+	}
+
+	/**
+	 * The 409 of an employee that cannot be linked to a user. The detail says why, from the message
+	 * {@code employee.notLinkable.<reason>}.
+	 *
+	 * @param reason {@link #HAS_USER}, {@link #NOT_NPD_LEAD} or {@link #TERMINATED}
+	 * @param matchedBy {@code EMAIL} or {@code EMPLOYEE_NUMBER}, or {@code null} if it was not looked up
+	 * @param employeeId id of the employee
+	 * @param name name of the employee
+	 * @return the error
+	 */
+	public static ApiException notLinkable(String reason, String matchedBy, long employeeId, String name) {
+		Map<String, Object> properties = new HashMap<>();
+		properties.put("reason", reason);
+		properties.put("existingResourceId", employeeId);
+		properties.put("existingResourceName", name);
+		if (matchedBy != null) {
+			properties.put("matchedBy", matchedBy);
+		}
+		return new ApiException(ErrorCode.EMPLOYEE_NOT_LINKABLE,
+				List.of(name, new DefaultMessageSourceResolvable("employee.notLinkable." + reason)), properties);
+	}
+
+	private static NpdLeadCandidate candidate(Employee employee, String matchedBy) {
+		return new NpdLeadCandidate(employee.getId(), employee.getFullName(), employee.getCode(), employee.getEmail(),
+				employee.getJobPosition() == null ? null : employee.getJobPosition().getName(),
+				employee.getProject() == null ? null : employee.getProject().getName(),
+				employee.getLeader() == null ? null : employee.getLeader().getFullName(), employee.getStatus().getCode(),
+				employee.getHireDate(), employee.isNpdLead(), matchedBy);
+	}
+
+	/**
 	 * Puts the record of a lead whose user leaves the NPD lead role on Baja, with today's date and the
 	 * reason {@link #ROLE_CHANGE} (SCRUM-53 CA-11). As any Baja, the person leaves their project; the NPD
 	 * lead mark stays, and the collaborators keep them as lead until someone reassigns them.
@@ -236,9 +321,7 @@ public class NpdLeadEmployeeService {
 			boolean leftByRoleChange = employee.getTerminationReason() != null
 					&& ROLE_CHANGE.equals(employee.getTerminationReason().getCode());
 			if (!leftByRoleChange) {
-				throw new ApiException(ErrorCode.EMPLOYEE_NOT_LINKABLE, List.of(employee.getFullName()),
-						Map.of("reason", "TERMINATED", "existingResourceId", employee.getId(), "existingResourceName",
-								employee.getFullName()));
+				throw notLinkable(TERMINATED, null, employee.getId(), employee.getFullName());
 			}
 			employee.setStatusId(active);
 			employee.setTerminationDate(null);

@@ -19,6 +19,7 @@ import com.npdinfosgroup.api.access.service.validator.CreateUserRequestValidator
 import com.npdinfosgroup.api.access.service.validator.UpdateUserRequestValidator;
 import com.npdinfosgroup.api.history.service.AuditService;
 import com.npdinfosgroup.api.planner.dto.request.NewNpdLeadCommand;
+import com.npdinfosgroup.api.planner.dto.response.NpdLeadCandidate;
 import com.npdinfosgroup.api.planner.service.NpdLeadEmployeeService;
 import com.npdinfosgroup.api.shared.exception.ApiException;
 import com.npdinfosgroup.api.shared.exception.ErrorCode;
@@ -29,6 +30,7 @@ import com.npdinfosgroup.api.shared.exception.ValidationException;
 import com.npdinfosgroup.api.shared.security.Role;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionOperations;
@@ -43,7 +45,8 @@ import org.springframework.transaction.support.TransactionOperations;
  * <p>
  * An NPD lead user has an employee record in {@code planner}, changed in the same transaction through
  * {@link NpdLeadEmployeeService}: registered or back to Activo when the role changes to NPD lead, on Baja
- * when it changes from it, and renamed with the user. Linking an existing employee comes in PR 10.
+ * when it changes from it, and renamed with the user. An employee that already
+ * exists (same email or number) is linked once the administrator confirms it.
  */
 @Service
 public class UserEditService {
@@ -116,7 +119,7 @@ public class UserEditService {
 		if (request.version() != null && !request.version().equals(user.getVersion())) {
 			throw concurrentModification(user);
 		}
-		NewNpdLeadCommand newLead = validate(request, user, command.actor());
+		NewLead newLead = validate(request, user, command.actor());
 		Role role = Role.ofRealmName(request.role()).orElseThrow();
 		String fullName = request.fullName().strip();
 		if (NPD_LEADER.equals(user.getRole()) && user.getEmployeeId() == null) {
@@ -160,9 +163,9 @@ public class UserEditService {
 	 * Every invalid field of the request together: the user's and, when the role changes to NPD lead
 	 * for a user without employee record, the employee data it needs (CA-10).
 	 *
-	 * @return the employee record to register, or {@code null} if none is registered
+	 * @return the employee record to register or to link, or {@code null} if none is
 	 */
-	private NewNpdLeadCommand validate(UpdateUserRequest request, AppUser user, String actor) {
+	private NewLead validate(UpdateUserRequest request, AppUser user, String actor) {
 		List<FieldProblem> problems = new ArrayList<>();
 		try {
 			validator.validate(request);
@@ -170,17 +173,21 @@ public class UserEditService {
 		catch (ValidationException ex) {
 			problems.addAll(ex.getProblems());
 		}
-		NewNpdLeadCommand newLead = null;
+		NewLead newLead = null;
 		boolean registersLead = NPD_LEADER.equals(request.role()) && !NPD_LEADER.equals(user.getRole())
 				&& user.getEmployeeId() == null;
+		Long linkEmployeeId = registersLead && problems.isEmpty() ? confirmedLink(request, user) : null;
+		if (linkEmployeeId != null) {
+			return new NewLead(null, linkEmployeeId);
+		}
 		if (registersLead && request.employee() == null) {
 			problems.add(FieldProblem.of("employee", FieldErrorCode.REQUIRED));
 		}
 		else if (registersLead) {
 			String fullName = request.fullName() == null ? null : request.fullName().strip();
-			newLead = new NewNpdLeadCommand(request.employee(), fullName, user.getEmail(), actor);
+			newLead = new NewLead(new NewNpdLeadCommand(request.employee(), fullName, user.getEmail(), actor), null);
 			// The record's name is the user's, whose errors are already reported as fullName
-			npdLeads.problemsOf(newLead)
+			npdLeads.problemsOf(newLead.register())
 				.stream()
 				.filter(problem -> !"employee.name".equals(problem.field()))
 				.forEach(problems::add);
@@ -189,6 +196,31 @@ public class UserEditService {
 			throw new ValidationException(CreateUserRequestValidator.MESSAGE_SCOPE, problems);
 		}
 		return newLead;
+	}
+
+	/**
+	 * An employee with the user's email or the form's number (HU-10 CA-05 to CA-07, CA-12, CA-13): linked
+	 * only if it can be and {@code linkEmployeeId} confirms it; otherwise a 409 to confirm or saying why not.
+	 *
+	 * @return the id of the employee to link, or {@code null} if there is no such employee
+	 */
+	private Long confirmedLink(UpdateUserRequest request, AppUser user) {
+		String number = request.employee() == null ? null : request.employee().employeeNumber();
+		NpdLeadCandidate candidate = npdLeads.findLinkCandidate(user.getEmail(), number).orElse(null);
+		if (candidate == null) {
+			return null;
+		}
+		String reason = users.existsByEmployeeId(candidate.id()) ? NpdLeadEmployeeService.HAS_USER
+				: !candidate.npdLead() ? NpdLeadEmployeeService.NOT_NPD_LEAD
+				: "BAJA".equals(candidate.status()) ? NpdLeadEmployeeService.TERMINATED : null;
+		if (reason != null) {
+			throw NpdLeadEmployeeService.notLinkable(reason, candidate.matchedBy(), candidate.id(), candidate.name());
+		}
+		if (candidate.id().equals(request.linkEmployeeId())) {
+			return candidate.id();
+		}
+		throw new ApiException(ErrorCode.EXISTING_NPD_LEAD_EMPLOYEE, List.of(candidate.name(), candidate.employeeNumber()),
+				Map.of("matchedBy", candidate.matchedBy(), "existingEmployee", candidate));
 	}
 
 	/**
@@ -220,6 +252,11 @@ public class UserEditService {
 		catch (OptimisticLockingFailureException ex) {
 			throw concurrentModification(user);
 		}
+		catch (DataIntegrityViolationException ex) {
+			// Another user was linked to the same employee between the check and this write
+			throw NpdLeadEmployeeService.notLinkable(NpdLeadEmployeeService.HAS_USER, null, user.getEmployeeId(),
+					user.getFullName());
+		}
 		audit.recordChanges(AUDIT_ENTITY, id, before, auditValues(user), change.actor());
 		return queries.toResponse(user);
 	}
@@ -233,9 +270,15 @@ public class UserEditService {
 		boolean wasLead = NPD_LEADER.equals(user.getRole());
 		boolean isLead = change.role() == Role.NPD_LEADER;
 		Long employeeId = user.getEmployeeId();
+		if (isLead && !wasLead && employeeId == null && change.newLead().linkEmployeeId() != null) {
+			// Linked as it is: only an empty email changes
+			npdLeads.link(change.newLead().linkEmployeeId(), user.getEmail(), change.actor());
+			user.setEmployeeId(change.newLead().linkEmployeeId());
+			return;
+		}
 		if (isLead && !wasLead && employeeId == null) {
 			// Registered with the new name already
-			user.setEmployeeId(npdLeads.register(change.newLead()));
+			user.setEmployeeId(npdLeads.register(change.newLead().register()));
 			return;
 		}
 		if (isLead && !wasLead) {
@@ -294,7 +337,11 @@ public class UserEditService {
 
 	/** What the transaction saves. */
 	private record Change(long id, Integer version, String fullName, Role role, boolean demotesAdministrator,
-			NewNpdLeadCommand newLead, String actor) {
+			NewLead newLead, String actor) {
+	}
+
+	/** The employee record of a new NPD lead: one to register, or an existing one to link. */
+	private record NewLead(NewNpdLeadCommand register, Long linkEmployeeId) {
 	}
 
 	/** What was there before the edit and what Keycloak already changed, to undo it. */

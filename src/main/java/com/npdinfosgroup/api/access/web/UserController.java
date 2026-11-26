@@ -185,6 +185,11 @@ class UserController {
 			como `employee.<campo>`. Se crea su registro de empleado como líder NPD, sin proyecto ni líder, \
 			con el nombre y el correo del usuario. **Con registro (antiguo líder NPD):** `employee` se \
 			ignora y su registro vuelve de Baja a Activo, sin proyecto.
+			- **Si ya es empleado** (un empleado tiene su correo o el N° de `employee`): 409 \
+			`EXISTING_NPD_LEAD_EMPLOYEE` con `existingEmployee` para confirmar que es la misma persona; al \
+			confirmar, se reenvía con `linkEmployeeId` = `existingEmployee.id` y se vincula ese registro sin \
+			cambiarlo (solo se completa su correo si no tenía). Si ese empleado no es líder NPD, está de \
+			Baja o ya tiene usuario: 409 `EMPLOYEE_NOT_LINKABLE`.
 			- **De `npd-leader` a otro rol:** su registro de empleado pasa a Baja por «Cambio de rol» y \
 			deja su proyecto; sus colaboradores lo siguen teniendo como líder. La respuesta trae \
 			`employee.id` y `employee.collaborators` para ofrecer «Ver sus colaboradores».
@@ -211,8 +216,11 @@ class UserController {
 	@ApiResponse(responseCode = "409", description = """
 			- `CONCURRENT_MODIFICATION`: alguien guardó el usuario después de leerlo (`currentVersion` trae \
 			la versión actual), o su registro de empleado se editó a la vez en Recursos.
-			- `EMPLOYEE_NOT_LINKABLE`: su registro de empleado está de Baja por otro motivo y no puede \
-			volver como líder NPD (`reason = TERMINATED`).
+			- `EXISTING_NPD_LEAD_EMPLOYEE`: un empleado tiene su correo o N° (`matchedBy`: `EMAIL`, \
+			`EMPLOYEE_NUMBER`); `existingEmployee` trae sus datos (N°, posición, proyecto, líder…) para confirmar.
+			- `EMPLOYEE_NOT_LINKABLE`: el empleado no se puede vincular; `reason`: `HAS_USER` (ya tiene \
+			usuario), `NOT_NPD_LEAD` (no es líder NPD) o `TERMINATED` (de Baja, también un antiguo líder \
+			dado de baja por otro motivo), con `matchedBy`, `existingResourceId` y `existingResourceName`.
 			- `LAST_OPERATIONS_ADMINISTRATOR`: no quedaría ningún Operations administrator activo.
 			- `NPD_LEAD_WITHOUT_EMPLOYEE`: líder NPD sin registro de empleado; su cuenta se debe eliminar.""",
 			content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemDetail.class)))

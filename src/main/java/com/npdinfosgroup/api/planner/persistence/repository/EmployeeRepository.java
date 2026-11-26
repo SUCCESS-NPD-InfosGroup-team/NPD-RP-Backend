@@ -36,6 +36,14 @@ public interface EmployeeRepository extends JpaRepository<Employee, Long>, Emplo
 	boolean existsByEmailIgnoreCase(String email);
 
 	/**
+	 * Employee with an e-mail, ignoring case like its unique index, to offer linking it to a user.
+	 *
+	 * @param email e-mail
+	 * @return the employee, if any
+	 */
+	Optional<Employee> findFirstByEmailIgnoreCase(String email);
+
+	/**
 	 * Employee with an employee number other than the given one, for the edit of that employee.
 	 *
 	 * @param code employee number

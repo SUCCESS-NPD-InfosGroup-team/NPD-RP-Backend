@@ -14,5 +14,8 @@ public record UpdateUserRequest(
 				"customer-success", "guest" }, example = "guest") @NotBlank String role,
 		@Schema(description = """
 				Registro de empleado del líder NPD: obligatorio solo al cambiar a `npd-leader` un usuario sin \
-				registro; si no, se ignora""") NpdLeadEmployeeRequest employee) {
+				registro; si no, se ignora""") NpdLeadEmployeeRequest employee,
+		@Schema(description = """
+				Confirma el vínculo con el empleado que ofreció una respuesta `EXISTING_NPD_LEAD_EMPLOYEE`: su \
+				`existingEmployee.id`""") Long linkEmployeeId) {
 }
