@@ -73,6 +73,7 @@ Operations (inputs are `planner` commands; no `access` type crosses into `planne
 | Method | Does |
 |--------|------|
 | `findLinkCandidate(email, employeeNumber)` | The employee that has that email (first) or N°, if any, with what the confirmation shows |
+| `problemsOf(NewNpdLeadCommand)` | The field errors `register` would give, without saving: the edit reports them with the user's before calling Keycloak |
 | `register(NewNpdLeadCommand)` | Validates as a new resource (same field errors) and inserts it: `is_npd_lead = true`, no project, no lead, email = the user's |
 | `link(employeeId, email)` | Checks it is linkable (§6) and fills the email if the record has none (mockup "Ya existe como empleado (N°)") |
 | `leaveRole(employeeId)` | Baja: `termination.date` = today (business time zone, `Clock`), reason `CAMBIO_DE_ROL`; as any Baja, it leaves its project (BD-08). Keeps `is_npd_lead` |
@@ -96,10 +97,13 @@ Migration `V12__app_user_employee_link.sql`:
 
 Transaction of step 3:
 
-1. Load the user with `@Lock(PESSIMISTIC_WRITE)` and compare `version` (409 if it differs).
-2. If the role leaves `operations-administrator`: count the **other** active administrators with a
-   `PESSIMISTIC_WRITE` JPQL query; zero → `LAST_OPERATIONS_ADMINISTRATOR`. The lock makes two administrators
-   who demote each other at the same time wait for one another, so the second sees zero.
+1. If the role leaves `operations-administrator`: lock the active administrators with a
+   `PESSIMISTIC_WRITE` JPQL query **in id order, before the user**. Locking the user first would let two
+   administrators who demote each other deadlock (each holds their own row and waits for the other's);
+   with one order the second waits for the first.
+2. Load the user with `@Lock(PESSIMISTIC_WRITE)` and compare `version` (409 if it differs). If the user
+   is the only locked administrator → `LAST_OPERATIONS_ADMINISTRATOR`, so the second of those two edits
+   sees no other administrator left.
 3. Employee operations (§4), then `app_user` (`full_name`, `role`, `employee_id`), then the audit rows.
 
 ## 6. API

@@ -157,13 +157,17 @@ class ResourceController {
 			están inactivos) se rechazan hasta elegir el valor real; `fieldsToFix` del GET los indica.
 			- Con `status = BAJA` son obligatorios `termination.date` (no antes de `hireDate`) y \
 			`termination.reasonId`, y la persona sale de su proyecto aunque llegue `assignment`.
+			- Un registro de Baja por «Cambio de rol» (su usuario dejó de ser líder NPD) conserva ese \
+			motivo, que no se puede elegir a mano, y no puede volver a `ACTIVO` ni `LICENCIA` aquí \
+			(`ROLE_CHANGE_TERMINATION` en `status`): vuelve al cambiar su rol a líder NPD en Usuarios.
 			- Se guarda todo o nada. Cada campo que cambia queda en la auditoría (quién, cuándo, valor \
 			anterior y nuevo); si no cambia nada, no se guarda nada y la `version` sigue igual.
 			- Todos los errores de validación llegan juntos en `errors`.""")
 	@ApiResponse(responseCode = "200", description = "Recurso guardado, con su nueva `version`")
 	@ApiResponse(responseCode = "400", description = """
 			Uno o más campos inválidos (`VALIDATION_FAILED`, detalle en `errors`;
-			el líder puede dar `SELF_LEADER`, `UNKNOWN_ID`, `INACTIVE_LEADER` o `NOT_NPD_LEADER`)""",
+			el líder puede dar `SELF_LEADER`, `UNKNOWN_ID`, `INACTIVE_LEADER` o `NOT_NPD_LEADER`; \
+			`status`, `ROLE_CHANGE_TERMINATION`)""",
 			content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemDetail.class)))
 	@ApiResponse(responseCode = "401", description = "Sin token o token inválido (`UNAUTHORIZED`)",
 			content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemDetail.class)))

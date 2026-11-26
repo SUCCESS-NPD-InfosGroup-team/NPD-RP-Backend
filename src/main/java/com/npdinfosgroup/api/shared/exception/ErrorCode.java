@@ -47,6 +47,21 @@ public enum ErrorCode {
 	/** Someone else saved the record after the user read it; nothing was saved. */
 	CONCURRENT_MODIFICATION(HttpStatus.CONFLICT),
 
+	/** The change would leave no active Operations administrator; nothing was changed. */
+	LAST_OPERATIONS_ADMINISTRATOR(HttpStatus.CONFLICT),
+
+	/** The user is an NPD lead without an employee record, a data error: the account must be deleted. */
+	NPD_LEAD_WITHOUT_EMPLOYEE(HttpStatus.CONFLICT),
+
+	/** An NPD lead employee has the email or number of the new NPD lead: confirm it is the same person. */
+	EXISTING_NPD_LEAD_EMPLOYEE(HttpStatus.CONFLICT),
+
+	/**
+	 * The employee record cannot be linked to the user: it has another user, is not an NPD lead, or is on
+	 * Baja for another reason; the {@code reason} property says which.
+	 */
+	EMPLOYEE_NOT_LINKABLE(HttpStatus.CONFLICT),
+
 	/** The database could not be reached; nothing was saved and the request can be retried. */
 	SERVICE_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE),
 
