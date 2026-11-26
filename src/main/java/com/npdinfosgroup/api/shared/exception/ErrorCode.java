@@ -53,6 +53,9 @@ public enum ErrorCode {
 	/** The user is an NPD lead without an employee record, a data error: the account must be deleted. */
 	NPD_LEAD_WITHOUT_EMPLOYEE(HttpStatus.CONFLICT),
 
+	/** The account is deactivated: it must be reactivated before its name or role can change. */
+	ACCOUNT_DISABLED(HttpStatus.CONFLICT),
+
 	/** An NPD lead employee has the email or number of the new NPD lead: confirm it is the same person. */
 	EXISTING_NPD_LEAD_EMPLOYEE(HttpStatus.CONFLICT),
 
