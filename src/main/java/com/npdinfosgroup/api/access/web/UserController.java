@@ -2,11 +2,14 @@ package com.npdinfosgroup.api.access.web;
 
 import java.net.URI;
 
+import com.npdinfosgroup.api.access.dto.request.AccountActivationCommand;
 import com.npdinfosgroup.api.access.dto.request.CreateUserCommand;
 import com.npdinfosgroup.api.access.dto.request.CreateUserRequest;
 import com.npdinfosgroup.api.access.dto.request.UpdateUserCommand;
 import com.npdinfosgroup.api.access.dto.request.UpdateUserRequest;
+import com.npdinfosgroup.api.access.dto.request.UserVersionRequest;
 import com.npdinfosgroup.api.access.dto.response.UserResponse;
+import com.npdinfosgroup.api.access.service.AccountActivationService;
 import com.npdinfosgroup.api.access.service.UserEditService;
 import com.npdinfosgroup.api.access.service.UserQueryService;
 import com.npdinfosgroup.api.access.service.UserRegistrationService;
@@ -48,6 +51,8 @@ class UserController {
 
 	private final UserEditService editService;
 
+	private final AccountActivationService activationService;
+
 	private final CurrentUser currentUser;
 
 	/**
@@ -56,13 +61,15 @@ class UserController {
 	 * @param queryService reads users
 	 * @param registrationService creates users
 	 * @param editService edits the name and the role of users
+	 * @param activationService deactivates and reactivates accounts
 	 * @param currentUser who makes the request, for the audit log
 	 */
 	UserController(UserQueryService queryService, UserRegistrationService registrationService,
-			UserEditService editService, CurrentUser currentUser) {
+			UserEditService editService, AccountActivationService activationService, CurrentUser currentUser) {
 		this.queryService = queryService;
 		this.registrationService = registrationService;
 		this.editService = editService;
+		this.activationService = activationService;
 		this.currentUser = currentUser;
 	}
 
@@ -78,7 +85,9 @@ class UserController {
 			filtros. El parámetro `sort` se ignora. Solo Operations administrator.
 
 			- `role` es el código del rol; su nombre está en «Listar roles».
-			- `state`: `PENDING` (invitación enviada, aún no usa la plataforma) o `ACTIVE`.
+			- `state`: `PENDING` (invitación enviada, aún no usa la plataforma), `ACTIVE` o `DISABLED` \
+			(desactivada). `disabledAt` y `deletesAt`: cuándo se desactivó y la fecha y hora exactas en que \
+			se elimina si no se reactiva; `null` si no está desactivada.
 			- `lastAccessAt` es `null` hasta su primer acceso.
 			- `createdAt` y `createdBy`: cuándo y quién lo creó. `createdBy` es el nombre completo del \
 			usuario que lo creó o, si esa cuenta no es un usuario de la plataforma, su nombre de usuario.
@@ -231,6 +240,93 @@ class UserController {
 	ResponseEntity<UserResponse> update(@Parameter(description = "Id del usuario") @PathVariable long id,
 			@RequestBody UpdateUserRequest request) {
 		return ResponseEntity.ok(editService.update(new UpdateUserCommand(id, request, currentUser.username())));
+	}
+
+	/**
+	 * Deactivates a user account (SCRUM-231): its sessions end at once and it is deleted one day later
+	 * unless it is reactivated. Audited with the administrator's username.
+	 *
+	 * @param id user id
+	 * @param request the version that was read
+	 * @return 200 with the user, with {@code deletesAt}
+	 */
+	@PostMapping(path = "/{id}/deactivation", version = "v1")
+	@Operation(summary = "Desactivar cuenta", description = """
+			Desactiva la cuenta de un usuario (HU-09). Solo Operations administrator.
+
+			- Sus sesiones terminan al instante (su siguiente petición da 401) y no puede volver a entrar; \
+			una invitación pendiente deja de servir.
+			- Queda en estado `DISABLED`; `disabledAt` es el momento y `deletesAt` la fecha y hora exactas \
+			en que la cuenta se elimina (1 día después) si no se reactiva.
+			- A un líder NPD solo se le desactiva el usuario: su registro de empleado no cambia y sigue en \
+			Recursos.
+			- No se puede desactivar al único Operations administrator activo \
+			(`LAST_OPERATIONS_ADMINISTRATOR`).
+			- Si ya está desactivada, responde 200 sin cambios. Se audita el cambio de estado.
+			- Si el servicio de inicio de sesión falla, no queda nada cambiado y se puede reintentar (503).""")
+	@ApiResponse(responseCode = "200", description = "El usuario, con `state = DISABLED`, `disabledAt` y `deletesAt`")
+	@ApiResponse(responseCode = "400", description = "Falta `version` (`VALIDATION_FAILED`)",
+			content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemDetail.class)))
+	@ApiResponse(responseCode = "401", description = "Sin token o token inválido (`UNAUTHORIZED`)",
+			content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemDetail.class)))
+	@ApiResponse(responseCode = "403", description = "El rol no es Operations administrator (`FORBIDDEN`)",
+			content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemDetail.class)))
+	@ApiResponse(responseCode = "404", description = "No existe (`NOT_FOUND`)",
+			content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemDetail.class)))
+	@ApiResponse(responseCode = "409", description = """
+			Alguien guardó el usuario después de leerlo (`CONCURRENT_MODIFICATION`, con `currentVersion`) o \
+			es el único Operations administrator activo (`LAST_OPERATIONS_ADMINISTRATOR`)""",
+			content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemDetail.class)))
+	@ApiResponse(responseCode = "503", description = """
+			El servicio de inicio de sesión no respondió; no quedó nada cambiado \
+			(`IDENTITY_PROVIDER_UNAVAILABLE`)""",
+			content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemDetail.class)))
+	ResponseEntity<UserResponse> deactivate(@Parameter(description = "Id del usuario") @PathVariable long id,
+			@RequestBody UserVersionRequest request) {
+		return ResponseEntity
+			.ok(activationService.deactivate(new AccountActivationCommand(id, request.version(), currentUser.username())));
+	}
+
+	/**
+	 * Reactivates a deactivated account before its deletion time (SCRUM-231 CA-02), with the same role.
+	 * Audited with the administrator's username.
+	 *
+	 * @param id user id
+	 * @param request the version that was read
+	 * @return 200 with the user
+	 */
+	@PostMapping(path = "/{id}/reactivation", version = "v1")
+	@Operation(summary = "Reactivar cuenta", description = """
+			Reactiva una cuenta desactivada antes de que se elimine (HU-09), sin confirmación. Solo \
+			Operations administrator.
+
+			- Puede volver a entrar con el mismo rol; se cancela su eliminación.
+			- Vuelve a `ACTIVE`, o a `PENDING` si nunca había entrado a la plataforma.
+			- Pasada su `deletesAt` ya no se puede reactivar (`ACCOUNT_DELETION_DUE`), aunque todavía no se \
+			haya eliminado.
+			- Si no está desactivada, responde 200 sin cambios. Se audita el cambio de estado.
+			- Si el servicio de inicio de sesión falla, no queda nada cambiado y se puede reintentar (503).""")
+	@ApiResponse(responseCode = "200", description = "El usuario, con su nuevo `state`")
+	@ApiResponse(responseCode = "400", description = "Falta `version` (`VALIDATION_FAILED`)",
+			content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemDetail.class)))
+	@ApiResponse(responseCode = "401", description = "Sin token o token inválido (`UNAUTHORIZED`)",
+			content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemDetail.class)))
+	@ApiResponse(responseCode = "403", description = "El rol no es Operations administrator (`FORBIDDEN`)",
+			content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemDetail.class)))
+	@ApiResponse(responseCode = "404", description = "No existe, o ya se eliminó (`NOT_FOUND`)",
+			content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemDetail.class)))
+	@ApiResponse(responseCode = "409", description = """
+			Alguien guardó el usuario después de leerlo (`CONCURRENT_MODIFICATION`, con `currentVersion`) o \
+			pasó su hora de eliminación (`ACCOUNT_DELETION_DUE`, con `deletesAt`)""",
+			content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemDetail.class)))
+	@ApiResponse(responseCode = "503", description = """
+			El servicio de inicio de sesión no respondió; no quedó nada cambiado \
+			(`IDENTITY_PROVIDER_UNAVAILABLE`)""",
+			content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemDetail.class)))
+	ResponseEntity<UserResponse> reactivate(@Parameter(description = "Id del usuario") @PathVariable long id,
+			@RequestBody UserVersionRequest request) {
+		return ResponseEntity
+			.ok(activationService.reactivate(new AccountActivationCommand(id, request.version(), currentUser.username())));
 	}
 
 }

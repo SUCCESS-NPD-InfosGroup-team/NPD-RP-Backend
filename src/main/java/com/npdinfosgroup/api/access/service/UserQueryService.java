@@ -36,15 +36,19 @@ public class UserQueryService {
 
 	private final NpdLeadEmployeeService npdLeads;
 
+	private final AccountDeletionProperties deletion;
+
 	/**
 	 * Creates the service.
 	 *
 	 * @param users the users
 	 * @param npdLeads the employee records linked to NPD lead users
+	 * @param deletion when a deactivated account is deleted, shown with it
 	 */
-	UserQueryService(AppUserRepository users, NpdLeadEmployeeService npdLeads) {
+	UserQueryService(AppUserRepository users, NpdLeadEmployeeService npdLeads, AccountDeletionProperties deletion) {
 		this.users = users;
 		this.npdLeads = npdLeads;
+		this.deletion = deletion;
 	}
 
 	/**
@@ -95,7 +99,8 @@ public class UserQueryService {
 			.map(user -> new UserResponse(user.getId(), user.getFullName(), user.getEmail(), user.getRole(),
 					user.getState().name(), user.getLastAccessAt(), user.getCreatedAt(),
 					creators.getOrDefault(user.getCreatedBy().toLowerCase(Locale.ROOT), user.getCreatedBy()),
-					user.getVersion(), toEmployee(user.getEmployeeId(), employees)))
+					user.getVersion(), toEmployee(user.getEmployeeId(), employees), user.getDisabledAt(),
+					deletion.deletesAt(user.getDisabledAt())))
 			.toList();
 	}
 
