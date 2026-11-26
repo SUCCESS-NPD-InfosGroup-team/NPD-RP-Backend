@@ -70,7 +70,10 @@ class UserController {
 
 			- `role` es el código del rol; su nombre está en «Listar roles».
 			- `state`: `PENDING` (invitación enviada, aún no usa la plataforma) o `ACTIVE`.
-			- `lastAccessAt` es `null` hasta su primer acceso.""")
+			- `lastAccessAt` es `null` hasta su primer acceso.
+			- `createdAt` y `createdBy`: cuándo y quién lo creó. `createdBy` es el nombre completo del 			usuario que lo creó o, si esa cuenta no es un usuario de la plataforma, su nombre de usuario.
+			- `version`: se envía al editar el usuario; cambia cada vez que se guarda.
+			- `employee`: el registro de empleado vinculado (solo líderes NPD y antiguos líderes NPD), con 			`id`, `employeeNumber`, `status` (`ACTIVO`, `LICENCIA`, `BAJA`) y `collaborators` (colaboradores 			que aún lo tienen como líder, sin contar los de Baja). `null` si no tiene; un `npd-leader` sin 			registro de empleado es un error de datos y su cuenta se debe eliminar.""")
 	@ApiResponse(responseCode = "200", description = "La página")
 	@ApiResponse(responseCode = "400", description = "Un parámetro no tiene el formato esperado (`INVALID_REQUEST`)",
 			content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemDetail.class)))
@@ -90,7 +93,7 @@ class UserController {
 	 */
 	@GetMapping(path = "/{id}", version = "v1")
 	@Operation(summary = "Ver usuario", description = """
-			Un usuario, con la misma forma que la respuesta de «Crear usuario». Solo Operations administrator.""")
+			Un usuario, con los mismos campos que «Listar usuarios»: es lo que muestra el modal «Editar». 			Solo Operations administrator.""")
 	@ApiResponse(responseCode = "200", description = "El usuario")
 	@ApiResponse(responseCode = "401", description = "Sin token o token inválido (`UNAUTHORIZED`)",
 			content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemDetail.class)))

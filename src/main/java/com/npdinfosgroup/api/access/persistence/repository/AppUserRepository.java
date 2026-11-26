@@ -1,6 +1,8 @@
 package com.npdinfosgroup.api.access.persistence.repository;
 
 import java.time.Instant;
+import java.util.Collection;
+import java.util.List;
 import java.util.UUID;
 
 import com.npdinfosgroup.api.access.persistence.entity.AppUser;
@@ -21,6 +23,14 @@ public interface AppUserRepository extends JpaRepository<AppUser, Long> {
 	 * @return {@code true} if it is taken
 	 */
 	boolean existsByEmail(String email);
+
+	/**
+	 * The users with some emails, to show the name of who created each user of a page.
+	 *
+	 * @param emails emails in lower case, as they are stored
+	 * @return the users found
+	 */
+	List<AppUser> findByEmailIn(Collection<String> emails);
 
 	/**
 	 * Records an access: the moment, and {@code PENDING} becomes {@code ACTIVE}; skipped after a recent one.
