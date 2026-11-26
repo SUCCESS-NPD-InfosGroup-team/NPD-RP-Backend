@@ -1,5 +1,6 @@
 package com.npdinfosgroup.api.planner.persistence.repository;
 
+import java.time.LocalDate;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -92,6 +93,18 @@ public interface EmployeeRepository extends JpaRepository<Employee, Long>, Emplo
 			ORDER BY l.fullName""")
 	List<ProjectLead> findProjectLeads(@Param("projectIds") Collection<Long> projectIds,
 			@Param("excludedStatus") String excludedStatus);
+
+	/**
+	 * The members of a project with an end date, except those with a status, to move them with the
+	 * project's contract end.
+	 *
+	 * @param projectId project id
+	 * @param projectEndDate their end date in the project
+	 * @param excludedStatus status code left out (Baja)
+	 * @return the members
+	 */
+	List<Employee> findByProjectIdAndProjectEndDateAndStatus_CodeNot(Long projectId, LocalDate projectEndDate,
+			String excludedStatus);
 
 	/**
 	 * The versions of some employees, in one query, for lists that send them back on an action.
