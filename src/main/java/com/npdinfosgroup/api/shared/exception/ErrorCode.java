@@ -62,6 +62,9 @@ public enum ErrorCode {
 	 */
 	EMPLOYEE_NOT_LINKABLE(HttpStatus.CONFLICT),
 
+	/** The deactivated account reached its deletion time and can no longer be reactivated. */
+	ACCOUNT_DELETION_DUE(HttpStatus.CONFLICT),
+
 	/** The database could not be reached; nothing was saved and the request can be retried. */
 	SERVICE_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE),
 
