@@ -3,10 +3,13 @@ package com.npdinfosgroup.api.access.persistence.repository;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import com.npdinfosgroup.api.access.persistence.entity.AppUser;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -31,6 +34,16 @@ public interface AppUserRepository extends JpaRepository<AppUser, Long> {
 	 * @return the users found
 	 */
 	List<AppUser> findByEmailIn(Collection<String> emails);
+
+	/**
+	 * A user, locked until the transaction ends, to edit it.
+	 *
+	 * @param id user id
+	 * @return the user, if it exists
+	 */
+	@Lock(LockModeType.PESSIMISTIC_WRITE)
+	@Query("SELECT u FROM AppUser u WHERE u.id = :id")
+	Optional<AppUser> lockById(@Param("id") long id);
 
 	/**
 	 * Records an access: the moment, and {@code PENDING} becomes {@code ACTIVE}; skipped after a recent one.
