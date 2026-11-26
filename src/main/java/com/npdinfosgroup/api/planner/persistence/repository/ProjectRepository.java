@@ -19,4 +19,14 @@ public interface ProjectRepository extends JpaRepository<Project, Long> {
 	 */
 	Optional<Project> findFirstByClient_IdAndNameIgnoreCase(Long clientId, String name);
 
+	/**
+	 * Another project of a client with a name, ignoring case, for the rename of a project.
+	 *
+	 * @param clientId client id
+	 * @param name project name
+	 * @param id the project being renamed, which does not count
+	 * @return the other project, if the client already has one with that name
+	 */
+	Optional<Project> findFirstByClient_IdAndNameIgnoreCaseAndIdNot(Long clientId, String name, Long id);
+
 }

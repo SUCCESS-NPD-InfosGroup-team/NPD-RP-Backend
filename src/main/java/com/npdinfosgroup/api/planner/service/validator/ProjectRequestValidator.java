@@ -8,7 +8,9 @@ import java.util.Map;
 import java.util.Optional;
 
 import com.npdinfosgroup.api.planner.dto.request.CreateProjectRequest;
+import com.npdinfosgroup.api.planner.dto.request.UpdateProjectRequest;
 import com.npdinfosgroup.api.planner.persistence.entity.Client;
+import com.npdinfosgroup.api.planner.persistence.entity.Project;
 import com.npdinfosgroup.api.planner.persistence.repository.ClientRepository;
 import com.npdinfosgroup.api.planner.persistence.repository.ProjectRepository;
 import com.npdinfosgroup.api.shared.exception.ApiException;
@@ -20,10 +22,12 @@ import jakarta.validation.Validator;
 import org.springframework.stereotype.Component;
 
 /**
- * Checks a new project before it is saved: first every invalid field at once (400), then the names
- * already taken (409), which the form shows apart with a way to pick the existing record.
+ * Checks a new or edited project before it is saved: first every invalid field at once (400), then the
+ * names already taken (409), which the form shows apart with a way to pick the existing record.
  * <p>
- * The project starts the day it is created, so the client contract end cannot have already passed.
+ * The project starts the day it is created, so the client contract end cannot have already passed. On
+ * an edit the rule applies only when the date changes, so a project whose contract already ended can
+ * still be renamed.
  */
 @Component
 public class ProjectRequestValidator {
@@ -111,6 +115,41 @@ public class ProjectRequestValidator {
 					Map.of("existingProjectId", existing.getId()));
 		});
 		return Optional.of(client);
+	}
+
+	/**
+	 * Validates the fields of an edited project (CA-06 of HU-14).
+	 *
+	 * @param project the project as it is saved now
+	 * @param request its new values
+	 * @throws ValidationException with every invalid field, when there is at least one
+	 */
+	public void validateUpdate(Project project, UpdateProjectRequest request) {
+		List<FieldProblem> problems = new ArrayList<>(ConstraintProblems.of(validator.validate(request), ""));
+		LocalDate contractEnd = request.contractEndDate();
+		if (contractEnd != null && !contractEnd.equals(project.getContractEndDate())
+				&& contractEnd.isBefore(LocalDate.now(clock))) {
+			problems.add(FieldProblem.of(CONTRACT_END_DATE, FieldErrorCode.DATE_IN_PAST));
+		}
+		if (!problems.isEmpty()) {
+			throw new ValidationException(MESSAGE_SCOPE, problems);
+		}
+	}
+
+	/**
+	 * Checks that no other project of the same client has the new name of a project.
+	 *
+	 * @param project the project being renamed
+	 * @param name its new name, already stripped
+	 * @throws ApiException {@link ErrorCode#PROJECT_NAME_TAKEN} if another project of the client has it
+	 */
+	public void checkNameAvailable(Project project, String name) {
+		Client client = project.getClient();
+		projects.findFirstByClient_IdAndNameIgnoreCaseAndIdNot(client.getId(), name, project.getId())
+			.ifPresent(existing -> {
+				throw new ApiException(ErrorCode.PROJECT_NAME_TAKEN, List.of(client.getName(), existing.getName()),
+						Map.of("existingProjectId", existing.getId()));
+			});
 	}
 
 }
