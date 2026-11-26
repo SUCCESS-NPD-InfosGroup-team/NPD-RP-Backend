@@ -309,6 +309,52 @@ class ResourceUpdateControllerTest {
 					"assignment.leader: Lorena Batista -> null", "termination.date: null -> " + TODAY);
 	}
 
+	/**
+	 * SCRUM-53 design §7: a Baja by "Cambio de rol" can be edited keeping that reason, but cannot go back to
+	 * Activo here; nobody can choose the reason by hand, neither on an edit nor on a registration.
+	 */
+	@Test
+	void guardsTheBajaByRoleChange() {
+		short roleChange = catalogId("termination_reason", "CAMBIO_DE_ROL");
+		jdbc.sql("""
+				UPDATE employee SET status_id = (SELECT id FROM resource_status WHERE code = 'BAJA'),
+				       termination_date = DATE '2026-01-31', termination_reason_id = :reason, project_id = NULL,
+				       leader_id = NULL
+				WHERE id = :id""").param("reason", roleChange).param("id", resourceId).update();
+		Map<String, Object> request = currentRecord();
+		request.put("name", "Ana Torres Ruiz");
+		request.put("status", "BAJA");
+		request.put("termination", Map.of("date", "2026-01-31", "reasonId", roleChange));
+		put(ADMIN, resourceId, request).expectStatus().isOk().expectBody()
+			.jsonPath("$.termination.reason.name").isEqualTo("Cambio de rol");
+
+		request = currentRecord();
+		request.put("assignment", null);
+		put(ADMIN, resourceId, request).expectStatus()
+			.isBadRequest()
+			.expectBody()
+			.jsonPath("$.errors[*].field").isEqualTo(List.of("status"))
+			.jsonPath("$.errors[0].code").isEqualTo("ROLE_CHANGE_TERMINATION")
+			.jsonPath("$.errors[0].message").isEqualTo(
+					"Está de Baja por cambio de rol: vuelve a Activo al cambiar su rol a líder NPD en Usuarios.");
+
+		Map<String, Object> other = recordOf(leaderId);
+		other.put("status", "BAJA");
+		other.put("termination", Map.of("date", TODAY.toString(), "reasonId", roleChange));
+		put(ADMIN, leaderId, other).expectStatus()
+			.isBadRequest()
+			.expectBody()
+			.jsonPath("$.errors[?(@.field == 'termination.reasonId')].code").isEqualTo(List.of("NOT_SPECIFIED_VALUE"));
+		other.put("employeeNumber", "RT-NEW");
+		other.put("email", null);
+		client.post().uri("/api/v1/planner/resources").header(AUTHORIZATION, "Bearer " + ADMIN).contentType(APPLICATION_JSON)
+			.body(other).exchange()
+			.expectStatus()
+			.isBadRequest()
+			.expectBody()
+			.jsonPath("$.errors[?(@.field == 'termination.reasonId')].code").isEqualTo(List.of("NOT_SPECIFIED_VALUE"));
+	}
+
 	/** Back from Baja the termination is cleared, and the person can go without project. */
 	@Test
 	void clearsTheTerminationWhenTheStatusChanges() {
