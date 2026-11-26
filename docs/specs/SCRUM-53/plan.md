@@ -8,8 +8,8 @@ origin/develop...HEAD`). What and why: [spec.md](spec.md). How: [design.md](desi
 |---|--------|---------|------------|------------|--------|
 | 1 | `docs/SCRUM-53-spec-design` | `spec.md` and `design.md` of this folder. | ~340 | — | Merged ([#69](https://github.com/SUCCESS-NPD-InfosGroup-team/NPD-RP-Backend/pull/69)) |
 | 2 | `docs/SCRUM-53-plan` | This `plan.md`. | ~130 | PR 1 | Merged ([#71](https://github.com/SUCCESS-NPD-InfosGroup-team/NPD-RP-Backend/pull/71)) |
-| 3 | `feature/SCRUM-53-user-read-fields` | V12 and the new fields of the user list and detail (CA-09, CA-13, collaborators of CA-11). | ~330 | PR 1 | In review ([#72](https://github.com/SUCCESS-NPD-InfosGroup-team/NPD-RP-Backend/pull/72)) |
-| 4 | `feature/SCRUM-53-keycloak-edit-operations` | Keycloak calls to rename, change the role and close the sessions. | ~300 | PR 1 | Pending |
+| 3 | `feature/SCRUM-53-user-read-fields` | V12 and the new fields of the user list and detail (CA-09, CA-13, collaborators of CA-11). | ~330 | PR 1 | Merged ([#72](https://github.com/SUCCESS-NPD-InfosGroup-team/NPD-RP-Backend/pull/72)) |
+| 4 | `feature/SCRUM-53-keycloak-edit-operations` | Keycloak calls to rename, change the role and close the sessions. | ~300 | PR 1 | In review ([#73](https://github.com/SUCCESS-NPD-InfosGroup-team/NPD-RP-Backend/pull/73)) |
 | 5 | `feature/SCRUM-53-user-edit-service` | Edit service for name and role: validation, Keycloak, transaction, compensation. | ~390 | PR 3, PR 4 | Pending |
 | 6 | `feature/SCRUM-53-edit-user-endpoint` | `PUT /api/v1/access/users/{id}`, OpenAPI, messages, end-to-end tests. | ~300 | PR 5 | Pending |
 | 7 | `feature/SCRUM-53-npd-lead-employee-service` | `planner` service with the NPD lead employee operations. | ~380 | PR 3 | Pending |
