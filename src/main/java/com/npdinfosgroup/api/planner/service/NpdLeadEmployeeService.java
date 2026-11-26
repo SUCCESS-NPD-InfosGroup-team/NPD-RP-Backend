@@ -56,6 +56,8 @@ public class NpdLeadEmployeeService {
 
 	private final ResourceRegistrationService registration;
 
+	private final ResourceRequestValidator validator;
+
 	private final CatalogService catalogs;
 
 	private final TerminationReasonRepository reasons;
@@ -71,6 +73,7 @@ public class NpdLeadEmployeeService {
 	 *
 	 * @param employees the employee records
 	 * @param registration registers a record as any resource
+	 * @param validator checks a record before anything is saved
 	 * @param catalogs gives the ids of the statuses
 	 * @param reasons gives the id of {@link #ROLE_CHANGE}
 	 * @param audit records the changes
@@ -78,10 +81,11 @@ public class NpdLeadEmployeeService {
 	 * @param clock gives today, the date of a Baja
 	 */
 	NpdLeadEmployeeService(EmployeeRepository employees, ResourceRegistrationService registration,
-			CatalogService catalogs, TerminationReasonRepository reasons, AuditService audit, ResourceMapper mapper,
-			Clock clock) {
+			ResourceRequestValidator validator, CatalogService catalogs, TerminationReasonRepository reasons,
+			AuditService audit, ResourceMapper mapper, Clock clock) {
 		this.employees = employees;
 		this.registration = registration;
+		this.validator = validator;
 		this.catalogs = catalogs;
 		this.reasons = reasons;
 		this.audit = audit;
@@ -120,25 +124,14 @@ public class NpdLeadEmployeeService {
 	 */
 	@Transactional
 	public long register(NewNpdLeadCommand command) {
-		NpdLeadEmployeeRequest employee = command.employee();
 		List<FieldProblem> problems = new ArrayList<>();
-		String status = employee.status();
-		if (status != null && ResourceRequestValidator.TERMINATED.equals(status.strip().toUpperCase(Locale.ROOT))) {
-			// A new lead cannot start on Baja: validated as Activo so the other fields are still checked
-			problems.add(FieldProblem.of(FIELD_PREFIX + "status", FieldErrorCode.UNKNOWN_VALUE));
-			status = ACTIVE;
-		}
-		RegisterResourceRequest resource = new RegisterResourceRequest(employee.employeeNumber(), command.fullName(),
-				command.email(), null, employee.positionId(), null, null, employee.workModeId(), employee.genderId(),
-				null, employee.hireDate(), false, status, null, null);
+		RegisterResourceRequest resource = toResource(command, problems);
 		long id;
 		try {
 			id = registration.register(new RegisterResourceCommand(resource, command.actor())).id();
 		}
 		catch (ValidationException ex) {
-			ex.getProblems()
-				.forEach(problem -> problems.add(new FieldProblem(FIELD_PREFIX + problem.field(), problem.code(),
-						problem.messageArgs(), problem.details())));
+			problems.addAll(prefixed(ex));
 			throw new ValidationException(ex.getScope(), problems);
 		}
 		if (!problems.isEmpty()) {
@@ -147,6 +140,55 @@ public class NpdLeadEmployeeService {
 		employees.findById(id).orElseThrow().setNpdLead(true);
 		employees.flush();
 		return id;
+	}
+
+	/**
+	 * Checks the employee data of a new NPD lead without saving anything, so the user edit can report
+	 * its errors together with the user's before calling Keycloak.
+	 *
+	 * @param command the employee data, the user's name and email, and who registers it
+	 * @return every problem, named {@code employee.<field>}; empty if the record can be registered
+	 */
+	@Transactional(readOnly = true)
+	public List<FieldProblem> problemsOf(NewNpdLeadCommand command) {
+		List<FieldProblem> problems = new ArrayList<>();
+		RegisterResourceRequest resource = toResource(command, problems);
+		try {
+			validator.validateNew(resource);
+		}
+		catch (ValidationException ex) {
+			problems.addAll(prefixed(ex));
+		}
+		catch (ApiException ex) {
+			// The number taken, when it is the only problem of the resource: here it joins the others
+			problems.add(new FieldProblem(FIELD_PREFIX + "employeeNumber", FieldErrorCode.EMPLOYEE_NUMBER_TAKEN,
+					ex.getDetailArgs(), ex.getProperties()));
+		}
+		return problems;
+	}
+
+	/**
+	 * The resource form of a new NPD lead. A lead cannot start on Baja: that is reported in
+	 * {@code problems} and the form says Activo, so the other fields are still checked.
+	 */
+	private static RegisterResourceRequest toResource(NewNpdLeadCommand command, List<FieldProblem> problems) {
+		NpdLeadEmployeeRequest employee = command.employee();
+		String status = employee.status();
+		if (status != null && ResourceRequestValidator.TERMINATED.equals(status.strip().toUpperCase(Locale.ROOT))) {
+			problems.add(FieldProblem.of(FIELD_PREFIX + "status", FieldErrorCode.UNKNOWN_VALUE));
+			status = ACTIVE;
+		}
+		return new RegisterResourceRequest(employee.employeeNumber(), command.fullName(), command.email(), null,
+				employee.positionId(), null, null, employee.workModeId(), employee.genderId(), null,
+				employee.hireDate(), false, status, null, null);
+	}
+
+	private static List<FieldProblem> prefixed(ValidationException ex) {
+		return ex.getProblems()
+			.stream()
+			.map(problem -> new FieldProblem(FIELD_PREFIX + problem.field(), problem.code(), problem.messageArgs(),
+					problem.details()))
+			.toList();
 	}
 
 	/**

@@ -1,5 +1,6 @@
 package com.npdinfosgroup.api.access.service;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -17,6 +18,8 @@ import com.npdinfosgroup.api.access.persistence.repository.AppUserRepository;
 import com.npdinfosgroup.api.access.service.validator.CreateUserRequestValidator;
 import com.npdinfosgroup.api.access.service.validator.UpdateUserRequestValidator;
 import com.npdinfosgroup.api.history.service.AuditService;
+import com.npdinfosgroup.api.planner.dto.request.NewNpdLeadCommand;
+import com.npdinfosgroup.api.planner.service.NpdLeadEmployeeService;
 import com.npdinfosgroup.api.shared.exception.ApiException;
 import com.npdinfosgroup.api.shared.exception.ErrorCode;
 import com.npdinfosgroup.api.shared.exception.FieldErrorCode;
@@ -38,8 +41,9 @@ import org.springframework.transaction.support.TransactionOperations;
  * Keycloak, and if anything fails after Keycloak was changed, the old name and role are put back there.
  * A role change closes the user's sessions, so the new role applies from their next request (CA-01).
  * <p>
- * <b>For now</b> the role cannot change to NPD lead: that needs the employee record of the lead, which
- * comes with the NPD lead cases (SCRUM-53 plan, PR 8).
+ * An NPD lead user has an employee record in {@code planner}, changed in the same transaction through
+ * {@link NpdLeadEmployeeService}: registered or back to Activo when the role changes to NPD lead, on Baja
+ * when it changes from it, and renamed with the user. Linking an existing employee comes in PR 10.
  */
 @Service
 public class UserEditService {
@@ -50,6 +54,8 @@ public class UserEditService {
 	private static final String AUDIT_ENTITY = "app_user";
 
 	private static final String ADMINISTRATOR = Role.OPERATIONS_ADMINISTRATOR.realmName();
+
+	private static final String NPD_LEADER = Role.NPD_LEADER.realmName();
 
 	private final UpdateUserRequestValidator validator;
 
@@ -63,6 +69,8 @@ public class UserEditService {
 
 	private final UserQueryService queries;
 
+	private final NpdLeadEmployeeService npdLeads;
+
 	/**
 	 * Creates the service.
 	 *
@@ -72,15 +80,18 @@ public class UserEditService {
 	 * @param audit records the changed fields
 	 * @param transactions runs the save and the audit in one transaction
 	 * @param queries builds the response
+	 * @param npdLeads registers and changes the employee record of NPD leads
 	 */
 	UserEditService(UpdateUserRequestValidator validator, AppUserRepository users, KeycloakAdminClient keycloak,
-			AuditService audit, TransactionOperations transactions, UserQueryService queries) {
+			AuditService audit, TransactionOperations transactions, UserQueryService queries,
+			NpdLeadEmployeeService npdLeads) {
 		this.validator = validator;
 		this.users = users;
 		this.keycloak = keycloak;
 		this.audit = audit;
 		this.transactions = transactions;
 		this.queries = queries;
+		this.npdLeads = npdLeads;
 	}
 
 	/**
@@ -105,19 +116,16 @@ public class UserEditService {
 		if (request.version() != null && !request.version().equals(user.getVersion())) {
 			throw concurrentModification(user);
 		}
-		Role role = validator.validate(request);
+		NewNpdLeadCommand newLead = validate(request, user, command.actor());
+		Role role = Role.ofRealmName(request.role()).orElseThrow();
 		String fullName = request.fullName().strip();
-		if (Role.NPD_LEADER.realmName().equals(user.getRole()) && user.getEmployeeId() == null) {
+		if (NPD_LEADER.equals(user.getRole()) && user.getEmployeeId() == null) {
 			throw new ApiException(ErrorCode.NPD_LEAD_WITHOUT_EMPLOYEE, List.of(user.getEmail()), Map.of());
 		}
 		boolean renames = !fullName.equals(user.getFullName());
 		boolean changesRole = !role.realmName().equals(user.getRole());
 		if (!renames && !changesRole) {
 			return queries.toResponse(user);
-		}
-		if (changesRole && role == Role.NPD_LEADER) {
-			throw new ValidationException(CreateUserRequestValidator.MESSAGE_SCOPE,
-					List.of(FieldProblem.of("role", FieldErrorCode.ROLE_NOT_ASSIGNABLE)));
 		}
 		boolean demotesAdministrator = changesRole && ADMINISTRATOR.equals(user.getRole());
 		if (demotesAdministrator && user.getState() == AppUserState.ACTIVE
@@ -137,7 +145,8 @@ public class UserEditService {
 				keycloak.logout(edit.keycloakId);
 			}
 			UserResponse response = transactions
-				.execute(status -> save(id, request.version(), fullName, role, demotesAdministrator, command.actor()));
+				.execute(status -> save(new Change(id, request.version(), fullName, role, demotesAdministrator, newLead,
+						command.actor())));
 			log.info("User {} updated", id);
 			return response;
 		}
@@ -148,17 +157,53 @@ public class UserEditService {
 	}
 
 	/**
+	 * Every invalid field of the request together: the user's and, when the role changes to NPD lead
+	 * for a user without employee record, the employee data it needs (CA-10).
+	 *
+	 * @return the employee record to register, or {@code null} if none is registered
+	 */
+	private NewNpdLeadCommand validate(UpdateUserRequest request, AppUser user, String actor) {
+		List<FieldProblem> problems = new ArrayList<>();
+		try {
+			validator.validate(request);
+		}
+		catch (ValidationException ex) {
+			problems.addAll(ex.getProblems());
+		}
+		NewNpdLeadCommand newLead = null;
+		boolean registersLead = NPD_LEADER.equals(request.role()) && !NPD_LEADER.equals(user.getRole())
+				&& user.getEmployeeId() == null;
+		if (registersLead && request.employee() == null) {
+			problems.add(FieldProblem.of("employee", FieldErrorCode.REQUIRED));
+		}
+		else if (registersLead) {
+			String fullName = request.fullName() == null ? null : request.fullName().strip();
+			newLead = new NewNpdLeadCommand(request.employee(), fullName, user.getEmail(), actor);
+			// The record's name is the user's, whose errors are already reported as fullName
+			npdLeads.problemsOf(newLead)
+				.stream()
+				.filter(problem -> !"employee.name".equals(problem.field()))
+				.forEach(problems::add);
+		}
+		if (!problems.isEmpty()) {
+			throw new ValidationException(CreateUserRequestValidator.MESSAGE_SCOPE, problems);
+		}
+		return newLead;
+	}
+
+	/**
 	 * Saves the new values with the user locked, rechecking what may have changed while Keycloak was
 	 * called: the version and, when an administrator is demoted, that another active one remains. The
 	 * administrators are locked before the user, always in the same order, so two administrators who
-	 * demote each other at the same time wait for one another and the second one is rejected.
+	 * demote each other at the same time wait for one another and the second one is rejected. The
+	 * employee record changes in the same transaction: both are saved, or neither.
 	 */
-	private UserResponse save(long id, Integer version, String fullName, Role role, boolean demotesAdministrator,
-			String actor) {
-		List<AppUser> administrators = demotesAdministrator
+	private UserResponse save(Change change) {
+		long id = change.id();
+		List<AppUser> administrators = change.demotesAdministrator()
 				? users.lockByRoleAndState(ADMINISTRATOR, AppUserState.ACTIVE) : List.of();
 		AppUser user = users.lockById(id).orElseThrow(() -> new NotFoundException(id));
-		if (!Objects.equals(version, user.getVersion())) {
+		if (!Objects.equals(change.version(), user.getVersion())) {
 			throw concurrentModification(user);
 		}
 		if (administrators.stream().anyMatch(administrator -> administrator.getId() == id)
@@ -166,16 +211,42 @@ public class UserEditService {
 			throw lastAdministrator();
 		}
 		Map<String, String> before = auditValues(user);
-		user.setFullName(fullName);
-		user.setRole(role.realmName());
+		changeEmployee(user, change);
+		user.setFullName(change.fullName());
+		user.setRole(change.role().realmName());
 		try {
 			users.saveAndFlush(user);
 		}
 		catch (OptimisticLockingFailureException ex) {
 			throw concurrentModification(user);
 		}
-		audit.recordChanges(AUDIT_ENTITY, id, before, auditValues(user), actor);
+		audit.recordChanges(AUDIT_ENTITY, id, before, auditValues(user), change.actor());
 		return queries.toResponse(user);
+	}
+
+	/**
+	 * The employee side of the edit (design §6, "What happens by case"): a new NPD lead gets their record
+	 * (CA-10), a former one goes back to Activo (CA-10), one leaving the role goes on Baja (CA-11), and a
+	 * linked record gets the new name (HU-11 CA-04).
+	 */
+	private void changeEmployee(AppUser user, Change change) {
+		boolean wasLead = NPD_LEADER.equals(user.getRole());
+		boolean isLead = change.role() == Role.NPD_LEADER;
+		Long employeeId = user.getEmployeeId();
+		if (isLead && !wasLead && employeeId == null) {
+			// Registered with the new name already
+			user.setEmployeeId(npdLeads.register(change.newLead()));
+			return;
+		}
+		if (isLead && !wasLead) {
+			npdLeads.returnToRole(employeeId, change.actor());
+		}
+		else if (wasLead && !isLead) {
+			npdLeads.leaveRole(employeeId, change.actor());
+		}
+		if (employeeId != null && !change.fullName().equals(user.getFullName())) {
+			npdLeads.rename(employeeId, change.fullName(), change.actor());
+		}
 	}
 
 	/**
@@ -206,6 +277,9 @@ public class UserEditService {
 		Map<String, String> values = new LinkedHashMap<>();
 		values.put("fullName", user.getFullName());
 		values.put("role", user.getRole());
+		if (user.getEmployeeId() != null) {
+			values.put("employeeId", user.getEmployeeId().toString());
+		}
 		return values;
 	}
 
@@ -216,6 +290,11 @@ public class UserEditService {
 
 	private static ApiException lastAdministrator() {
 		return new ApiException(ErrorCode.LAST_OPERATIONS_ADMINISTRATOR, List.of(), Map.of());
+	}
+
+	/** What the transaction saves. */
+	private record Change(long id, Integer version, String fullName, Role role, boolean demotesAdministrator,
+			NewNpdLeadCommand newLead, String actor) {
 	}
 
 	/** What was there before the edit and what Keycloak already changed, to undo it. */
