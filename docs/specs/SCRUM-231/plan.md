@@ -11,7 +11,7 @@ another story takes `V13` first, the migration of PR 3 is renumbered.
 
 | # | Branch | Content | Est. lines | Depends on | Status |
 |---|--------|---------|------------|------------|--------|
-| 1 | `docs/SCRUM-231-spec-design-plan` | `spec.md`, `design.md` and this `plan.md`. | ~330 | — | In review |
+| 1 | `docs/SCRUM-231-spec-design-plan` | `spec.md`, `design.md` and this `plan.md`. | ~360 | — | In review ([#79](https://github.com/SUCCESS-NPD-InfosGroup-team/NPD-RP-Backend/pull/79)) |
 | 2 | `feature/SCRUM-231-keycloak-enable-delete` | `setEnabled` and 404-tolerant `deleteAccount` in the Keycloak client. | ~180 | PR 1 | Pending |
 | 3 | `feature/SCRUM-231-deactivate-service` | V13, `AppUser.disabledAt`, settings, deactivation service with CA-04 and audit. | ~390 | PR 2, SCRUM-53 #76 | Pending |
 | 4 | `feature/SCRUM-231-reactivate-service` | Reactivation service, `ACCOUNT_DELETION_DUE`. | ~250 | PR 3 | Pending |
