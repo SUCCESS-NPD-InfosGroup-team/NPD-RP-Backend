@@ -26,6 +26,8 @@ import com.npdinfosgroup.api.planner.dto.request.UpdateProjectCommand;
 import com.npdinfosgroup.api.planner.dto.request.UpdateProjectRequest;
 import com.npdinfosgroup.api.planner.persistence.entity.Client;
 import com.npdinfosgroup.api.planner.persistence.entity.Project;
+import com.npdinfosgroup.api.planner.persistence.entity.Employee;
+import com.npdinfosgroup.api.planner.persistence.repository.EmployeeRepository;
 import com.npdinfosgroup.api.planner.persistence.repository.ProjectRepository;
 import com.npdinfosgroup.api.planner.service.validator.ProjectRequestValidator;
 import com.npdinfosgroup.api.shared.exception.ApiException;
@@ -46,13 +48,16 @@ class ProjectUpdateServiceTest {
 
 	private final ProjectRepository projects = mock();
 
+	private final EmployeeRepository employees = mock();
+
 	private final ProjectRequestValidator validator = mock();
 
 	private final ProjectQueryService queries = mock();
 
 	private final AuditService audit = mock();
 
-	private final ProjectUpdateService service = new ProjectUpdateService(projects, validator, queries, audit);
+	private final ProjectUpdateService service = new ProjectUpdateService(projects, employees, validator,
+			queries, audit);
 
 	private Project project;
 
@@ -86,6 +91,40 @@ class ProjectUpdateServiceTest {
 		verify(audit).recordChanges("project", 7L, Map.of("name", "Core", "contractEndDate", "2027-01-31"), after,
 				ACTOR);
 		verify(queries).get(7L);
+	}
+
+	/**
+	 * The people whose end date was the old contract end move to the new one, each audited; nobody moves
+	 * when the contract end is removed or did not change.
+	 */
+	@Test
+	void movesThePeopleWithTheOldContractEnd() {
+		LocalDate oldEnd = LocalDate.of(2027, 1, 31);
+		LocalDate newEnd = LocalDate.of(2027, 3, 31);
+		Employee ana = employee(1003L, oldEnd);
+		when(employees.findByProjectIdAndProjectEndDateAndStatus_CodeNot(7L, oldEnd, "BAJA")).thenReturn(List.of(ana));
+
+		assertThat(service.update(command("Core", newEnd, 2)).membersEndDateMoved()).isEqualTo(1);
+		assertThat(ana.getProjectEndDate()).isEqualTo(newEnd);
+		verify(employees).saveAllAndFlush(List.of(ana));
+		verify(audit).recordChanges("employee", 1003L, Map.of("assignment.endDate", "2027-01-31"),
+				Map.of("assignment.endDate", "2027-03-31"), ACTOR);
+
+		assertThat(service.moveMembersEndDate(7L, newEnd, null, ACTOR)).isZero();
+		assertThat(service.moveMembersEndDate(7L, null, newEnd, ACTOR)).isZero();
+		assertThat(service.moveMembersEndDate(7L, newEnd, newEnd, ACTOR)).isZero();
+	}
+
+	/** If one of the people was saved by someone else meanwhile, the whole edit is a 409. */
+	@Test
+	void rejectsTheEditWhenAPersonChangedMeanwhile() {
+		LocalDate oldEnd = LocalDate.of(2027, 1, 31);
+		Employee ana = employee(1003L, oldEnd);
+		when(employees.findByProjectIdAndProjectEndDateAndStatus_CodeNot(7L, oldEnd, "BAJA")).thenReturn(List.of(ana));
+		doThrow(new OptimisticLockingFailureException("stale")).when(employees).saveAllAndFlush(List.of(ana));
+
+		assertThatThrownBy(() -> service.update(command("Core", LocalDate.of(2027, 3, 31), 2))).extracting("code")
+			.isEqualTo(ErrorCode.CONCURRENT_MODIFICATION);
 	}
 
 	/** An unknown project is a 404 and an inactive one a 409, before any other check. */
@@ -131,6 +170,13 @@ class ProjectUpdateServiceTest {
 		assertThatThrownBy(() -> service.update(command("Core 3", null, 2))).extracting("code")
 			.isEqualTo(ErrorCode.PROJECT_NAME_TAKEN);
 		verify(audit, never()).recordChanges(anyString(), anyLong(), anyMap(), anyMap(), eq(ACTOR));
+	}
+
+	private static Employee employee(long id, LocalDate end) {
+		Employee employee = new Employee();
+		employee.setId(id);
+		employee.setProjectEndDate(end);
+		return employee;
 	}
 
 	private static UpdateProjectCommand command(String name, LocalDate contractEnd, Integer version) {

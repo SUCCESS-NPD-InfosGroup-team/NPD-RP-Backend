@@ -1,5 +1,6 @@
 package com.npdinfosgroup.api.planner.service;
 
+import java.time.LocalDate;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -10,9 +11,12 @@ import com.npdinfosgroup.api.history.service.AuditService;
 import com.npdinfosgroup.api.planner.dto.request.UpdateProjectCommand;
 import com.npdinfosgroup.api.planner.dto.request.UpdateProjectRequest;
 import com.npdinfosgroup.api.planner.dto.response.UpdateProjectResponse;
+import com.npdinfosgroup.api.planner.persistence.entity.Employee;
 import com.npdinfosgroup.api.planner.persistence.entity.Project;
+import com.npdinfosgroup.api.planner.persistence.repository.EmployeeRepository;
 import com.npdinfosgroup.api.planner.persistence.repository.ProjectRepository;
 import com.npdinfosgroup.api.planner.service.validator.ProjectRequestValidator;
+import com.npdinfosgroup.api.planner.service.validator.ResourceRequestValidator;
 import com.npdinfosgroup.api.shared.exception.ApiException;
 import com.npdinfosgroup.api.shared.exception.ErrorCode;
 import com.npdinfosgroup.api.shared.exception.NotFoundException;
@@ -25,6 +29,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Changes a project (HU-14): its name and client contract end. Only active projects are edited.
+ * <p>
+ * When the contract end changes, the people of the team whose end date was the old contract end move
+ * with it (CA-04), in the same transaction: either the project and its people change together, or
+ * nothing changes.
  * <p>
  * Like "Editar recurso", the form sends the {@code version} it read, so two administrators editing the
  * same project never overwrite each other without knowing it (409). Every change is audited per field.
@@ -39,7 +47,12 @@ public class ProjectUpdateService {
 
 	private static final String UPDATE = "UPDATE";
 
+	/** Audited field of a person's end date, the same key "Editar recurso" uses. */
+	private static final String END_DATE_FIELD = "assignment.endDate";
+
 	private final ProjectRepository projects;
+
+	private final EmployeeRepository employees;
 
 	private final ProjectRequestValidator validator;
 
@@ -51,23 +64,26 @@ public class ProjectUpdateService {
 	 * Creates the service.
 	 *
 	 * @param projects reads and saves the project
+	 * @param employees moves the people with the contract end
 	 * @param validator rules of the project form
 	 * @param queries builds the answer with the figures of the project
 	 * @param audit records each change
 	 */
-	ProjectUpdateService(ProjectRepository projects, ProjectRequestValidator validator, ProjectQueryService queries,
-			AuditService audit) {
+	ProjectUpdateService(ProjectRepository projects, EmployeeRepository employees, ProjectRequestValidator validator,
+			ProjectQueryService queries, AuditService audit) {
 		this.projects = projects;
+		this.employees = employees;
 		this.validator = validator;
 		this.queries = queries;
 		this.audit = audit;
 	}
 
 	/**
-	 * Edits the name and the client contract end of an active project. The client never changes.
+	 * Edits the name and the client contract end of an active project, moving the people whose end date
+	 * was the old contract end. The client never changes.
 	 *
 	 * @param command the project id, its new values with the version that was read, and who edits it
-	 * @return the saved project, with its new version
+	 * @return the saved project, with its new version, and how many people moved their end date
 	 * @throws NotFoundException if the project does not exist
 	 * @throws ApiException {@link ErrorCode#PROJECT_INACTIVE} if it is inactive,
 	 *         {@link ErrorCode#CONCURRENT_MODIFICATION} if someone saved it after the version that was read,
@@ -86,14 +102,47 @@ public class ProjectUpdateService {
 		validator.checkNameAvailable(project, name);
 
 		Map<String, String> before = values(project);
+		LocalDate previousEnd = project.getContractEndDate();
 		project.setName(name);
 		project.setContractEndDate(request.contractEndDate());
 		save(project);
+		long moved = moveMembersEndDate(project.getId(), previousEnd, project.getContractEndDate(), command.actor());
 		int changes = audit.recordChanges(AUDIT_ENTITY, project.getId(), before, values(project), command.actor());
 		if (changes > 0) {
 			log.info("Project {} edited", project.getId());
 		}
-		return new UpdateProjectResponse(queries.get(project.getId()), 0);
+		return new UpdateProjectResponse(queries.get(project.getId()), moved);
+	}
+
+	/**
+	 * Moves to the new contract end the people of the team (Baja excluded) whose end date was the old one,
+	 * each with its own audit row. Nobody moves when the project had no contract end or it was removed,
+	 * so nobody becomes indefinite without someone choosing it.
+	 *
+	 * @param projectId project id
+	 * @param previousEnd contract end before the edit
+	 * @param newEnd contract end after the edit
+	 * @param actor who edits the project
+	 * @return how many people moved
+	 * @throws ApiException {@link ErrorCode#CONCURRENT_MODIFICATION} if one of them was saved by someone
+	 *         else at the same moment; the whole edit is rolled back
+	 */
+	long moveMembersEndDate(long projectId, LocalDate previousEnd, LocalDate newEnd, String actor) {
+		if (previousEnd == null || newEnd == null || previousEnd.equals(newEnd)) {
+			return 0;
+		}
+		List<Employee> members = employees.findByProjectIdAndProjectEndDateAndStatus_CodeNot(projectId, previousEnd,
+				ResourceRequestValidator.TERMINATED);
+		members.forEach(member -> member.setProjectEndDate(newEnd));
+		try {
+			employees.saveAllAndFlush(members);
+		}
+		catch (OptimisticLockingFailureException ex) {
+			throw new ApiException(ErrorCode.CONCURRENT_MODIFICATION, List.of(), Map.of());
+		}
+		members.forEach(member -> audit.recordChanges(ResourceQueryService.AUDIT_ENTITY, member.getId(),
+				Map.of(END_DATE_FIELD, previousEnd.toString()), Map.of(END_DATE_FIELD, newEnd.toString()), actor));
+		return members.size();
 	}
 
 	/**

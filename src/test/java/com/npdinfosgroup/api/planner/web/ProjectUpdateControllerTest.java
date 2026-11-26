@@ -71,7 +71,9 @@ class ProjectUpdateControllerTest {
 	/** Leaves the database as the other tests expect it. */
 	@AfterEach
 	void cleanUp() {
-		jdbc.sql("DELETE FROM audit_log WHERE entity_type = 'project'").update();
+		jdbc.sql("DELETE FROM audit_log WHERE entity_type IN ('project', 'employee')").update();
+		jdbc.sql("DELETE FROM employee WHERE code LIKE 'PU-%'").update();
+		jdbc.sql("DELETE FROM job_position WHERE name = 'PU Posicion'").update();
 		jdbc.sql("DELETE FROM project WHERE client_id IN (SELECT id FROM client WHERE name LIKE 'PU %')").update();
 		jdbc.sql("DELETE FROM client WHERE name LIKE 'PU %'").update();
 	}
@@ -93,6 +95,37 @@ class ProjectUpdateControllerTest {
 				"contractEndDate: " + TODAY.plusDays(40) + " -> " + newEnd);
 		assertThat(jdbc.sql("SELECT DISTINCT actor FROM audit_log WHERE entity_type = 'project'").query(String.class)
 			.list()).containsExactly(TestSecurityConfiguration.usernameOf(ADMIN));
+	}
+
+	/**
+	 * CA-04: the people whose end date was the old contract end move with it, each audited; indefinite
+	 * people, people with another date and people on Baja keep theirs.
+	 */
+	@Test
+	void movesThePeopleWithTheOldContractEnd() {
+		LocalDate oldEnd = TODAY.plusDays(40);
+		LocalDate newEnd = TODAY.plusDays(90);
+		jdbc.sql("INSERT INTO job_position (name) VALUES ('PU Posicion')").update();
+		long moved = insertEmployee("PU-1", "ACTIVO", oldEnd);
+		insertEmployee("PU-2", "LICENCIA", null);
+		insertEmployee("PU-3", "ACTIVO", TODAY.plusDays(10));
+		insertEmployee("PU-4", "BAJA", oldEnd);
+
+		put(ADMIN, coreId, body("PU Core", newEnd.toString(), 0)).expectStatus()
+			.isOk()
+			.expectBody()
+			.jsonPath("$.membersEndDateMoved").isEqualTo(1);
+
+		assertThat(jdbc.sql("SELECT code || '=' || coalesce(project_end_date::text, '-') FROM employee WHERE code LIKE 'PU-%'")
+			.query(String.class)
+			.list()).containsExactlyInAnyOrder("PU-1=" + newEnd, "PU-2=-", "PU-3=" + TODAY.plusDays(10), "PU-4=" + oldEnd);
+		assertThat(jdbc.sql("""
+				SELECT entity_id FROM audit_log
+				WHERE entity_type = 'employee' AND field = 'assignment.endDate' AND old_value = :old AND new_value = :new""")
+			.param("old", oldEnd.toString())
+			.param("new", newEnd.toString())
+			.query(Long.class)
+			.list()).containsExactly(moved);
 	}
 
 	/** A contract that already ended can be kept while renaming, and the contract end can be removed. */
@@ -200,6 +233,22 @@ class ProjectUpdateControllerTest {
 			.param("id", projectId)
 			.query(String.class)
 			.list();
+	}
+
+	long insertEmployee(String code, String status, LocalDate projectEnd) {
+		return jdbc.sql("""
+				INSERT INTO employee (code, full_name, gender_id, job_position_id, hire_date, status_id, project_id,
+				                      project_end_date)
+				VALUES (:code, :code, (SELECT id FROM gender WHERE code = 'F'),
+				        (SELECT id FROM job_position WHERE name = 'PU Posicion'), DATE '2024-01-15',
+				        (SELECT id FROM resource_status WHERE code = :status), :project, :projectEnd)
+				RETURNING id""")
+			.param("code", code)
+			.param("status", status)
+			.param("project", coreId)
+			.param("projectEnd", projectEnd, Types.DATE)
+			.query(Long.class)
+			.single();
 	}
 
 	long insertProject(long clientId, String name, LocalDate contractEnd, boolean active) {
