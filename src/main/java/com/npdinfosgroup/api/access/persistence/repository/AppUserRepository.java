@@ -37,6 +37,14 @@ public interface AppUserRepository extends JpaRepository<AppUser, Long> {
 	List<AppUser> findByEmailIn(Collection<String> emails);
 
 	/**
+	 * Whether a user is already linked to an employee record.
+	 *
+	 * @param employeeId id of the employee record
+	 * @return {@code true} if a user has it
+	 */
+	boolean existsByEmployeeId(Long employeeId);
+
+	/**
 	 * How many users other than one have a role and a state: the first, unlocked check that an edit does
 	 * not leave the platform without an active Operations administrator.
 	 *

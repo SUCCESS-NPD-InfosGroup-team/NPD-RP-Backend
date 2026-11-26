@@ -168,7 +168,7 @@ class UserEditServiceTest {
 		AppUser locked = given(user("Ana Ríos", "guest", AppUserState.ACTIVE));
 		when(npdLeads.register(any())).thenReturn(42L);
 
-		service.update(new UpdateUserCommand(ID, new UpdateUserRequest(0, "Ana María", "npd-leader", EMPLOYEE), ACTOR));
+		service.update(new UpdateUserCommand(ID, new UpdateUserRequest(0, "Ana María", "npd-leader", EMPLOYEE, null), ACTOR));
 
 		NewNpdLeadCommand lead = new NewNpdLeadCommand(EMPLOYEE, "Ana María", "ana@example.com", ACTOR);
 		verify(npdLeads).problemsOf(lead);
@@ -189,7 +189,7 @@ class UserEditServiceTest {
 			.thenReturn(List.of(FieldProblem.of("employee.genderId", FieldErrorCode.REQUIRED)));
 
 		assertThatThrownBy(() -> service.update(new UpdateUserCommand(ID,
-				new UpdateUserRequest(0, "Ana", "npd-leader", EMPLOYEE), ACTOR)))
+				new UpdateUserRequest(0, "Ana", "npd-leader", EMPLOYEE, null), ACTOR)))
 			.isInstanceOfSatisfying(ValidationException.class, ex -> assertThat(ex.getProblems())
 				.extracting(FieldProblem::field)
 				.containsExactly("fullName", "employee.genderId"));
@@ -336,7 +336,7 @@ class UserEditServiceTest {
 	}
 
 	private UpdateUserCommand command(String fullName, Role role) {
-		return new UpdateUserCommand(ID, new UpdateUserRequest(0, fullName, role.realmName(), null), "admin@example.com");
+		return new UpdateUserCommand(ID, new UpdateUserRequest(0, fullName, role.realmName(), null, null), "admin@example.com");
 	}
 
 	/** Answers the first read and the locked one (another instance, as in a new transaction); returns the latter. */
