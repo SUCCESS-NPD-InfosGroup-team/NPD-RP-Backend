@@ -153,7 +153,14 @@ Message (`messages.properties`):
 OpenAPI of `POST` and `PUT /api/v1/planner/resources`: the bullet about `leaderId` adds that it must be
 an NPD lead from `GET /npd-leads`, and the 400 lists `NOT_NPD_LEADER`.
 
-## Decision 7 — "Crear usuario" stops offering and accepting `npd-leader`
+## Decision 7 — "Crear usuario" stops offering and accepting `npd-leader`, until HU-10
+
+**Why, and why only for now:** "Crear usuario" creates a platform user (Keycloak + `app_user`) and
+nothing else. An NPD lead created there would have no employee record, so they could never be chosen
+as the lead of a collaborator (decision 5 reads `employee.is_npd_lead`), and HU-10 would later have to
+find and fix those users by hand. The block avoids creating them. It is **temporary**: SCRUM-239 (HU-10)
+registers NPD leads with their user and their employee record together, and then decides how "Crear
+usuario" offers the role again (the HU-10 ticket says the NPD lead card opens its flow).
 
 **Options considered**
 
@@ -167,12 +174,13 @@ an NPD lead from `GET /npd-leads`, and the 400 lists `NOT_NPD_LEADER`.
 
 The validator still recognises the four realm names: `npd-leader` adds `FieldProblem("role",
 ROLE_NOT_ASSIGNABLE)`, any other unknown text keeps `UNKNOWN_VALUE`. Validation runs before any call to
-Keycloak, so nothing is created (spec CA-08). HU-10 will add its own endpoint and leave this set as it is.
+Keycloak, so nothing is created (spec CA-08). The Javadoc of `ASSIGNABLE`, the OpenAPI of both endpoints
+and the error message say that the block lasts until HU-10, which changes them when it lands.
 
 Messages:
 
 ```
-validation.user.role.ROLE_NOT_ASSIGNABLE=Los líderes NPD no se crean desde aquí.
+validation.user.role.ROLE_NOT_ASSIGNABLE=Por ahora los líderes NPD no se pueden crear desde aquí.
 validation.user.role.UNKNOWN_VALUE=Selecciona uno de los roles disponibles.
 ```
 

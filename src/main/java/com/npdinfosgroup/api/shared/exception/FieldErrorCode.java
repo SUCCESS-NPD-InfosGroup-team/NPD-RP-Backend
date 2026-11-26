@@ -21,6 +21,8 @@ public enum FieldErrorCode {
 	/** The value is not one of the allowed codes. */
 	UNKNOWN_VALUE,
 
+	ROLE_NOT_ASSIGNABLE,
+
 	/** The id does not exist in its catalog or table. */
 	UNKNOWN_ID,
 

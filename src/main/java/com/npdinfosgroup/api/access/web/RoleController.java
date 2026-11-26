@@ -44,8 +44,11 @@ class RoleController {
 	 */
 	@GetMapping(version = "v1")
 	@Operation(summary = "Listar roles", description = """
-			Los cuatro roles, con su nombre y descripción para las tarjetas del panel «Crear usuario» \
-			(HU-02). `code` es el valor de `role` al crear un usuario. Solo Operations administrator.""")
+			Los roles que se pueden dar al crear un usuario, con su nombre y descripción para las tarjetas \
+			del panel «Crear usuario» (HU-02). `code` es el valor de `role` al crear un usuario. No incluye \
+			`npd-leader` **por ahora**: un líder NPD también necesita su registro de empleado, y este \
+			panel solo crea el usuario. Volverá con el registro de líderes NPD (HU-10, SCRUM-239). Solo \
+			Operations administrator.""")
 	@ApiResponse(responseCode = "200", description = "Los roles")
 	@ApiResponse(responseCode = "401", description = "Sin token o token inválido (`UNAUTHORIZED`)",
 			content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemDetail.class)))
