@@ -12,7 +12,7 @@ origin/develop...HEAD`). What and why: [spec.md](spec.md). How: [design.md](desi
 | 4 | `feature/SCRUM-53-keycloak-edit-operations` | Keycloak calls to rename, change the role and close the sessions. | ~300 | PR 1 | Merged ([#73](https://github.com/SUCCESS-NPD-InfosGroup-team/NPD-RP-Backend/pull/73)) |
 | 5a | `feature/SCRUM-53-user-edit-validation` | Request, command and validator of the edit; new error codes. | ~190 | PR 3 | In review ([#74](https://github.com/SUCCESS-NPD-InfosGroup-team/NPD-RP-Backend/pull/74)) |
 | 5b | `feature/SCRUM-53-user-edit-service` | Edit service for name and role: CA-05, CA-13, Keycloak calls, transaction, audit. | ~370 | PR 4, PR 5a | In review ([#75](https://github.com/SUCCESS-NPD-InfosGroup-team/NPD-RP-Backend/pull/75)) |
-| 5c | `feature/SCRUM-53-user-edit-safeguards` | Last administrator (CA-04) with locks, and the Keycloak compensation. | ~280 | PR 5b | Pending |
+| 5c | `feature/SCRUM-53-user-edit-safeguards` | Last administrator (CA-04) with locks, and the Keycloak compensation. | ~280 | PR 5b | In review ([#76](https://github.com/SUCCESS-NPD-InfosGroup-team/NPD-RP-Backend/pull/76)) |
 | 6 | `feature/SCRUM-53-edit-user-endpoint` | `PUT /api/v1/access/users/{id}`, OpenAPI, messages, end-to-end tests. | ~300 | PR 5c | Pending |
 | 7 | `feature/SCRUM-53-npd-lead-employee-service` | `planner` service with the NPD lead employee operations. | ~380 | PR 3 | Pending |
 | 8 | `feature/SCRUM-53-role-change-npd-lead` | CA-10 and CA-11 in the edit: register, Baja, back to Activo, rename. | ~360 | PR 6, PR 7 | Pending |

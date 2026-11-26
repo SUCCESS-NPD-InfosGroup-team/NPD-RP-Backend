@@ -12,6 +12,7 @@ import com.npdinfosgroup.api.access.dto.request.UpdateUserCommand;
 import com.npdinfosgroup.api.access.dto.request.UpdateUserRequest;
 import com.npdinfosgroup.api.access.dto.response.UserResponse;
 import com.npdinfosgroup.api.access.persistence.entity.AppUser;
+import com.npdinfosgroup.api.access.persistence.entity.AppUserState;
 import com.npdinfosgroup.api.access.persistence.repository.AppUserRepository;
 import com.npdinfosgroup.api.access.service.validator.CreateUserRequestValidator;
 import com.npdinfosgroup.api.access.service.validator.UpdateUserRequestValidator;
@@ -34,8 +35,8 @@ import org.springframework.transaction.support.TransactionOperations;
  * and its audit in one transaction. See {@code docs/specs/SCRUM-53/design.md} §1, §3 and §5.
  * <p>
  * Keycloak and the database cannot share a transaction, so no transaction stays open while waiting for
- * Keycloak. A role change closes the user's sessions, so the new role applies from their next request
- * (CA-01).
+ * Keycloak, and if anything fails after Keycloak was changed, the old name and role are put back there.
+ * A role change closes the user's sessions, so the new role applies from their next request (CA-01).
  * <p>
  * <b>For now</b> the role cannot change to NPD lead: that needs the employee record of the lead, which
  * comes with the NPD lead cases (SCRUM-53 plan, PR 8).
@@ -47,6 +48,8 @@ public class UserEditService {
 
 	/** Entity name of the users in {@code audit_log}, as their creation records it. */
 	private static final String AUDIT_ENTITY = "app_user";
+
+	private static final String ADMINISTRATOR = Role.OPERATIONS_ADMINISTRATOR.realmName();
 
 	private final UpdateUserRequestValidator validator;
 
@@ -89,9 +92,10 @@ public class UserEditService {
 	 * @throws NotFoundException if the user does not exist
 	 * @throws ValidationException with every invalid field; nothing changes
 	 * @throws ApiException {@link ErrorCode#CONCURRENT_MODIFICATION} if someone saved the user after the
-	 *         version that was read, or {@link ErrorCode#NPD_LEAD_WITHOUT_EMPLOYEE} for an NPD lead
-	 *         without employee record (CA-13)
-	 * @throws IdentityProviderUnavailableException if Keycloak cannot be reached
+	 *         version that was read, {@link ErrorCode#NPD_LEAD_WITHOUT_EMPLOYEE} for an NPD lead without
+	 *         employee record (CA-13), or {@link ErrorCode#LAST_OPERATIONS_ADMINISTRATOR} if no active
+	 *         Operations administrator would remain (CA-04); nothing changes
+	 * @throws IdentityProviderUnavailableException if Keycloak cannot be reached; nothing is left changed
 	 */
 	public UserResponse update(UpdateUserCommand command) {
 		long id = command.id();
@@ -115,28 +119,51 @@ public class UserEditService {
 			throw new ValidationException(CreateUserRequestValidator.MESSAGE_SCOPE,
 					List.of(FieldProblem.of("role", FieldErrorCode.ROLE_NOT_ASSIGNABLE)));
 		}
-		UUID keycloakId = user.getKeycloakId();
-		if (renames) {
-			keycloak.rename(keycloakId, fullName);
+		boolean demotesAdministrator = changesRole && ADMINISTRATOR.equals(user.getRole());
+		if (demotesAdministrator && user.getState() == AppUserState.ACTIVE
+				&& users.countByRoleAndStateAndIdNot(ADMINISTRATOR, AppUserState.ACTIVE, id) == 0) {
+			throw lastAdministrator();
 		}
-		if (changesRole) {
-			keycloak.replaceRealmRole(keycloakId, role);
-			keycloak.logout(keycloakId);
+		Edit edit = new Edit(user.getKeycloakId(), user.getFullName(), user.getRole());
+		try {
+			if (renames) {
+				keycloak.rename(edit.keycloakId, fullName);
+				edit.renamed = true;
+			}
+			if (changesRole) {
+				// Marked before the call: the old role may be gone even if adding the new one fails
+				edit.roleTouched = true;
+				keycloak.replaceRealmRole(edit.keycloakId, role);
+				keycloak.logout(edit.keycloakId);
+			}
+			UserResponse response = transactions
+				.execute(status -> save(id, request.version(), fullName, role, demotesAdministrator, command.actor()));
+			log.info("User {} updated", id);
+			return response;
 		}
-		UserResponse response = transactions
-			.execute(status -> save(id, request.version(), fullName, role, command.actor()));
-		log.info("User {} updated", id);
-		return response;
+		catch (RuntimeException ex) {
+			undo(edit);
+			throw ex;
+		}
 	}
 
 	/**
-	 * Saves the new values with the user locked, rechecking the version: someone may have saved the user
-	 * while Keycloak was called.
+	 * Saves the new values with the user locked, rechecking what may have changed while Keycloak was
+	 * called: the version and, when an administrator is demoted, that another active one remains. The
+	 * administrators are locked before the user, always in the same order, so two administrators who
+	 * demote each other at the same time wait for one another and the second one is rejected.
 	 */
-	private UserResponse save(long id, Integer version, String fullName, Role role, String actor) {
+	private UserResponse save(long id, Integer version, String fullName, Role role, boolean demotesAdministrator,
+			String actor) {
+		List<AppUser> administrators = demotesAdministrator
+				? users.lockByRoleAndState(ADMINISTRATOR, AppUserState.ACTIVE) : List.of();
 		AppUser user = users.lockById(id).orElseThrow(() -> new NotFoundException(id));
 		if (!Objects.equals(version, user.getVersion())) {
 			throw concurrentModification(user);
+		}
+		if (administrators.stream().anyMatch(administrator -> administrator.getId() == id)
+				&& administrators.size() == 1) {
+			throw lastAdministrator();
 		}
 		Map<String, String> before = auditValues(user);
 		user.setFullName(fullName);
@@ -151,6 +178,30 @@ public class UserEditService {
 		return queries.toResponse(user);
 	}
 
+	/**
+	 * Puts the old name and role back in Keycloak after a failed edit, best effort: if it fails, the
+	 * account is logged to fix it by hand. Closed sessions are not undone; the user just logs in again.
+	 */
+	private void undo(Edit edit) {
+		if (edit.roleTouched) {
+			undoStep(edit, "role", () -> keycloak.replaceRealmRole(edit.keycloakId, Role.ofRealmName(edit.role).orElseThrow()));
+		}
+		if (edit.renamed) {
+			undoStep(edit, "name", () -> keycloak.rename(edit.keycloakId, edit.fullName));
+		}
+	}
+
+	/** One step of the undo; a failed one does not stop the next. */
+	private static void undoStep(Edit edit, String what, Runnable step) {
+		try {
+			step.run();
+		}
+		catch (RuntimeException ex) {
+			log.error("Could not put the old {} back in Keycloak account {}: {}", what, edit.keycloakId,
+					ex.getClass().getName());
+		}
+	}
+
 	private static Map<String, String> auditValues(AppUser user) {
 		Map<String, String> values = new LinkedHashMap<>();
 		values.put("fullName", user.getFullName());
@@ -161,6 +212,31 @@ public class UserEditService {
 	private static ApiException concurrentModification(AppUser current) {
 		return new ApiException(ErrorCode.CONCURRENT_MODIFICATION, List.of(),
 				Map.of("currentVersion", current.getVersion()));
+	}
+
+	private static ApiException lastAdministrator() {
+		return new ApiException(ErrorCode.LAST_OPERATIONS_ADMINISTRATOR, List.of(), Map.of());
+	}
+
+	/** What was there before the edit and what Keycloak already changed, to undo it. */
+	private static final class Edit {
+
+		final UUID keycloakId;
+
+		final String fullName;
+
+		final String role;
+
+		boolean renamed;
+
+		boolean roleTouched;
+
+		Edit(UUID keycloakId, String fullName, String role) {
+			this.keycloakId = keycloakId;
+			this.fullName = fullName;
+			this.role = role;
+		}
+
 	}
 
 }

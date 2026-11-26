@@ -3,7 +3,10 @@ package com.npdinfosgroup.api.access.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -11,10 +14,12 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
+import com.npdinfosgroup.api.access.client.IdentityProviderUnavailableException;
 import com.npdinfosgroup.api.access.client.KeycloakAdminClient;
 import com.npdinfosgroup.api.access.dto.request.UpdateUserCommand;
 import com.npdinfosgroup.api.access.dto.request.UpdateUserRequest;
@@ -37,13 +42,15 @@ import org.springframework.transaction.support.TransactionOperations;
 
 /**
  * Editing a user, with Keycloak and the database mocked: what is called and in which order, the checks
- * of CA-05 and CA-13, and the version.
+ * of CA-04, CA-05 and CA-13, the version, and how a failure is undone in Keycloak.
  */
 class UserEditServiceTest {
 
 	private static final long ID = 7L;
 
 	private static final UUID KEYCLOAK_ID = UUID.fromString("5f0c2b8e-1d2a-4c3b-9e4f-6a7b8c9d0e1f");
+
+	private static final String ADMINISTRATOR = Role.OPERATIONS_ADMINISTRATOR.realmName();
 
 	private final AppUserRepository users = mock();
 
@@ -153,15 +160,74 @@ class UserEditServiceTest {
 		verifyNoInteractions(keycloak);
 	}
 
-	/** Someone saved the user while Keycloak was called: the recheck in the transaction gives 409. */
+	/** CA-04: the last active administrator cannot lose the role; nothing reaches Keycloak. */
 	@Test
-	void rejectsAVersionChangedMeanwhile() {
+	void keepsTheLastAdministrator() {
+		when(users.findById(ID)).thenReturn(Optional.of(user("Ana Ríos", ADMINISTRATOR, AppUserState.ACTIVE)));
+		when(validator.validate(any())).thenReturn(Role.GUEST);
+		when(users.countByRoleAndStateAndIdNot(ADMINISTRATOR, AppUserState.ACTIVE, ID)).thenReturn(0L);
+
+		assertThatThrownBy(() -> service.update(command("Ana Ríos", Role.GUEST)))
+			.isInstanceOfSatisfying(ApiException.class,
+					ex -> assertThat(ex.getCode()).isEqualTo(ErrorCode.LAST_OPERATIONS_ADMINISTRATOR));
+		verifyNoInteractions(keycloak);
+	}
+
+	/** A pending administrator does not count, so demoting one never leaves the platform without any. */
+	@Test
+	void demotesAPendingAdministratorWithoutCounting() {
+		given(user("Ana Ríos", ADMINISTRATOR, AppUserState.PENDING));
+		when(users.lockByRoleAndState(ADMINISTRATOR, AppUserState.ACTIVE)).thenReturn(List.of(user(99L)));
+
+		service.update(command("Ana Ríos", Role.GUEST));
+
+		verify(users, never()).countByRoleAndStateAndIdNot(anyString(), any(), anyLong());
+		verify(keycloak).replaceRealmRole(KEYCLOAK_ID, Role.GUEST);
+	}
+
+	/**
+	 * Another administrator demoted the other one while Keycloak was called: the recheck, with the
+	 * administrators locked, rejects the edit and the old role is put back.
+	 */
+	@Test
+	void rechecksTheLastAdministratorWithTheLock() {
+		given(user("Ana Ríos", ADMINISTRATOR, AppUserState.ACTIVE));
+		when(users.countByRoleAndStateAndIdNot(ADMINISTRATOR, AppUserState.ACTIVE, ID)).thenReturn(1L);
+		when(users.lockByRoleAndState(ADMINISTRATOR, AppUserState.ACTIVE)).thenReturn(List.of(user(ID)));
+
+		assertThatThrownBy(() -> service.update(command("Ana Ríos", Role.GUEST)))
+			.isInstanceOfSatisfying(ApiException.class,
+					ex -> assertThat(ex.getCode()).isEqualTo(ErrorCode.LAST_OPERATIONS_ADMINISTRATOR));
+		InOrder order = inOrder(users, keycloak);
+		order.verify(users).lockByRoleAndState(ADMINISTRATOR, AppUserState.ACTIVE);
+		order.verify(users).lockById(ID);
+		order.verify(keycloak).replaceRealmRole(KEYCLOAK_ID, Role.OPERATIONS_ADMINISTRATOR);
+		verify(users, never()).saveAndFlush(any());
+	}
+
+	/** With another active administrator the role changes. */
+	@Test
+	void demotesAnAdministratorWhenAnotherRemains() {
+		AppUser locked = given(user("Ana Ríos", ADMINISTRATOR, AppUserState.ACTIVE));
+		when(users.countByRoleAndStateAndIdNot(ADMINISTRATOR, AppUserState.ACTIVE, ID)).thenReturn(1L);
+		when(users.lockByRoleAndState(ADMINISTRATOR, AppUserState.ACTIVE)).thenReturn(List.of(user(ID), user(99L)));
+
+		service.update(command("Ana Ríos", Role.GUEST));
+
+		assertThat(locked.getRole()).isEqualTo("guest");
+	}
+
+	/** Someone saved the user while Keycloak was called: 409, and Keycloak gets the old values back. */
+	@Test
+	void undoesKeycloakWhenTheVersionChangedMeanwhile() {
 		AppUser locked = given(user("Ana Ríos", "guest", AppUserState.ACTIVE));
 		locked.setVersion(1);
 
 		assertThatThrownBy(() -> service.update(command("Ana María", Role.CUSTOMER_SUCCESS)))
 			.isInstanceOfSatisfying(ApiException.class,
 					ex -> assertThat(ex.getCode()).isEqualTo(ErrorCode.CONCURRENT_MODIFICATION));
+		verify(keycloak).replaceRealmRole(KEYCLOAK_ID, Role.GUEST);
+		verify(keycloak).rename(KEYCLOAK_ID, "Ana Ríos");
 		verify(users, never()).saveAndFlush(any());
 	}
 
@@ -174,6 +240,63 @@ class UserEditServiceTest {
 		assertThatThrownBy(() -> service.update(command("Ana María", Role.GUEST)))
 			.isInstanceOfSatisfying(ApiException.class,
 					ex -> assertThat(ex.getCode()).isEqualTo(ErrorCode.CONCURRENT_MODIFICATION));
+		verify(keycloak).rename(KEYCLOAK_ID, "Ana Ríos");
+	}
+
+	/**
+	 * The new role could not be given (the old one may be gone already): the old role is put back, and
+	 * the name too.
+	 */
+	@Test
+	void undoesTheRoleWhenReplacingItFails() {
+		given(user("Ana Ríos", "guest", AppUserState.ACTIVE));
+		IdentityProviderUnavailableException outage = new IdentityProviderUnavailableException(new RuntimeException());
+		doThrow(outage).when(keycloak).replaceRealmRole(KEYCLOAK_ID, Role.CUSTOMER_SUCCESS);
+
+		assertThatThrownBy(() -> service.update(command("Ana María", Role.CUSTOMER_SUCCESS))).isSameAs(outage);
+
+		verify(keycloak).replaceRealmRole(KEYCLOAK_ID, Role.GUEST);
+		verify(keycloak).rename(KEYCLOAK_ID, "Ana Ríos");
+		verify(keycloak, never()).logout(any());
+		verify(users, never()).lockById(anyLong());
+	}
+
+	/** A rename that fails changed nothing: there is nothing to undo. */
+	@Test
+	void undoesNothingWhenTheRenameFails() {
+		given(user("Ana Ríos", "guest", AppUserState.ACTIVE));
+		IdentityProviderUnavailableException outage = new IdentityProviderUnavailableException(new RuntimeException());
+		doThrow(outage).when(keycloak).rename(KEYCLOAK_ID, "Ana María");
+
+		assertThatThrownBy(() -> service.update(command("Ana María", Role.GUEST))).isSameAs(outage);
+
+		verify(keycloak).rename(KEYCLOAK_ID, "Ana María");
+		verify(keycloak, never()).rename(KEYCLOAK_ID, "Ana Ríos");
+	}
+
+	/** If the undo fails too, the original error is still the one returned (the undo is only logged). */
+	@Test
+	void returnsTheOriginalErrorWhenTheUndoFails() {
+		AppUser locked = given(user("Ana Ríos", "guest", AppUserState.ACTIVE));
+		RuntimeException databaseDown = new RuntimeException("database down");
+		when(users.saveAndFlush(locked)).thenThrow(databaseDown);
+		doThrow(new IdentityProviderUnavailableException(new RuntimeException())).when(keycloak)
+			.rename(KEYCLOAK_ID, "Ana Ríos");
+
+		assertThatThrownBy(() -> service.update(command("Ana María", Role.GUEST))).isSameAs(databaseDown);
+	}
+
+	/** A failed undo of the role does not stop putting the old name back. */
+	@Test
+	void undoesTheNameWhenUndoingTheRoleFails() {
+		AppUser locked = given(user("Ana Ríos", "guest", AppUserState.ACTIVE));
+		when(users.saveAndFlush(locked)).thenThrow(new RuntimeException("database down"));
+		doThrow(new IdentityProviderUnavailableException(new RuntimeException())).when(keycloak)
+			.replaceRealmRole(KEYCLOAK_ID, Role.GUEST);
+
+		assertThatThrownBy(() -> service.update(command("Ana María", Role.CUSTOMER_SUCCESS)))
+			.hasMessage("database down");
+		verify(keycloak).rename(KEYCLOAK_ID, "Ana Ríos");
 	}
 
 	private UpdateUserCommand command(String fullName, Role role) {
