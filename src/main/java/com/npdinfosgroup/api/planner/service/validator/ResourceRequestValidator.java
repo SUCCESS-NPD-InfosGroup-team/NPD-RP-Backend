@@ -51,7 +51,7 @@ public class ResourceRequestValidator {
 			"version");
 
 	/** Scope of the field messages of this form ({@code validation.resource.<field>.<CODE>}). */
-	static final String MESSAGE_SCOPE = "resource";
+	public static final String MESSAGE_SCOPE = "resource";
 
 	private static final String EMPLOYEE_NUMBER = "employeeNumber";
 
