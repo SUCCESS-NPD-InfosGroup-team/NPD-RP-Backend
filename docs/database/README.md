@@ -11,6 +11,7 @@ PostgreSQL 18 schema, versioned with Flyway in [`src/main/resources/db/migration
 | `V5__create_audit_log.sql` | `audit_log`: who changed what and when, one row per field |
 | `V7__resource_search.sql` | `resource_v` with what the roster search needs: probation, client role id, start of the bar, group and search text |
 | `V12__app_user_employee_link.sql` | `app_user.employee_id` (the employee record of an NPD lead user) and `app_user.version`; the inactive termination reason `CAMBIO_DE_ROL` |
+| `V13__app_user_deactivation.sql` | `app_user.disabled_at` (moment of a deactivation, set only while `DISABLED`) and the `DELETE` action in `audit_log` |
 
 Images: [`er-diagram.png`](er-diagram.png). Editable diagram: [`er-diagram.drawio`](er-diagram.drawio) (open at https://app.diagrams.net).
 

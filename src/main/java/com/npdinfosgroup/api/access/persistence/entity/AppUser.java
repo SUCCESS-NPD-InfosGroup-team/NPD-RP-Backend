@@ -50,6 +50,9 @@ public class AppUser {
 	@Column(name = "created_by", nullable = false, length = 150)
 	private String createdBy;
 
+	@Column(name = "disabled_at")
+	private Instant disabledAt;
+
 	@Column(name = "employee_id")
 	private Long employeeId;
 
