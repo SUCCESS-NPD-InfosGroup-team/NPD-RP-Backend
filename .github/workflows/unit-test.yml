@@ -2,11 +2,11 @@ name: CI
 on:
   pull_request:
     branches: [main, develop]
-  # Sonar necesita un análisis de cada rama base para comparar contra ella los PRs
+  # Sonar needs an analysis of each base branch to compare the PRs against it
   push:
     branches: [main, develop]
 
-# Solo necesita leer el código; Sonar comenta el PR con su propia GitHub App
+# It only reads the code; Sonar comments on the PR with its own GitHub App
 permissions:
   contents: read
 
@@ -16,25 +16,53 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      # Actions fijadas por SHA (comentario = versión) para que nadie pueda cambiar su código bajo la misma etiqueta
+      # Actions pinned by SHA (comment = version) so nobody can change their code under the same tag
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
-          fetch-depth: 0 # Sonar usa el historial completo de git para saber qué líneas son nuevas
+          fetch-depth: 0 # Sonar uses the full git history to know which lines are new; also needed for the diff below
+      # The job always runs, because "Run Unit Tests" is a required check: with paths-ignore it would never
+      # report and a PR that only changes Markdown could not be merged. When every changed file is .md,
+      # the build, the tests and Sonar are skipped and the job passes.
+      - name: Detect changes other than Markdown
+        id: changes
+        env:
+          EVENT: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+        run: |
+          if [ "$EVENT" = "pull_request" ]; then
+            files=$(git diff --name-only "$PR_BASE...$PR_HEAD") || files=""
+          elif [ -n "$PUSH_BEFORE" ] && [ "$PUSH_BEFORE" != "0000000000000000000000000000000000000000" ]; then
+            files=$(git diff --name-only "$PUSH_BEFORE" "$GITHUB_SHA") || files=""
+          else
+            files=""
+          fi
+          # Unknown or empty list (new branch, failed diff): validate everything to be safe
+          if [ -z "$files" ] || printf '%s\n' "$files" | grep -qv '\.md$'; then
+            echo "code=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "code=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Only Markdown files changed: build, tests and SonarQube analysis skipped"
+          fi
       - uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9 # v4.8.0
+        if: steps.changes.outputs.code == 'true'
         with:
           distribution: 'temurin'
           java-version: '21'
           cache: maven
       - name: Cache SonarQube packages
+        if: steps.changes.outputs.code == 'true'
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: ~/.sonar/cache
           key: ${{ runner.os }}-sonar
           restore-keys: ${{ runner.os }}-sonar
-      # verify: tests (Testcontainers; el runner ya trae Docker) + reporte de JaCoCo.
-      # sonar: envía código y cobertura a SonarQube Cloud y falla si el quality gate no pasa
-      # (sonar.qualitygate.wait=true en pom.xml).
+      # verify: tests (Testcontainers; the runner already has Docker) + JaCoCo report.
+      # sonar: sends the code and the coverage to SonarQube Cloud and fails if the quality gate does not
+      # pass (sonar.qualitygate.wait=true in pom.xml).
       - name: Run Unit Tests and SonarQube analysis
+        if: steps.changes.outputs.code == 'true'
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: ./mvnw -B verify org.sonarsource.scanner.maven:sonar-maven-plugin:sonar
