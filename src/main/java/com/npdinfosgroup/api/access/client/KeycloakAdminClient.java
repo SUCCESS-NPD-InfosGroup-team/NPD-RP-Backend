@@ -30,7 +30,8 @@ import com.npdinfosgroup.api.shared.security.Role;
  * The calls to the Keycloak Admin REST API that creating and editing a user need: create the account,
  * give it its realm role, send the invitation email and, to undo a failed creation, delete it
  * ({@code docs/specs/SCRUM-93/design.md} §3); rename it, replace its role and close its sessions
- * ({@code docs/specs/SCRUM-53/design.md} §3).
+ * ({@code docs/specs/SCRUM-53/design.md} §3); disable, enable and delete it for the deactivation
+ * ({@code docs/specs/SCRUM-231/design.md} §4).
  * <p>
  * Errors: a 409 on creation is {@link KeycloakUserExistsException}; Keycloak down, a timeout or a 5xx
  * (also when getting the token) is {@link IdentityProviderUnavailableException}; a 404 on an edit (the
@@ -122,17 +123,23 @@ public class KeycloakAdminClient {
 	 * @throws IllegalStateException if the account no longer exists
 	 */
 	public void rename(UUID userId, String fullName) {
-		onAccount(userId, "rename user", () -> {
-			Map<String, Object> current = keycloak.get().uri("/users/{id}", userId).retrieve().body(REPRESENTATION);
-			Map<String, Object> renamed = new HashMap<>(current == null ? Map.of() : current);
-			renamed.put("firstName", fullName);
-			return keycloak.put()
-				.uri("/users/{id}", userId)
-				.contentType(MediaType.APPLICATION_JSON)
-				.body(renamed)
-				.retrieve()
-				.toBodilessEntity();
-		});
+		onAccount(userId, "rename user", () -> updateRepresentation(userId, "firstName", fullName));
+	}
+
+	/**
+	 * Enables or disables the account (calls 1 and 2 of {@code docs/specs/SCRUM-231/design.md} §4). A
+	 * disabled account cannot log in nor use its action tokens (the invitation link), but keeps its
+	 * roles, so enabling it again restores it as it was. Its open sessions are not closed: see
+	 * {@link #logout(UUID)}. The whole representation is sent back, as on {@link #rename(UUID, String)}.
+	 *
+	 * @param userId Keycloak id of the account
+	 * @param enabled {@code false} to deactivate it, {@code true} to reactivate it
+	 * @throws IdentityProviderUnavailableException if Keycloak cannot be reached
+	 * @throws IllegalStateException if the account no longer exists
+	 */
+	public void setEnabled(UUID userId, boolean enabled) {
+		onAccount(userId, enabled ? "enable user" : "disable user",
+				() -> updateRepresentation(userId, "enabled", enabled));
 	}
 
 	/**
@@ -209,6 +216,36 @@ public class KeycloakAdminClient {
 	 */
 	public void deleteUser(UUID userId) {
 		call("delete user", () -> keycloak.delete().uri("/users/{id}", userId).retrieve().toBodilessEntity());
+	}
+
+	/**
+	 * Deletes a deactivated account when its day has passed (call 4 of
+	 * {@code docs/specs/SCRUM-231/design.md} §4). An account that no longer exists counts as deleted, so a
+	 * deletion that failed after this call can simply be repeated.
+	 *
+	 * @param userId Keycloak id of the account
+	 * @throws IdentityProviderUnavailableException if Keycloak cannot be reached
+	 */
+	public void deleteAccount(UUID userId) {
+		try {
+			deleteUser(userId);
+		}
+		catch (HttpClientErrorException.NotFound ex) {
+			log.info("Keycloak account {} was already deleted", userId);
+		}
+	}
+
+	/** Reads the whole representation of the account and sends it back with one field changed. */
+	private Object updateRepresentation(UUID userId, String field, Object value) {
+		Map<String, Object> current = keycloak.get().uri("/users/{id}", userId).retrieve().body(REPRESENTATION);
+		Map<String, Object> changed = new HashMap<>(current == null ? Map.of() : current);
+		changed.put(field, value);
+		return keycloak.put()
+			.uri("/users/{id}", userId)
+			.contentType(MediaType.APPLICATION_JSON)
+			.body(changed)
+			.retrieve()
+			.toBodilessEntity();
 	}
 
 	/** Reads the realm role by its name and maps it to the account. */

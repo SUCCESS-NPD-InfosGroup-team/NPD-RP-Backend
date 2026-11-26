@@ -158,6 +158,56 @@ class KeycloakAdminClientTest {
 		server.verify();
 	}
 
+	/** Disabling or enabling sends the whole representation back with only {@code enabled} changed. */
+	@ParameterizedTest
+	@CsvSource({ "false, true", "true, false" })
+	void changesEnabledKeepingTheRestOfTheAccount(boolean enabled, boolean before) {
+		expectToken();
+		server.expect(requestTo(USERS_URL + "/" + USER_ID))
+			.andExpect(method(HttpMethod.GET))
+			.andRespond(withSuccess("""
+					{"id": "%s", "username": "ana@example.com", "firstName": "Ana", "enabled": %s,
+					 "attributes": {"area": ["NPD"]}}""".formatted(USER_ID, before), APPLICATION_JSON));
+		server.expect(requestTo(USERS_URL + "/" + USER_ID))
+			.andExpect(method(HttpMethod.PUT))
+			.andExpect(content().json("""
+					{"id": "%s", "username": "ana@example.com", "firstName": "Ana", "enabled": %s,
+					 "attributes": {"area": ["NPD"]}}""".formatted(USER_ID, enabled), true))
+			.andRespond(withNoContent());
+
+		keycloak.setEnabled(USER_ID, enabled);
+		server.verify();
+	}
+
+	/** A deactivated account is deleted by its id. */
+	@Test
+	void deletesADeactivatedAccount() {
+		expectToken();
+		server.expect(requestTo(USERS_URL + "/" + USER_ID)).andExpect(method(HttpMethod.DELETE)).andRespond(withNoContent());
+
+		keycloak.deleteAccount(USER_ID);
+		server.verify();
+	}
+
+	/** An account already gone counts as deleted, so a failed deletion can be repeated. */
+	@Test
+	void deletingAnAccountAlreadyGoneSucceeds() {
+		expectToken();
+		server.expect(requestTo(USERS_URL + "/" + USER_ID)).andRespond(withStatus(HttpStatus.NOT_FOUND));
+
+		keycloak.deleteAccount(USER_ID);
+		server.verify();
+	}
+
+	/** An outage while deleting is reported, so the deletion is retried later. */
+	@Test
+	void reportsKeycloakUnavailableOnADeletion() {
+		expectToken();
+		server.expect(requestTo(USERS_URL + "/" + USER_ID)).andRespond(withStatus(HttpStatus.BAD_GATEWAY));
+
+		assertThatThrownBy(() -> keycloak.deleteAccount(USER_ID)).isInstanceOf(IdentityProviderUnavailableException.class);
+	}
+
 	/**
 	 * Only the platform roles are removed: {@code default-roles-*} and {@code offline_access} stay, and
 	 * the new role is added.
@@ -228,7 +278,7 @@ class KeycloakAdminClientTest {
 
 	/** An account deleted in the Keycloak console is an inconsistency, not a user error. */
 	@ParameterizedTest
-	@CsvSource({ "rename, ''", "role, /role-mappings/realm", "logout, /logout" })
+	@CsvSource({ "rename, ''", "role, /role-mappings/realm", "logout, /logout", "disable, ''" })
 	void failsWhenTheAccountNoLongerExists(String operation, String path) {
 		expectToken();
 		server.expect(requestTo(USERS_URL + "/" + USER_ID + path)).andRespond(withStatus(HttpStatus.NOT_FOUND));
@@ -237,6 +287,7 @@ class KeycloakAdminClientTest {
 			switch (operation) {
 				case "rename" -> keycloak.rename(USER_ID, "Ana");
 				case "role" -> keycloak.replaceRealmRole(USER_ID, Role.GUEST);
+				case "disable" -> keycloak.setEnabled(USER_ID, false);
 				default -> keycloak.logout(USER_ID);
 			}
 		}).isInstanceOf(IllegalStateException.class).hasMessageContaining(USER_ID.toString());
