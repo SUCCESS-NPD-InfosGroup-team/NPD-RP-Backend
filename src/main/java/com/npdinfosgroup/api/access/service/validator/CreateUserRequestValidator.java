@@ -1,7 +1,6 @@
 package com.npdinfosgroup.api.access.service.validator;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
@@ -16,6 +15,7 @@ import com.npdinfosgroup.api.shared.security.Role;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Validator;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import org.springframework.stereotype.Component;
 
@@ -32,7 +32,7 @@ import org.springframework.stereotype.Component;
 public class CreateUserRequestValidator {
 
 	/** Scope of the field messages of this form ({@code validation.user.<field>.<CODE>}). */
-	static final String MESSAGE_SCOPE = "user";
+	public static final String MESSAGE_SCOPE = "user";
 
 	/**
 	 * Roles that "Crear usuario" can give, in the order of {@link Role}: every realm role but NPD lead,
@@ -64,7 +64,7 @@ public class CreateUserRequestValidator {
 			.stream()
 			.map(violation -> FieldProblem.of(violation.getPropertyPath().toString(), codeOf(violation)))
 			.toList());
-		Optional<Role> role = Arrays.stream(Role.values()).filter(value -> value.realmName().equals(request.role())).findFirst();
+		Optional<Role> role = Role.ofRealmName(request.role());
 		// A blank role is already REQUIRED; any other unknown code is reported as such
 		if (role.isEmpty() && request.role() != null && !request.role().isBlank()) {
 			problems.add(FieldProblem.of("role", FieldErrorCode.UNKNOWN_VALUE));
@@ -78,9 +78,15 @@ public class CreateUserRequestValidator {
 		return role.orElseThrow();
 	}
 
-	private static FieldErrorCode codeOf(ConstraintViolation<?> violation) {
+	/**
+	 * The field error code of a Jakarta violation.
+	 *
+	 * @param violation the violation
+	 * @return {@code REQUIRED} for a missing value, {@code TOO_LONG} for a size, {@code INVALID_FORMAT} otherwise
+	 */
+	static FieldErrorCode codeOf(ConstraintViolation<?> violation) {
 		Class<?> constraint = violation.getConstraintDescriptor().getAnnotation().annotationType();
-		if (constraint == NotBlank.class) {
+		if (constraint == NotBlank.class || constraint == NotNull.class) {
 			return FieldErrorCode.REQUIRED;
 		}
 		return constraint == Size.class ? FieldErrorCode.TOO_LONG : FieldErrorCode.INVALID_FORMAT;
