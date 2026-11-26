@@ -57,8 +57,13 @@ Details:
 
 - `AccountDeletionScheduler` (`access/job`) keeps `Map<Long, ScheduledFuture<?>>` by user id: `schedule`
   replaces any earlier task for the user, `cancel` cancels and removes it.
-- It is called **after the commit** of the deactivation or reactivation (`TransactionSynchronization`),
-  so a rolled-back deactivation never schedules a deletion.
+- It is called **after the commit** of the deactivation or reactivation: the service publishes
+  `AccountStateChanged` inside its transaction and the scheduler listens with
+  `@TransactionalEventListener`, so a rolled-back deactivation never schedules a deletion and `service`
+  does not depend on `job`.
+- The deletion itself (`AccountDeletionService.deleteIfDue`) runs in one transaction with the user
+  locked, Keycloak call included, so a reactivation saved at the same moment waits and then finds no
+  user (404).
 - `ApplicationReadyEvent` → `AppUserRepository.findByState(DISABLED)` → `schedule` each one.
 - The task itself never trusts memory: it locks the row and deletes only if it is still `DISABLED` and
   `disabled_at + delay <= now`. A stale task (the user was reactivated, or deactivated again later) does
