@@ -107,6 +107,15 @@ public interface EmployeeRepository extends JpaRepository<Employee, Long>, Emplo
 			String excludedStatus);
 
 	/**
+	 * How many people are on a project, except those with a status: its team size.
+	 *
+	 * @param projectId project id
+	 * @param excludedStatus status code left out (Baja)
+	 * @return the team size
+	 */
+	long countByProjectIdAndStatus_CodeNot(Long projectId, String excludedStatus);
+
+	/**
 	 * The versions of some employees, in one query, for lists that send them back on an action.
 	 *
 	 * @param ids employee ids; must not be empty

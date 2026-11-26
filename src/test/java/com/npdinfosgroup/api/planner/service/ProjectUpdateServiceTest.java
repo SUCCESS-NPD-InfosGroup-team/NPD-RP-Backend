@@ -22,6 +22,7 @@ import java.util.Optional;
 
 import com.npdinfosgroup.api.history.dto.AuditChange;
 import com.npdinfosgroup.api.history.service.AuditService;
+import com.npdinfosgroup.api.planner.dto.request.ProjectActivationCommand;
 import com.npdinfosgroup.api.planner.dto.request.UpdateProjectCommand;
 import com.npdinfosgroup.api.planner.dto.request.UpdateProjectRequest;
 import com.npdinfosgroup.api.planner.persistence.entity.Client;
@@ -33,8 +34,10 @@ import com.npdinfosgroup.api.planner.service.validator.ProjectRequestValidator;
 import com.npdinfosgroup.api.shared.exception.ApiException;
 import com.npdinfosgroup.api.shared.exception.ErrorCode;
 import com.npdinfosgroup.api.shared.exception.NotFoundException;
+import com.npdinfosgroup.api.shared.exception.ValidationException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.context.support.StaticMessageSource;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.OptimisticLockingFailureException;
 
@@ -57,7 +60,7 @@ class ProjectUpdateServiceTest {
 	private final AuditService audit = mock();
 
 	private final ProjectUpdateService service = new ProjectUpdateService(projects, employees, validator,
-			queries, audit);
+			queries, audit, codesAsMessages());
 
 	private Project project;
 
@@ -66,6 +69,7 @@ class ProjectUpdateServiceTest {
 	void createProject() {
 		Client client = new Client();
 		client.setName("Banco");
+		client.setActive(true);
 		project = new Project();
 		project.setId(7L);
 		project.setClient(client);
@@ -170,6 +174,44 @@ class ProjectUpdateServiceTest {
 		assertThatThrownBy(() -> service.update(command("Core 3", null, 2))).extracting("code")
 			.isEqualTo(ErrorCode.PROJECT_NAME_TAKEN);
 		verify(audit, never()).recordChanges(anyString(), anyLong(), anyMap(), anyMap(), eq(ACTOR));
+	}
+
+	/** Deactivating checks the team; reactivating needs an active client; both are audited. */
+	@Test
+	void deactivatesAndReactivates() {
+		when(employees.countByProjectIdAndStatus_CodeNot(7L, "BAJA")).thenReturn(2L);
+		assertThatThrownBy(() -> service.deactivate(new ProjectActivationCommand(7L, 2, ACTOR))).extracting("code")
+			.isEqualTo(ErrorCode.PROJECT_HAS_TEAM);
+
+		when(employees.countByProjectIdAndStatus_CodeNot(7L, "BAJA")).thenReturn(0L);
+		service.deactivate(new ProjectActivationCommand(7L, 2, ACTOR));
+		assertThat(project.isActive()).isFalse();
+		verify(audit).recordChanges("project", 7L, Map.of("active", "audit.value.yes"), Map.of("active", "audit.value.no"),
+				ACTOR);
+
+		project.getClient().setActive(false);
+		assertThatThrownBy(() -> service.reactivate(new ProjectActivationCommand(7L, 2, ACTOR)))
+			.isInstanceOf(ValidationException.class);
+		project.getClient().setActive(true);
+		service.reactivate(new ProjectActivationCommand(7L, 2, ACTOR));
+		assertThat(project.isActive()).isTrue();
+	}
+
+	/** A missing version is a 400; a project already in the asked state is answered without changes. */
+	@Test
+	void validatesAndSkipsActivationChanges() {
+		assertThatThrownBy(() -> service.deactivate(new ProjectActivationCommand(7L, null, ACTOR)))
+			.isInstanceOf(ValidationException.class);
+
+		service.reactivate(new ProjectActivationCommand(7L, 1, ACTOR));
+		verify(projects, never()).saveAndFlush(any());
+		verify(queries).get(7L);
+	}
+
+	private static StaticMessageSource codesAsMessages() {
+		StaticMessageSource messages = new StaticMessageSource();
+		messages.setUseCodeAsDefaultMessage(true);
+		return messages;
 	}
 
 	private static Employee employee(long id, LocalDate end) {

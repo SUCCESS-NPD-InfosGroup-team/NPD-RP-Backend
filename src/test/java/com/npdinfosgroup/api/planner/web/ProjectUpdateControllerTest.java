@@ -199,6 +199,66 @@ class ProjectUpdateControllerTest {
 		assertThat(changes(otherId)).isEmpty();
 	}
 
+	/**
+	 * A project without team is deactivated and reactivated, each change audited; repeating an action
+	 * changes nothing.
+	 */
+	@Test
+	void deactivatesAndReactivates() {
+		activation("deactivation", ADMIN, otherId, 0).expectStatus()
+			.isOk()
+			.expectBody()
+			.jsonPath("$.active").isEqualTo(false)
+			.jsonPath("$.version").isEqualTo(1);
+		activation("deactivation", ADMIN, otherId, 1).expectStatus().isOk().expectBody().jsonPath("$.version").isEqualTo(1);
+
+		activation("reactivation", ADMIN, otherId, 1).expectStatus()
+			.isOk()
+			.expectBody()
+			.jsonPath("$.active").isEqualTo(true)
+			.jsonPath("$.version").isEqualTo(2);
+		assertThat(changes(otherId)).containsExactly("active: Sí -> No", "active: No -> Sí");
+	}
+
+	/**
+	 * A project with people is not deactivated (people on Baja do not count), and the imported
+	 * «No especificado» project, whose client is inactive, is not reactivated.
+	 */
+	@Test
+	void checksTheTeamAndTheClient() {
+		jdbc.sql("INSERT INTO job_position (name) VALUES ('PU Posicion')").update();
+		insertEmployee("PU-1", "ACTIVO", null);
+		activation("deactivation", ADMIN, coreId, 0).expectStatus()
+			.isEqualTo(409)
+			.expectBody()
+			.jsonPath("$.code").isEqualTo("PROJECT_HAS_TEAM")
+			.jsonPath("$.teamSize").isEqualTo(1);
+		jdbc.sql("UPDATE employee SET status_id = (SELECT id FROM resource_status WHERE code = 'BAJA') WHERE code = 'PU-1'")
+			.update();
+		activation("deactivation", ADMIN, coreId, 0).expectStatus().isOk();
+
+		long notSpecified = jdbc.sql("SELECT p.id FROM project p JOIN client c ON c.id = p.client_id WHERE c.name = 'No especificado'")
+			.query(Long.class)
+			.single();
+		activation("reactivation", ADMIN, notSpecified, 0).expectStatus()
+			.isBadRequest()
+			.expectBody()
+			.jsonPath("$.errors[0].field").isEqualTo("clientId")
+			.jsonPath("$.errors[0].code").isEqualTo("INACTIVE_CLIENT");
+	}
+
+	/** Only an Operations administrator deactivates or reactivates; the version is required. */
+	@Test
+	void checksActivationRolesAndVersion() {
+		activation("deactivation", "guest", otherId, 0).expectStatus().isForbidden();
+		activation("reactivation", "customer-success", closedId, 0).expectStatus().isForbidden();
+		activation("reactivation", ADMIN, closedId, null).expectStatus()
+			.isBadRequest()
+			.expectBody()
+			.jsonPath("$.errors[0].field").isEqualTo("version");
+		activation("deactivation", ADMIN, 999_999, 0).expectStatus().isNotFound();
+	}
+
 	/** Only an Operations administrator edits; an unknown project is a 404. */
 	@Test
 	void checksRolesAndUnknownProject() {
@@ -226,10 +286,21 @@ class ProjectUpdateControllerTest {
 			.exchange();
 	}
 
+	RestTestClient.ResponseSpec activation(String action, String token, long id, Integer version) {
+		Map<String, Object> body = new HashMap<>();
+		body.put("version", version);
+		return client.post()
+			.uri(PROJECTS + "/{id}/" + action, id)
+			.header(AUTHORIZATION, "Bearer " + token)
+			.contentType(APPLICATION_JSON)
+			.body(body)
+			.exchange();
+	}
+
 	List<String> changes(long projectId) {
 		return jdbc.sql("""
 				SELECT field || ': ' || coalesce(old_value, '') || ' -> ' || coalesce(new_value, '') FROM audit_log
-				WHERE entity_type = 'project' AND entity_id = :id AND action = 'UPDATE'""")
+				WHERE entity_type = 'project' AND entity_id = :id AND action = 'UPDATE' ORDER BY id""")
 			.param("id", projectId)
 			.query(String.class)
 			.list();

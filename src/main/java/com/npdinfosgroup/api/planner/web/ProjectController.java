@@ -6,7 +6,9 @@ import java.time.LocalDate;
 import com.npdinfosgroup.api.planner.dto.request.ContractEndFilter;
 import com.npdinfosgroup.api.planner.dto.request.CreateProjectCommand;
 import com.npdinfosgroup.api.planner.dto.request.CreateProjectRequest;
+import com.npdinfosgroup.api.planner.dto.request.ProjectActivationCommand;
 import com.npdinfosgroup.api.planner.dto.request.ProjectSearchCriteria;
+import com.npdinfosgroup.api.planner.dto.request.ProjectVersionRequest;
 import com.npdinfosgroup.api.planner.dto.request.UpdateProjectCommand;
 import com.npdinfosgroup.api.planner.dto.request.UpdateProjectRequest;
 import com.npdinfosgroup.api.planner.dto.response.ProjectKpisResponse;
@@ -42,8 +44,8 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
 /**
- * Projects of the clients: the list of the Projects module and its KPIs, creating and editing one, and
- * reading one with its team.
+ * Projects of the clients: the list of the Projects module and its KPIs, creating, editing, deactivating
+ * and reactivating one, and reading one with its team.
  */
 @RestController
 @RequestMapping("/api/{version}/planner/projects")
@@ -289,6 +291,62 @@ class ProjectController {
 	ResponseEntity<UpdateProjectResponse> update(@Parameter(description = "Id del proyecto") @PathVariable long id,
 			@RequestBody UpdateProjectRequest request) {
 		return ResponseEntity.ok(updateService.update(new UpdateProjectCommand(id, request, currentUser.username())));
+	}
+
+	/**
+	 * Deactivates a project without team (HU-14 CA-01). Only an Operations administrator can do it.
+	 *
+	 * @param id project id
+	 * @param request the version that was read
+	 * @return 200 with the project
+	 */
+	@PostMapping(path = "/{id}/deactivation", version = "v1")
+	@Operation(summary = "Desactivar proyecto", description = """
+			Desactiva un proyecto sin equipo (los de Baja no cuentan) para que deje de aparecer como activo \
+			(HU-14). Si ya está inactivo, responde 200 sin cambios. Se audita. Solo Operations administrator.""")
+	@ApiResponse(responseCode = "200", description = "El proyecto, con `active = false`")
+	@ApiResponse(responseCode = "400", description = "Falta `version` (`VALIDATION_FAILED`)",
+			content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemDetail.class)))
+	@ApiResponse(responseCode = "403", description = "El rol no es Operations administrator (`FORBIDDEN`)",
+			content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemDetail.class)))
+	@ApiResponse(responseCode = "404", description = "No existe (`NOT_FOUND`)",
+			content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemDetail.class)))
+	@ApiResponse(responseCode = "409", description = """
+			Tiene colaboradores (`PROJECT_HAS_TEAM`, con `teamSize`) u otra persona lo guardó después de \
+			leerlo (`CONCURRENT_MODIFICATION`)""",
+			content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemDetail.class)))
+	ResponseEntity<ProjectResponse> deactivate(@Parameter(description = "Id del proyecto") @PathVariable long id,
+			@RequestBody ProjectVersionRequest request) {
+		return ResponseEntity
+			.ok(updateService.deactivate(new ProjectActivationCommand(id, request.version(), currentUser.username())));
+	}
+
+	/**
+	 * Reactivates an inactive project (HU-14 CA-05). Only an Operations administrator can do it.
+	 *
+	 * @param id project id
+	 * @param request the version that was read
+	 * @return 200 with the project
+	 */
+	@PostMapping(path = "/{id}/reactivation", version = "v1")
+	@Operation(summary = "Reactivar proyecto", description = """
+			Reactiva un proyecto inactivo (HU-14). Conserva su fin de contrato aunque ya haya pasado. Si ya \
+			está activo, responde 200 sin cambios. Se audita. Solo Operations administrator.""")
+	@ApiResponse(responseCode = "200", description = "El proyecto, con `active = true`")
+	@ApiResponse(responseCode = "400", description = """
+			Falta `version`, o el cliente está inactivo (`clientId` con `INACTIVE_CLIENT`, el proyecto \
+			«No especificado» del import) (`VALIDATION_FAILED`)""",
+			content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemDetail.class)))
+	@ApiResponse(responseCode = "403", description = "El rol no es Operations administrator (`FORBIDDEN`)",
+			content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemDetail.class)))
+	@ApiResponse(responseCode = "404", description = "No existe (`NOT_FOUND`)",
+			content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemDetail.class)))
+	@ApiResponse(responseCode = "409", description = "Otra persona lo guardó después de leerlo (`CONCURRENT_MODIFICATION`)",
+			content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemDetail.class)))
+	ResponseEntity<ProjectResponse> reactivate(@Parameter(description = "Id del proyecto") @PathVariable long id,
+			@RequestBody ProjectVersionRequest request) {
+		return ResponseEntity
+			.ok(updateService.reactivate(new ProjectActivationCommand(id, request.version(), currentUser.username())));
 	}
 
 }
