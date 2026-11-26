@@ -134,7 +134,7 @@ class UserControllerTest {
 			.expectBody()
 			.jsonPath("$.errors[*].field").isEqualTo(List.of("role"))
 			.jsonPath("$.errors[0].code").isEqualTo("ROLE_NOT_ASSIGNABLE")
-			.jsonPath("$.errors[0].message").isEqualTo("Por ahora los líderes NPD no se pueden crear desde aquí.");
+			.jsonPath("$.errors[0].message").isEqualTo("Por ahora el rol de líder NPD no se puede asignar desde aquí.");
 
 		verifyNoInteractions(keycloak);
 		assertThat(jdbc.sql("SELECT count(*) FROM app_user").query(Long.class).single()).isZero();
