@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
@@ -15,6 +16,7 @@ import static org.mockito.Mockito.when;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -41,7 +43,7 @@ import org.springframework.transaction.support.TransactionOperations;
 
 /**
  * Deactivating an account, with Keycloak and the database mocked: what is called and in which order,
- * the version, and how a failure is undone in Keycloak.
+ * the checks of CA-04 and the version, and how a failure is undone in Keycloak.
  */
 class AccountActivationServiceTest {
 
@@ -50,6 +52,8 @@ class AccountActivationServiceTest {
 	private static final String ACTOR = "admin@example.com";
 
 	private static final UUID KEYCLOAK_ID = UUID.fromString("5f0c2b8e-1d2a-4c3b-9e4f-6a7b8c9d0e1f");
+
+	private static final String ADMINISTRATOR = Role.OPERATIONS_ADMINISTRATOR.realmName();
 
 	private static final Instant NOW = Instant.parse("2026-11-26T15:00:00Z");
 
@@ -84,6 +88,7 @@ class AccountActivationServiceTest {
 		order.verify(audit).recordChanges("app_user", ID, Map.of("state", state.name()), Map.of("state", "DISABLED"), ACTOR);
 		assertThat(locked.getState()).isEqualTo(AppUserState.DISABLED);
 		assertThat(locked.getDisabledAt()).isEqualTo(NOW);
+		verify(users, never()).lockByRoleAndState(any(), any());
 	}
 
 	/** Deactivating again changes nothing and calls nothing. */
@@ -97,6 +102,60 @@ class AccountActivationServiceTest {
 
 		verifyNoInteractions(keycloak, audit);
 		verify(users, never()).saveAndFlush(any());
+	}
+
+	/** An administrator can be deactivated while another active one remains; both are locked first. */
+	@Test
+	void deactivatesAnAdministratorWhenAnotherRemains() {
+		AppUser locked = given(user(ADMINISTRATOR, AppUserState.ACTIVE));
+		when(users.countByRoleAndStateAndIdNot(ADMINISTRATOR, AppUserState.ACTIVE, ID)).thenReturn(1L);
+		when(users.lockByRoleAndState(ADMINISTRATOR, AppUserState.ACTIVE)).thenReturn(List.of(locked, other(8L)));
+
+		service.deactivate(command(0));
+
+		InOrder order = inOrder(users);
+		order.verify(users).lockByRoleAndState(ADMINISTRATOR, AppUserState.ACTIVE);
+		order.verify(users).lockById(ID);
+		assertThat(locked.getState()).isEqualTo(AppUserState.DISABLED);
+	}
+
+	/** CA-04: the only active administrator is rejected before Keycloak is called. */
+	@Test
+	void rejectsTheLastActiveAdministrator() {
+		given(user(ADMINISTRATOR, AppUserState.ACTIVE));
+		when(users.countByRoleAndStateAndIdNot(ADMINISTRATOR, AppUserState.ACTIVE, ID)).thenReturn(0L);
+
+		assertThatThrownBy(() -> service.deactivate(command(0))).isInstanceOfSatisfying(ApiException.class,
+				ex -> assertThat(ex.getCode()).isEqualTo(ErrorCode.LAST_OPERATIONS_ADMINISTRATOR));
+		verifyNoInteractions(keycloak, audit);
+	}
+
+	/**
+	 * CA-04 under the lock: the other administrator was deactivated while Keycloak was called. The account
+	 * is enabled again and nothing is saved.
+	 */
+	@Test
+	void rejectsTheLastAdministratorFoundUnderTheLock() {
+		AppUser locked = given(user(ADMINISTRATOR, AppUserState.ACTIVE));
+		when(users.countByRoleAndStateAndIdNot(ADMINISTRATOR, AppUserState.ACTIVE, ID)).thenReturn(1L);
+		when(users.lockByRoleAndState(ADMINISTRATOR, AppUserState.ACTIVE)).thenReturn(List.of(locked));
+
+		assertThatThrownBy(() -> service.deactivate(command(0))).isInstanceOfSatisfying(ApiException.class,
+				ex -> assertThat(ex.getCode()).isEqualTo(ErrorCode.LAST_OPERATIONS_ADMINISTRATOR));
+		verify(keycloak).setEnabled(KEYCLOAK_ID, true);
+		verify(users, never()).saveAndFlush(any());
+		verifyNoInteractions(audit);
+	}
+
+	/** A pending administrator does not count as active: deactivating it needs no other administrator. */
+	@Test
+	void deactivatesAPendingAdministrator() {
+		AppUser locked = given(user(ADMINISTRATOR, AppUserState.PENDING));
+
+		service.deactivate(command(0));
+
+		verify(users, never()).countByRoleAndStateAndIdNot(any(), any(), anyLong());
+		assertThat(locked.getState()).isEqualTo(AppUserState.DISABLED);
 	}
 
 	/** The version is required. */
