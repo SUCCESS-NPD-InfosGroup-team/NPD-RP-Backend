@@ -98,6 +98,7 @@ class ProjectQueryServiceTest {
 		when(project.getId()).thenReturn(7L);
 		when(project.getIndefiniteCount()).thenReturn(2L);
 		when(project.getNextAssignmentEnd()).thenReturn(TODAY.plusDays(3));
+		when(project.getVersion()).thenReturn(2);
 		when(summaries.findById(7L)).thenReturn(Optional.of(project));
 		when(employees.findProjectLeads(List.of(7L), "BAJA")).thenReturn(List.of(new ProjectLead(7L, 755L, "Jorge Ruiz")));
 
@@ -109,6 +110,7 @@ class ProjectQueryServiceTest {
 		assertThat(header.indefiniteCount()).isEqualTo(2);
 		assertThat(header.nextAssignmentEnd()).isEqualTo(TODAY.plusDays(3));
 		assertThat(header.leads()).containsExactly(new IdName(755L, "Jorge Ruiz"));
+		assertThat(header.version()).isEqualTo(2);
 	}
 
 	/** A project without team or contract end has zeros, no leads and no "D-N"; an unknown id is a 404. */

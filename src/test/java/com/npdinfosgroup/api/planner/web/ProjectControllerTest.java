@@ -254,6 +254,8 @@ class ProjectControllerTest {
 			.jsonPath("$.startDate").isNotEmpty()
 			.jsonPath("$.contractEndDate").isEqualTo(contractEnd)
 			.jsonPath("$.teamSize").isEqualTo(0)
+			.jsonPath("$.version").isEqualTo(0)
+			.jsonPath("$.updatedAt").isNotEmpty()
 			.returnResult()
 			.getResponseHeaders()
 			.getLocation();
