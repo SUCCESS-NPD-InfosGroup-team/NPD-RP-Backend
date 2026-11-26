@@ -8,8 +8,10 @@ import java.util.Map;
 import java.util.Objects;
 
 import com.npdinfosgroup.api.history.service.AuditService;
+import com.npdinfosgroup.api.planner.dto.request.ProjectActivationCommand;
 import com.npdinfosgroup.api.planner.dto.request.UpdateProjectCommand;
 import com.npdinfosgroup.api.planner.dto.request.UpdateProjectRequest;
+import com.npdinfosgroup.api.planner.dto.response.ProjectResponse;
 import com.npdinfosgroup.api.planner.dto.response.UpdateProjectResponse;
 import com.npdinfosgroup.api.planner.persistence.entity.Employee;
 import com.npdinfosgroup.api.planner.persistence.entity.Project;
@@ -19,16 +21,23 @@ import com.npdinfosgroup.api.planner.service.validator.ProjectRequestValidator;
 import com.npdinfosgroup.api.planner.service.validator.ResourceRequestValidator;
 import com.npdinfosgroup.api.shared.exception.ApiException;
 import com.npdinfosgroup.api.shared.exception.ErrorCode;
+import com.npdinfosgroup.api.shared.exception.FieldErrorCode;
+import com.npdinfosgroup.api.shared.exception.FieldProblem;
 import com.npdinfosgroup.api.shared.exception.NotFoundException;
+import com.npdinfosgroup.api.shared.exception.ValidationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.MessageSource;
+import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Changes a project (HU-14): its name and client contract end. Only active projects are edited.
+ * Changes a project (HU-14): its name and client contract end, and whether it is active. Only active
+ * projects are edited; a project is deactivated only without team, and reactivated only if its client
+ * is active.
  * <p>
  * When the contract end changes, the people of the team whose end date was the old contract end move
  * with it (CA-04), in the same transaction: either the project and its people change together, or
@@ -42,6 +51,9 @@ public class ProjectUpdateService {
 
 	/** Entity type of the project rows in the audit log, the same one "Crear proyecto" uses. */
 	static final String AUDIT_ENTITY = "project";
+
+	/** Scope of the field messages ({@code validation.project.<field>.<CODE>}), the project form's. */
+	private static final String MESSAGE_SCOPE = "project";
 
 	private static final Logger log = LoggerFactory.getLogger(ProjectUpdateService.class);
 
@@ -60,6 +72,8 @@ public class ProjectUpdateService {
 
 	private final AuditService audit;
 
+	private final MessageSource messages;
+
 	/**
 	 * Creates the service.
 	 *
@@ -68,14 +82,16 @@ public class ProjectUpdateService {
 	 * @param validator rules of the project form
 	 * @param queries builds the answer with the figures of the project
 	 * @param audit records each change
+	 * @param messages "Sí" and "No" of the audited {@code active} field
 	 */
 	ProjectUpdateService(ProjectRepository projects, EmployeeRepository employees, ProjectRequestValidator validator,
-			ProjectQueryService queries, AuditService audit) {
+			ProjectQueryService queries, AuditService audit, MessageSource messages) {
 		this.projects = projects;
 		this.employees = employees;
 		this.validator = validator;
 		this.queries = queries;
 		this.audit = audit;
+		this.messages = messages;
 	}
 
 	/**
@@ -112,6 +128,99 @@ public class ProjectUpdateService {
 			log.info("Project {} edited", project.getId());
 		}
 		return new UpdateProjectResponse(queries.get(project.getId()), moved);
+	}
+
+	/**
+	 * Deactivates a project without team (Baja excluded), so it stops appearing as active. A project that
+	 * is already inactive is answered as it is.
+	 *
+	 * @param command the project id, the version that was read and who deactivates it
+	 * @return the project
+	 * @throws NotFoundException if the project does not exist
+	 * @throws ValidationException if the version is missing
+	 * @throws ApiException {@link ErrorCode#PROJECT_HAS_TEAM} if it still has people, or
+	 *         {@link ErrorCode#CONCURRENT_MODIFICATION} if someone saved it after the version that was read
+	 */
+	@Transactional
+	public ProjectResponse deactivate(ProjectActivationCommand command) {
+		Project project = findForActivation(command);
+		if (!project.isActive()) {
+			return queries.get(project.getId());
+		}
+		checkVersion(project, command.version());
+		long teamSize = employees.countByProjectIdAndStatus_CodeNot(project.getId(), ResourceRequestValidator.TERMINATED);
+		if (teamSize > 0) {
+			throw new ApiException(ErrorCode.PROJECT_HAS_TEAM, List.of(teamSize), Map.of("teamSize", teamSize));
+		}
+		return setActive(project, false, command.actor());
+	}
+
+	/**
+	 * Reactivates an inactive project (CA-05). Its contract end is kept as it was, even if it already
+	 * passed. A project that is already active is answered as it is.
+	 *
+	 * @param command the project id, the version that was read and who reactivates it
+	 * @return the project
+	 * @throws NotFoundException if the project does not exist
+	 * @throws ValidationException if the version is missing, or the client is inactive (the imported
+	 *         «No especificado» project)
+	 * @throws ApiException {@link ErrorCode#CONCURRENT_MODIFICATION} if someone saved it after the version
+	 *         that was read
+	 */
+	@Transactional
+	public ProjectResponse reactivate(ProjectActivationCommand command) {
+		Project project = findForActivation(command);
+		if (project.isActive()) {
+			return queries.get(project.getId());
+		}
+		if (!project.getClient().isActive()) {
+			throw new ValidationException(MESSAGE_SCOPE, List.of(FieldProblem.of("clientId", FieldErrorCode.INACTIVE_CLIENT)));
+		}
+		checkVersion(project, command.version());
+		return setActive(project, true, command.actor());
+	}
+
+	/**
+	 * The project of a deactivation or reactivation, once the request has its version.
+	 *
+	 * @param command the request
+	 * @return the project
+	 * @throws NotFoundException if the project does not exist
+	 * @throws ValidationException if the version is missing
+	 */
+	private Project findForActivation(ProjectActivationCommand command) {
+		Project project = projects.findById(command.id()).orElseThrow(() -> new NotFoundException(command.id()));
+		if (command.version() == null) {
+			throw new ValidationException(MESSAGE_SCOPE, List.of(FieldProblem.of("version", FieldErrorCode.REQUIRED)));
+		}
+		return project;
+	}
+
+	/**
+	 * Saves whether the project is active and audits it.
+	 *
+	 * @param project the project
+	 * @param active the new value
+	 * @param actor who changes it
+	 * @return the saved project
+	 */
+	private ProjectResponse setActive(Project project, boolean active, String actor) {
+		project.setActive(active);
+		save(project);
+		audit.recordChanges(AUDIT_ENTITY, project.getId(), Map.of("active", yesNo(!active)),
+				Map.of("active", yesNo(active)), actor);
+		log.info("Project {} {}", project.getId(), active ? "reactivated" : "deactivated");
+		return queries.get(project.getId());
+	}
+
+	/**
+	 * How a yes/no value is written in the audit log, like the {@code isInternal} of a new client.
+	 *
+	 * @param value the value
+	 * @return "Sí" or "No"
+	 */
+	private String yesNo(boolean value) {
+		return messages.getMessage(value ? "audit.value.yes" : "audit.value.no", null, LocaleContextHolder.getLocale());
 	}
 
 	/**
