@@ -9,9 +9,11 @@ origin/develop...HEAD`). What and why: [spec.md](spec.md). How: [design.md](desi
 | 1 | `docs/SCRUM-53-spec-design` | `spec.md` and `design.md` of this folder. | ~340 | — | Merged ([#69](https://github.com/SUCCESS-NPD-InfosGroup-team/NPD-RP-Backend/pull/69)) |
 | 2 | `docs/SCRUM-53-plan` | This `plan.md`. | ~130 | PR 1 | Merged ([#71](https://github.com/SUCCESS-NPD-InfosGroup-team/NPD-RP-Backend/pull/71)) |
 | 3 | `feature/SCRUM-53-user-read-fields` | V12 and the new fields of the user list and detail (CA-09, CA-13, collaborators of CA-11). | ~330 | PR 1 | Merged ([#72](https://github.com/SUCCESS-NPD-InfosGroup-team/NPD-RP-Backend/pull/72)) |
-| 4 | `feature/SCRUM-53-keycloak-edit-operations` | Keycloak calls to rename, change the role and close the sessions. | ~300 | PR 1 | In review ([#73](https://github.com/SUCCESS-NPD-InfosGroup-team/NPD-RP-Backend/pull/73)) |
-| 5 | `feature/SCRUM-53-user-edit-service` | Edit service for name and role: validation, Keycloak, transaction, compensation. | ~390 | PR 3, PR 4 | Pending |
-| 6 | `feature/SCRUM-53-edit-user-endpoint` | `PUT /api/v1/access/users/{id}`, OpenAPI, messages, end-to-end tests. | ~300 | PR 5 | Pending |
+| 4 | `feature/SCRUM-53-keycloak-edit-operations` | Keycloak calls to rename, change the role and close the sessions. | ~300 | PR 1 | Merged ([#73](https://github.com/SUCCESS-NPD-InfosGroup-team/NPD-RP-Backend/pull/73)) |
+| 5a | `feature/SCRUM-53-user-edit-validation` | Request, command and validator of the edit; new error codes. | ~190 | PR 3 | In review ([#74](https://github.com/SUCCESS-NPD-InfosGroup-team/NPD-RP-Backend/pull/74)) |
+| 5b | `feature/SCRUM-53-user-edit-service` | Edit service for name and role: CA-05, CA-13, Keycloak calls, transaction, audit. | ~370 | PR 4, PR 5a | Pending |
+| 5c | `feature/SCRUM-53-user-edit-safeguards` | Last administrator (CA-04) with locks, and the Keycloak compensation. | ~280 | PR 5b | Pending |
+| 6 | `feature/SCRUM-53-edit-user-endpoint` | `PUT /api/v1/access/users/{id}`, OpenAPI, messages, end-to-end tests. | ~300 | PR 5c | Pending |
 | 7 | `feature/SCRUM-53-npd-lead-employee-service` | `planner` service with the NPD lead employee operations. | ~380 | PR 3 | Pending |
 | 8 | `feature/SCRUM-53-role-change-npd-lead` | CA-10 and CA-11 in the edit: register, Baja, back to Activo, rename. | ~360 | PR 6, PR 7 | Pending |
 | 9 | `feature/SCRUM-53-link-existing-employee` | Linking an existing NPD lead employee (HU-10 CA-05 to CA-07, CA-12, CA-13). | ~350 | PR 8 | Pending |
@@ -23,7 +25,7 @@ The estimates include tests; a PR that grows past 400 lines is split again befor
 
 ## PR 3 — Read fields and data model
 
-**Part 1 of 8 code PRs. Jira: SCRUM-53.**
+**Part 1 of 10 code PRs. Jira: SCRUM-53.**
 
 - `V12__app_user_employee_link.sql` (design §5): `app_user.employee_id` (unique, FK to `employee`),
   `app_user.version`, the inactive termination reason `CAMBIO_DE_ROL`, and their comments.
@@ -40,7 +42,7 @@ The estimates include tests; a PR that grows past 400 lines is split again befor
 
 ## PR 4 — Keycloak edit operations
 
-**Part 2 of 8 code PRs. Jira: SCRUM-53.**
+**Part 2 of 10 code PRs. Jira: SCRUM-53.**
 
 - `KeycloakAdminClient.rename(id, fullName)`: `GET` the representation, `PUT` it back with the new
   `firstName` (calls 1–2).
@@ -51,25 +53,48 @@ The estimates include tests; a PR that grows past 400 lines is split again befor
 - Tests with `MockRestServiceServer` in `KeycloakAdminClientTest`: each call, other attributes kept on
   rename, `default-roles-*` and `offline_access` not removed, 5xx/timeout → unavailable.
 
-## PR 5 — Edit service for name and role
+## PR 5a — Edit validation
 
-**Part 3 of 8 code PRs. Jira: SCRUM-53.**
+**Part 3 of 10 code PRs. Jira: SCRUM-53.** PR 5 was split in three (5a to 5c) because it reached ~780
+lines.
 
 - `UpdateUserRequest` (`version`, `fullName`, `role`; `employee` and `linkEmployeeId` come in PR 8 and
-  9) and `UpdateUserCommand` (request, id, actor).
+  9) and `UpdateUserCommand` (id, request, actor).
 - `UpdateUserRequestValidator` in `service/validator`: `fullName` required and up to 150 (CA-12),
-  `role` one of the four, `version` required; every error together.
-- `UserEditService.update` (design §1, §3, §5): no-change check (CA-05), CA-13
-  (`NPD_LEAD_WITHOUT_EMPLOYEE`), first check of CA-04, Keycloak calls, transaction with the pessimistic
-  lock of the user and the recheck of the last administrator (`AppUserRepository` JPQL with
-  `@Lock(PESSIMISTIC_WRITE)`), audit of `fullName` and `role`, compensation on failure.
+  `role` one of the four, `version` required; every error together, in the `user` message scope.
+- `Role.ofRealmName`, shared with `CreateUserRequestValidator`.
 - `ErrorCode.LAST_OPERATIONS_ADMINISTRATOR` and `NPD_LEAD_WITHOUT_EMPLOYEE` (409).
-- Tests: `UserEditServiceTest` (unit, mocked Keycloak): each case, the order of the calls, the
-  compensation when the role or the database fails, a failed compensation is logged, no calls on CA-05.
+- Tests: `UpdateUserRequestValidatorTest` (the four roles, every missing field together, long name and
+  unknown role).
+
+## PR 5b — Edit service
+
+**Part 4 of 10 code PRs. Jira: SCRUM-53.**
+
+- `UserEditService.update` (design §1, §3, §5): version check before the fields, no-change check
+  (CA-05), CA-13 (`NPD_LEAD_WITHOUT_EMPLOYEE`), Keycloak calls (rename; replace the role and log out),
+  transaction with the user locked (`AppUserRepository.lockById`, `@Lock(PESSIMISTIC_WRITE)`), version
+  recheck, audit of `fullName` and `role`.
+- Until PR 8, a change **to** `npd-leader` is rejected with the field error `role.ROLE_NOT_ASSIGNABLE`
+  (the employee record it needs comes there).
+- Tests: `UserEditServiceTest` (unit, mocked Keycloak): rename, role change and logout in order, CA-05
+  calls nothing, stale version, unknown user, CA-13, NPD lead blocked, version changed meanwhile.
+
+## PR 5c — Edit safeguards
+
+**Part 5 of 10 code PRs. Jira: SCRUM-53.**
+
+- CA-04: first check with `countByRoleAndStateAndIdNot`; in the transaction, the active administrators
+  locked in id order (`lockByRoleAndState`) before the user, so two administrators demoting each other
+  wait for one another instead of deadlocking, and the second one gets `LAST_OPERATIONS_ADMINISTRATOR`.
+- Compensation (design §3): after a failure, the old role and name put back in Keycloak, best effort; a
+  failed undo is logged with the account id and the original error is returned.
+- Tests in `UserEditServiceTest`: last administrator, pending administrator not counted, recheck with
+  the lock, undo when the role or the database fails, nothing to undo when the rename fails, failed undo.
 
 ## PR 6 — Edit endpoint
 
-**Part 4 of 8 code PRs. Jira: SCRUM-53.**
+**Part 6 of 10 code PRs. Jira: SCRUM-53.**
 
 - `UserController.update`: `PUT /api/v1/access/users/{id}` (version `v1`), 200 with the user.
 - OpenAPI: summary, body, every answer of design §6 for name and role (400, 401, 403, 404, 409 with
@@ -81,7 +106,7 @@ The estimates include tests; a PR that grows past 400 lines is split again befor
 
 ## PR 7 — NPD lead employee service
 
-**Part 5 of 8 code PRs. Jira: SCRUM-53.**
+**Part 7 of 10 code PRs. Jira: SCRUM-53.**
 
 - `NpdLeadEmployeeService` (design §4): `register(NewNpdLeadCommand)`, `leaveRole(id, actor)`,
   `returnToRole(id, actor)`, `rename(id, fullName, actor)`. `findLinkCandidate` and `link` come in
@@ -95,7 +120,7 @@ The estimates include tests; a PR that grows past 400 lines is split again befor
 
 ## PR 8 — Changing to and from NPD Lead (CA-10, CA-11)
 
-**Part 6 of 8 code PRs. Jira: SCRUM-53.** The PR for the two NPD lead criteria.
+**Part 8 of 10 code PRs. Jira: SCRUM-53.** The PR for the two NPD lead criteria.
 
 - `UpdateUserRequest.employee` (`NpdLeadEmployeeRequest`: N°, gender, position, work mode, hire date,
   status `ACTIVO` or `LICENCIA`).
@@ -108,7 +133,7 @@ The estimates include tests; a PR that grows past 400 lines is split again befor
 
 ## PR 9 — Linking an existing employee
 
-**Part 7 of 8 code PRs. Jira: SCRUM-53.**
+**Part 9 of 10 code PRs. Jira: SCRUM-53.**
 
 - `NpdLeadEmployeeService.findLinkCandidate(email, number)` and `link(id, email)`.
 - `UpdateUserRequest.linkEmployeeId`; `EXISTING_NPD_LEAD_EMPLOYEE` and `EMPLOYEE_NOT_LINKABLE` (409)
@@ -119,7 +144,7 @@ The estimates include tests; a PR that grows past 400 lines is split again befor
 
 ## PR 10 — Guard in Recursos
 
-**Part 8 of 8 code PRs. Jira: SCRUM-53.**
+**Part 10 of 10 code PRs. Jira: SCRUM-53.**
 
 - `ResourceRequestValidator`: `CAMBIO_DE_ROL` accepted only when the record already has it;
   `ROLE_CHANGE_TERMINATION` on `status` when such a record leaves Baja.
