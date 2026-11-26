@@ -53,6 +53,12 @@ public enum ErrorCode {
 	/** The user is an NPD lead without an employee record, a data error: the account must be deleted. */
 	NPD_LEAD_WITHOUT_EMPLOYEE(HttpStatus.CONFLICT),
 
+	/**
+	 * The employee record cannot be linked to the user: it has another user, is not an NPD lead, or is on
+	 * Baja for another reason; the {@code reason} property says which.
+	 */
+	EMPLOYEE_NOT_LINKABLE(HttpStatus.CONFLICT),
+
 	/** The database could not be reached; nothing was saved and the request can be retried. */
 	SERVICE_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE),
 

@@ -1,25 +1,34 @@
 package com.npdinfosgroup.api.planner.service;
 
+import java.time.Clock;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import com.npdinfosgroup.api.history.service.AuditService;
 import com.npdinfosgroup.api.planner.dto.request.NewNpdLeadCommand;
 import com.npdinfosgroup.api.planner.dto.request.NpdLeadEmployeeRequest;
 import com.npdinfosgroup.api.planner.dto.request.RegisterResourceCommand;
 import com.npdinfosgroup.api.planner.dto.request.RegisterResourceRequest;
 import com.npdinfosgroup.api.planner.dto.response.NpdLeadEmployeeSummary;
+import com.npdinfosgroup.api.planner.persistence.entity.Employee;
 import com.npdinfosgroup.api.planner.persistence.repository.EmployeeRepository;
+import com.npdinfosgroup.api.planner.persistence.repository.TerminationReasonRepository;
+import com.npdinfosgroup.api.planner.service.mapper.ResourceMapper;
 import com.npdinfosgroup.api.planner.service.validator.ResourceRequestValidator;
 import com.npdinfosgroup.api.shared.exception.ApiException;
 import com.npdinfosgroup.api.shared.exception.ErrorCode;
 import com.npdinfosgroup.api.shared.exception.FieldErrorCode;
 import com.npdinfosgroup.api.shared.exception.FieldProblem;
+import com.npdinfosgroup.api.shared.exception.NotFoundException;
 import com.npdinfosgroup.api.shared.exception.ValidationException;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -30,10 +39,13 @@ import org.springframework.transaction.annotation.Transactional;
  * <p>
  * Every write is validated and audited as a resource, so a record changed from Usuarios looks the same
  * as one changed from Recursos. The writes join the transaction of the user edit: both are saved, or
- * neither. Baja, back to Activo and renaming come in the next PR (SCRUM-53 plan, PR 7b).
+ * neither.
  */
 @Service
 public class NpdLeadEmployeeService {
+
+	/** Termination reason of a lead whose user left the NPD lead role (V12; not offered in Recursos). */
+	public static final String ROLE_CHANGE = "CAMBIO_DE_ROL";
 
 	private static final String ACTIVE = "ACTIVO";
 
@@ -44,15 +56,37 @@ public class NpdLeadEmployeeService {
 
 	private final ResourceRegistrationService registration;
 
+	private final CatalogService catalogs;
+
+	private final TerminationReasonRepository reasons;
+
+	private final AuditService audit;
+
+	private final ResourceMapper mapper;
+
+	private final Clock clock;
+
 	/**
 	 * Creates the service.
 	 *
 	 * @param employees the employee records
 	 * @param registration registers a record as any resource
+	 * @param catalogs gives the ids of the statuses
+	 * @param reasons gives the id of {@link #ROLE_CHANGE}
+	 * @param audit records the changes
+	 * @param mapper gives the audited values of a record
+	 * @param clock gives today, the date of a Baja
 	 */
-	NpdLeadEmployeeService(EmployeeRepository employees, ResourceRegistrationService registration) {
+	NpdLeadEmployeeService(EmployeeRepository employees, ResourceRegistrationService registration,
+			CatalogService catalogs, TerminationReasonRepository reasons, AuditService audit, ResourceMapper mapper,
+			Clock clock) {
 		this.employees = employees;
 		this.registration = registration;
+		this.catalogs = catalogs;
+		this.reasons = reasons;
+		this.audit = audit;
+		this.mapper = mapper;
+		this.clock = clock;
 	}
 
 	/**
@@ -113,6 +147,95 @@ public class NpdLeadEmployeeService {
 		employees.findById(id).orElseThrow().setNpdLead(true);
 		employees.flush();
 		return id;
+	}
+
+	/**
+	 * Puts the record of a lead whose user leaves the NPD lead role on Baja, with today's date and the
+	 * reason {@link #ROLE_CHANGE} (SCRUM-53 CA-11). As any Baja, the person leaves their project; the NPD
+	 * lead mark stays, and the collaborators keep them as lead until someone reassigns them.
+	 *
+	 * @param employeeId id of the record
+	 * @param actor who changes the role, for the audit
+	 * @throws NotFoundException if the record does not exist
+	 * @throws ApiException {@link ErrorCode#CONCURRENT_MODIFICATION} if it is saved meanwhile from Recursos
+	 */
+	@Transactional
+	public void leaveRole(long employeeId, String actor) {
+		short terminated = catalogs.findStatusId(ResourceRequestValidator.TERMINATED).orElseThrow();
+		short reason = reasons.findByCode(ROLE_CHANGE).orElseThrow().getId();
+		change(employeeId, actor, employee -> {
+			employee.setStatusId(terminated);
+			employee.setTerminationDate(LocalDate.now(clock));
+			employee.setTerminationReasonId(reason);
+			ResourceFields.leaveProject(employee);
+		});
+	}
+
+	/**
+	 * Puts back to Activo, without project, the record of a former NPD lead whose user is an NPD lead
+	 * again (SCRUM-53 CA-10). Only a Baja by {@link #ROLE_CHANGE} comes back this way; a record that is
+	 * not on Baja keeps its status.
+	 *
+	 * @param employeeId id of the record
+	 * @param actor who changes the role, for the audit
+	 * @throws NotFoundException if the record does not exist
+	 * @throws ApiException {@link ErrorCode#EMPLOYEE_NOT_LINKABLE} ({@code reason = TERMINATED}) if it is
+	 *         on Baja for another reason, or {@link ErrorCode#CONCURRENT_MODIFICATION} if it is saved
+	 *         meanwhile from Recursos
+	 */
+	@Transactional
+	public void returnToRole(long employeeId, String actor) {
+		short active = catalogs.findStatusId(ACTIVE).orElseThrow();
+		change(employeeId, actor, employee -> {
+			employee.setNpdLead(true);
+			if (!ResourceRequestValidator.TERMINATED.equals(employee.getStatus().getCode())) {
+				return;
+			}
+			boolean leftByRoleChange = employee.getTerminationReason() != null
+					&& ROLE_CHANGE.equals(employee.getTerminationReason().getCode());
+			if (!leftByRoleChange) {
+				throw new ApiException(ErrorCode.EMPLOYEE_NOT_LINKABLE, List.of(employee.getFullName()),
+						Map.of("reason", "TERMINATED", "existingResourceId", employee.getId(), "existingResourceName",
+								employee.getFullName()));
+			}
+			employee.setStatusId(active);
+			employee.setTerminationDate(null);
+			employee.setTerminationReasonId(null);
+		});
+	}
+
+	/**
+	 * Gives the record the new name of its user (HU-11 CA-04), so the user list and Recursos show the
+	 * same name.
+	 *
+	 * @param employeeId id of the record
+	 * @param fullName the new name, already validated and trimmed
+	 * @param actor who renames the user, for the audit
+	 * @throws NotFoundException if the record does not exist
+	 * @throws ApiException {@link ErrorCode#CONCURRENT_MODIFICATION} if it is saved meanwhile from Recursos
+	 */
+	@Transactional
+	public void rename(long employeeId, String fullName, String actor) {
+		change(employeeId, actor, employee -> employee.setFullName(fullName));
+	}
+
+	/**
+	 * Applies a change to a record and audits it as a resource edit: the values before, the change, the
+	 * write (checked against the version that was loaded) and the values after.
+	 */
+	private void change(long employeeId, String actor, Consumer<Employee> edit) {
+		Employee employee = employees.findDetailedById(employeeId).orElseThrow(() -> new NotFoundException(employeeId));
+		Map<String, String> before = mapper.auditValues(employee);
+		edit.accept(employee);
+		try {
+			employees.flush();
+		}
+		catch (OptimisticLockingFailureException ex) {
+			throw new ApiException(ErrorCode.CONCURRENT_MODIFICATION, List.of(), Map.of());
+		}
+		// Loads the names of the new status, reason and so on, for the audited values
+		employees.refresh(employee);
+		audit.recordChanges(ResourceQueryService.AUDIT_ENTITY, employeeId, before, mapper.auditValues(employee), actor);
 	}
 
 }
