@@ -39,6 +39,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.InOrder;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.transaction.support.TransactionOperations;
 
@@ -66,9 +67,11 @@ class AccountActivationServiceTest {
 
 	private final UserQueryService queries = mock();
 
+	private final ApplicationEventPublisher events = mock();
+
 	private final AccountActivationService service = new AccountActivationService(users, keycloak, audit,
 			TransactionOperations.withoutTransaction(), Clock.fixed(NOW, ZoneOffset.UTC), queries,
-			new AccountDeletionProperties(Duration.ofDays(1), Duration.ofMinutes(5)));
+			new AccountDeletionProperties(Duration.ofDays(1), Duration.ofMinutes(5)), events);
 
 	private final UserResponse response = mock();
 
@@ -90,6 +93,7 @@ class AccountActivationServiceTest {
 		order.verify(audit).recordChanges("app_user", ID, Map.of("state", state.name()), Map.of("state", "DISABLED"), ACTOR);
 		assertThat(locked.getState()).isEqualTo(AppUserState.DISABLED);
 		assertThat(locked.getDisabledAt()).isEqualTo(NOW);
+		verify(events).publishEvent(new AccountStateChanged(ID, NOW.plus(Duration.ofDays(1))));
 		verify(users, never()).lockByRoleAndState(any(), any());
 	}
 
