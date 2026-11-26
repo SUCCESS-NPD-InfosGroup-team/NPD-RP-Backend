@@ -14,6 +14,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -29,9 +30,13 @@ import com.npdinfosgroup.api.access.persistence.entity.AppUserState;
 import com.npdinfosgroup.api.access.persistence.repository.AppUserRepository;
 import com.npdinfosgroup.api.access.service.validator.UpdateUserRequestValidator;
 import com.npdinfosgroup.api.history.service.AuditService;
+import com.npdinfosgroup.api.planner.dto.request.NewNpdLeadCommand;
+import com.npdinfosgroup.api.planner.dto.request.NpdLeadEmployeeRequest;
+import com.npdinfosgroup.api.planner.service.NpdLeadEmployeeService;
 import com.npdinfosgroup.api.shared.exception.ApiException;
 import com.npdinfosgroup.api.shared.exception.ErrorCode;
 import com.npdinfosgroup.api.shared.exception.FieldErrorCode;
+import com.npdinfosgroup.api.shared.exception.FieldProblem;
 import com.npdinfosgroup.api.shared.exception.NotFoundException;
 import com.npdinfosgroup.api.shared.exception.ValidationException;
 import com.npdinfosgroup.api.shared.security.Role;
@@ -48,6 +53,11 @@ class UserEditServiceTest {
 
 	private static final long ID = 7L;
 
+	private static final String ACTOR = "admin@example.com";
+
+	private static final NpdLeadEmployeeRequest EMPLOYEE = new NpdLeadEmployeeRequest("1105", (short) 1, 3L, (short) 2,
+			LocalDate.of(2026, 3, 3), "ACTIVO");
+
 	private static final UUID KEYCLOAK_ID = UUID.fromString("5f0c2b8e-1d2a-4c3b-9e4f-6a7b8c9d0e1f");
 
 	private static final String ADMINISTRATOR = Role.OPERATIONS_ADMINISTRATOR.realmName();
@@ -62,8 +72,10 @@ class UserEditServiceTest {
 
 	private final UserQueryService queries = mock();
 
+	private final NpdLeadEmployeeService npdLeads = mock();
+
 	private final UserEditService service = new UserEditService(validator, users, keycloak, audit,
-			TransactionOperations.withoutTransaction(), queries);
+			TransactionOperations.withoutTransaction(), queries, npdLeads);
 
 	private final UserResponse response = mock();
 
@@ -147,16 +159,40 @@ class UserEditServiceTest {
 		verifyNoInteractions(keycloak);
 	}
 
-	/** Until the NPD lead cases exist, the role cannot change to NPD lead. */
+	/**
+	 * CA-10: a user without employee record becomes NPD lead: the record is registered with the user's
+	 * new name and email, and linked.
+	 */
 	@Test
-	void rejectsTheChangeToNpdLeadForNow() {
-		when(users.findById(ID)).thenReturn(Optional.of(user("Ana Ríos", "guest", AppUserState.ACTIVE)));
-		when(validator.validate(any())).thenReturn(Role.NPD_LEADER);
+	void registersTheRecordOfANewNpdLead() {
+		AppUser locked = given(user("Ana Ríos", "guest", AppUserState.ACTIVE));
+		when(npdLeads.register(any())).thenReturn(42L);
 
-		assertThatThrownBy(() -> service.update(command("Ana Ríos", Role.NPD_LEADER)))
+		service.update(new UpdateUserCommand(ID, new UpdateUserRequest(0, "Ana María", "npd-leader", EMPLOYEE), ACTOR));
+
+		NewNpdLeadCommand lead = new NewNpdLeadCommand(EMPLOYEE, "Ana María", "ana@example.com", ACTOR);
+		verify(npdLeads).problemsOf(lead);
+		verify(npdLeads).register(lead);
+		verify(npdLeads, never()).rename(anyLong(), any(), any());
+		assertThat(locked.getEmployeeId()).isEqualTo(42L);
+		verify(audit).recordChanges(eq("app_user"), eq(ID), any(), eq(Map.of("fullName", "Ana María", "role",
+				"npd-leader", "employeeId", "42")), eq(ACTOR));
+	}
+
+	/** CA-10: the employee errors come with the user's, before anything is called. */
+	@Test
+	void reportsTheEmployeeErrorsWithTheUserOnes() {
+		when(users.findById(ID)).thenReturn(Optional.of(user("Ana Ríos", "guest", AppUserState.ACTIVE)));
+		when(validator.validate(any()))
+			.thenThrow(new ValidationException("user", List.of(FieldProblem.of("fullName", FieldErrorCode.TOO_LONG))));
+		when(npdLeads.problemsOf(any()))
+			.thenReturn(List.of(FieldProblem.of("employee.genderId", FieldErrorCode.REQUIRED)));
+
+		assertThatThrownBy(() -> service.update(new UpdateUserCommand(ID,
+				new UpdateUserRequest(0, "Ana", "npd-leader", EMPLOYEE), ACTOR)))
 			.isInstanceOfSatisfying(ValidationException.class, ex -> assertThat(ex.getProblems())
-				.singleElement()
-				.satisfies(problem -> assertThat(problem.code()).isEqualTo(FieldErrorCode.ROLE_NOT_ASSIGNABLE)));
+				.extracting(FieldProblem::field)
+				.containsExactly("fullName", "employee.genderId"));
 		verifyNoInteractions(keycloak);
 	}
 
@@ -300,7 +336,7 @@ class UserEditServiceTest {
 	}
 
 	private UpdateUserCommand command(String fullName, Role role) {
-		return new UpdateUserCommand(ID, new UpdateUserRequest(0, fullName, role.realmName()), "admin@example.com");
+		return new UpdateUserCommand(ID, new UpdateUserRequest(0, fullName, role.realmName(), null), "admin@example.com");
 	}
 
 	/** Answers the first read and the locked one (another instance, as in a new transaction); returns the latter. */

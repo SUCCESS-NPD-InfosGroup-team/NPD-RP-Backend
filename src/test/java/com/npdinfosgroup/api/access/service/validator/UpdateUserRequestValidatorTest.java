@@ -34,13 +34,13 @@ class UpdateUserRequestValidatorTest {
 	@ParameterizedTest
 	@ValueSource(strings = { "operations-administrator", "npd-leader", "customer-success", "guest" })
 	void acceptsEveryRole(String role) {
-		assertThat(validator.validate(new UpdateUserRequest(0, "Ana Ríos", role)).realmName()).isEqualTo(role);
+		assertThat(validator.validate(new UpdateUserRequest(0, "Ana Ríos", role, null)).realmName()).isEqualTo(role);
 	}
 
 	/** CA-12: a blank name, a missing version and a missing role come together. */
 	@Test
 	void reportsEveryMissingField() {
-		assertThatThrownBy(() -> validator.validate(new UpdateUserRequest(null, "   ", "")))
+		assertThatThrownBy(() -> validator.validate(new UpdateUserRequest(null, "   ", "", null)))
 			.isInstanceOfSatisfying(ValidationException.class, ex -> {
 				assertThat(ex.getScope()).isEqualTo("user");
 				assertThat(ex.getProblems()).extracting(FieldProblem::field, FieldProblem::code)
@@ -53,7 +53,7 @@ class UpdateUserRequestValidatorTest {
 	/** A name over 150 characters and an unknown role. */
 	@Test
 	void reportsALongNameAndAnUnknownRole() {
-		assertThatThrownBy(() -> validator.validate(new UpdateUserRequest(0, "a".repeat(151), "boss")))
+		assertThatThrownBy(() -> validator.validate(new UpdateUserRequest(0, "a".repeat(151), "boss", null)))
 			.isInstanceOfSatisfying(ValidationException.class,
 					ex -> assertThat(ex.getProblems()).extracting(FieldProblem::field, FieldProblem::code)
 						.containsExactlyInAnyOrder(tuple("fullName", FieldErrorCode.TOO_LONG),
@@ -63,7 +63,7 @@ class UpdateUserRequestValidatorTest {
 	/** The role of a valid request is returned. */
 	@Test
 	void returnsTheRole() {
-		assertThat(validator.validate(new UpdateUserRequest(3, "Ana", "guest"))).isEqualTo(Role.GUEST);
+		assertThat(validator.validate(new UpdateUserRequest(3, "Ana", "guest", null))).isEqualTo(Role.GUEST);
 	}
 
 }

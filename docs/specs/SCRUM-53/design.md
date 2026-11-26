@@ -73,6 +73,7 @@ Operations (inputs are `planner` commands; no `access` type crosses into `planne
 | Method | Does |
 |--------|------|
 | `findLinkCandidate(email, employeeNumber)` | The employee that has that email (first) or N°, if any, with what the confirmation shows |
+| `problemsOf(NewNpdLeadCommand)` | The field errors `register` would give, without saving: the edit reports them with the user's before calling Keycloak |
 | `register(NewNpdLeadCommand)` | Validates as a new resource (same field errors) and inserts it: `is_npd_lead = true`, no project, no lead, email = the user's |
 | `link(employeeId, email)` | Checks it is linkable (§6) and fills the email if the record has none (mockup "Ya existe como empleado (N°)") |
 | `leaveRole(employeeId)` | Baja: `termination.date` = today (business time zone, `Clock`), reason `CAMBIO_DE_ROL`; as any Baja, it leaves its project (BD-08). Keeps `is_npd_lead` |

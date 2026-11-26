@@ -16,7 +16,7 @@ origin/develop...HEAD`). What and why: [spec.md](spec.md). How: [design.md](desi
 | 6 | `feature/SCRUM-53-edit-user-endpoint` | `PUT /api/v1/access/users/{id}`, OpenAPI, messages, end-to-end tests. | ~300 | PR 5c | In review ([#77](https://github.com/SUCCESS-NPD-InfosGroup-team/NPD-RP-Backend/pull/77)) |
 | 7a | `feature/SCRUM-53-npd-lead-employee-service` | `planner` service: registering the record of a new NPD lead. | ~215 | PR 3 | In review ([#78](https://github.com/SUCCESS-NPD-InfosGroup-team/NPD-RP-Backend/pull/78)) |
 | 7b | `feature/SCRUM-53-npd-lead-role-changes` | `planner` service: Baja by role change, back to Activo, rename. | ~300 | PR 7a | In review ([#80](https://github.com/SUCCESS-NPD-InfosGroup-team/NPD-RP-Backend/pull/80)) |
-| 8 | `feature/SCRUM-53-role-change-npd-lead` | CA-10 and CA-11 in the edit: register, Baja, back to Activo, rename. | ~360 | PR 6, PR 7b | Pending |
+| 8 | `feature/SCRUM-53-role-change-npd-lead` | CA-10 and CA-11 in the edit: register, Baja, back to Activo, rename. | ~360 | PR 6, PR 7b | In review ([#81](https://github.com/SUCCESS-NPD-InfosGroup-team/NPD-RP-Backend/pull/81)) |
 | 9 | `feature/SCRUM-53-link-existing-employee` | Linking an existing NPD lead employee (HU-10 CA-05 to CA-07, CA-12, CA-13). | ~350 | PR 8 | Pending |
 | 10 | `feature/SCRUM-53-role-change-termination-guard` | Guard in Recursos for Baja by "Cambio de rol" (design §7). | ~160 | PR 3 | Pending |
 

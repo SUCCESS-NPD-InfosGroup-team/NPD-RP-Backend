@@ -8,6 +8,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.http.HttpHeaders.AUTHORIZATION;
 import static org.springframework.http.MediaType.APPLICATION_JSON;
 
+import java.sql.Types;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -54,8 +55,102 @@ class UserUpdateControllerTest {
 	/** Leaves the database as the other tests expect it. */
 	@AfterEach
 	void cleanUp() {
-		jdbc.sql("DELETE FROM audit_log WHERE entity_type = 'app_user'").update();
+		jdbc.sql("DELETE FROM audit_log WHERE entity_type IN ('app_user', 'employee')").update();
 		jdbc.sql("DELETE FROM app_user").update();
+		jdbc.sql("UPDATE employee SET leader_id = NULL WHERE code LIKE 'UU-%'").update();
+		jdbc.sql("DELETE FROM employee WHERE code LIKE 'UU-%'").update();
+		jdbc.sql("DELETE FROM job_position WHERE name = 'UU Posicion'").update();
+	}
+
+	/** CA-10, CA-11, HU-11 CA-04: new record, renamed with the user, Baja with collaborators, back to Activo. */
+	@Test
+	void changesToAndFromNpdLead() {
+		long positionId = insertPosition();
+		User ana = insert("Ana Ríos", "customer-success", "ACTIVE");
+
+		put(ana.id(), Map.of("version", 0, "fullName", "Ana Ríos", "role", "npd-leader", "employee",
+				employee("UU-1", positionId)))
+			.expectStatus()
+			.isOk()
+			.expectBody()
+			.jsonPath("$.role").isEqualTo("npd-leader")
+			.jsonPath("$.employee.employeeNumber").isEqualTo("UU-1")
+			.jsonPath("$.employee.status").isEqualTo("ACTIVO")
+			.jsonPath("$.employee.collaborators").isEqualTo(0);
+		long employeeId = jdbc.sql("SELECT employee_id FROM app_user WHERE id = :id").param("id", ana.id())
+			.query(Long.class)
+			.single();
+		assertThat(jdbc.sql("SELECT full_name || ' ' || email || ' ' || is_npd_lead FROM employee WHERE id = :id")
+			.param("id", employeeId).query(String.class).single()).isEqualTo("Ana Ríos ana.rios@example.com true");
+
+		put(ana.id(), Map.of("version", 1, "fullName", "Ana María Ríos", "role", "npd-leader")).expectStatus().isOk();
+		assertThat(jdbc.sql("SELECT full_name FROM employee WHERE id = :id").param("id", employeeId)
+			.query(String.class).single()).isEqualTo("Ana María Ríos");
+
+		insertEmployee("UU-2", positionId, employeeId);
+		put(ana.id(), Map.of("version", 2, "fullName", "Ana María Ríos", "role", "guest")).expectStatus()
+			.isOk()
+			.expectBody()
+			.jsonPath("$.employee.id").isEqualTo(Math.toIntExact(employeeId))
+			.jsonPath("$.employee.status").isEqualTo("BAJA")
+			.jsonPath("$.employee.collaborators").isEqualTo(1);
+
+		put(ana.id(), Map.of("version", 3, "fullName", "Ana María Ríos", "role", "npd-leader")).expectStatus()
+			.isOk()
+			.expectBody()
+			.jsonPath("$.employee.status").isEqualTo("ACTIVO");
+		assertThat(jdbc.sql("SELECT count(*) FROM employee WHERE email = 'ana.rios@example.com'").query(Long.class)
+			.single()).isEqualTo(1);
+	}
+
+	/** CA-10: employee errors come with the user's; Keycloak failing leaves no employee record. */
+	@Test
+	void savesTheEmployeeRecordOnlyWithTheRole() {
+		long positionId = insertPosition();
+		insertEmployee("UU-9", positionId, null);
+		User ana = insert("Ana Ríos", "guest", "ACTIVE");
+
+		put(ana.id(), Map.of("version", 0, "fullName", " ", "role", "npd-leader", "employee",
+				employee("UU-9", positionId)))
+			.expectStatus()
+			.isBadRequest()
+			.expectBody()
+			.jsonPath("$.errors[*].field").value(List.class,
+					fields -> assertThat(fields).containsExactlyInAnyOrder("fullName", "employee.employeeNumber"))
+			.jsonPath("$.errors[?(@.field == 'employee.employeeNumber')].code").isEqualTo(List.of("EMPLOYEE_NUMBER_TAKEN"));
+
+		doThrow(new IdentityProviderUnavailableException(new RuntimeException())).when(keycloak)
+			.replaceRealmRole(any(), any());
+		put(ana.id(), Map.of("version", 0, "fullName", "Ana Ríos", "role", "npd-leader", "employee",
+				employee("UU-1", positionId)))
+			.expectStatus()
+			.isEqualTo(503);
+		assertThat(jdbc.sql("SELECT count(*) FROM employee WHERE code = 'UU-1'").query(Long.class).single()).isZero();
+		assertThat(role(ana.id())).isEqualTo("guest");
+	}
+
+	private Map<String, Object> employee(String number, long positionId) {
+		return Map.of("employeeNumber", number, "genderId", catalogId("gender", "F"), "positionId", positionId,
+				"workModeId", catalogId("work_modality", "VIRTUAL"), "hireDate", "2026-03-03", "status", "ACTIVO");
+	}
+
+	private long insertPosition() {
+		return jdbc.sql("INSERT INTO job_position (name) VALUES ('UU Posicion') RETURNING id").query(Long.class).single();
+	}
+
+	private void insertEmployee(String code, long positionId, Long leaderId) {
+		jdbc.sql("""
+				INSERT INTO employee (code, full_name, gender_id, job_position_id, hire_date, status_id, leader_id)
+				VALUES (:code, :code, (SELECT id FROM gender WHERE code = 'M'), :position, DATE '2024-01-15',
+				        (SELECT id FROM resource_status WHERE code = 'ACTIVO'), :lead)""")
+			.param("code", code)
+			.param("position", positionId)
+			.param("lead", leaderId, Types.BIGINT)
+			.update();
+	}
+
+	private short catalogId(String table, String code) {
+		return jdbc.sql("SELECT id FROM " + table + " WHERE code = :code").param("code", code).query(Short.class).single();
 	}
 
 	/**
@@ -131,7 +226,8 @@ class UserUpdateControllerTest {
 		put(ana.id(), Map.of("version", 0, "fullName", "Ana Ríos", "role", "npd-leader")).expectStatus()
 			.isBadRequest()
 			.expectBody()
-			.jsonPath("$.errors[0].code").isEqualTo("ROLE_NOT_ASSIGNABLE");
+			.jsonPath("$.errors[0].field").isEqualTo("employee")
+			.jsonPath("$.errors[0].message").isEqualTo("Completa los datos de empleado del líder NPD.");
 		verifyNoInteractions(keycloak);
 	}
 

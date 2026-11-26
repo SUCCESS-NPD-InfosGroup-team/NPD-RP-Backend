@@ -142,8 +142,9 @@ class UserController {
 			- Si el servicio de inicio de sesión falla, no queda nada creado y se puede reintentar (503).""")
 	@ApiResponse(responseCode = "201", description = "Usuario creado e invitación enviada; `Location` apunta a él")
 	@ApiResponse(responseCode = "400", description = """
-			Uno o más campos inválidos (`VALIDATION_FAILED`, detalle en `errors`; `role = npd-leader` da \
-			`ROLE_NOT_ASSIGNABLE`)""",
+			Uno o más campos inválidos (`VALIDATION_FAILED`, detalle en `errors`), del usuario y de \
+			`employee` (`employee.<campo>`, mismos códigos que al registrar un recurso, como \
+			`EMPLOYEE_NUMBER_TAKEN`)""",
 			content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemDetail.class)))
 	@ApiResponse(responseCode = "401", description = "Sin token o token inválido (`UNAUTHORIZED`)",
 			content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemDetail.class)))
@@ -178,9 +179,17 @@ class UserController {
 			`CONCURRENT_MODIFICATION`, con `currentVersion`).
 			- `fullName` (obligatorio, hasta 150 caracteres) se guarda sin espacios al inicio ni al final, \
 			también en la cuenta de inicio de sesión. Primero se informan todos los campos inválidos (400).
-			- `role` es uno de: `operations-administrator`, `npd-leader`, `customer-success`, `guest`. \
-			Cambiar **a** `npd-leader` se rechaza con `ROLE_NOT_ASSIGNABLE` **por ahora**: necesita el \
-			registro de empleado del líder, que llega en un próximo cambio.
+			- `role` es uno de: `operations-administrator`, `npd-leader`, `customer-success`, `guest`.
+			- **A `npd-leader`, sin registro de empleado:** `employee` es obligatorio (N°, género, posición, \
+			modalidad, fecha de inicio y estado `ACTIVO` o `LICENCIA`); sus errores van con los del usuario \
+			como `employee.<campo>`. Se crea su registro de empleado como líder NPD, sin proyecto ni líder, \
+			con el nombre y el correo del usuario. **Con registro (antiguo líder NPD):** `employee` se \
+			ignora y su registro vuelve de Baja a Activo, sin proyecto.
+			- **De `npd-leader` a otro rol:** su registro de empleado pasa a Baja por «Cambio de rol» y \
+			deja su proyecto; sus colaboradores lo siguen teniendo como líder. La respuesta trae \
+			`employee.id` y `employee.collaborators` para ofrecer «Ver sus colaboradores».
+			- El nombre de un usuario con registro de empleado se cambia también en el registro.
+			- El rol solo cambia si el registro de empleado se guarda también: ambos o ninguno.
 			- Al cambiar el rol se cierran las sesiones del usuario: su siguiente petición da 401 y vuelve a \
 			entrar con el nuevo rol. Cambiar solo el nombre no cierra sesiones.
 			- Guardar los mismos valores no cambia nada: no se audita y `version` sigue igual.
@@ -189,8 +198,9 @@ class UserController {
 			- Si el servicio de inicio de sesión falla, no queda nada cambiado y se puede reintentar (503).""")
 	@ApiResponse(responseCode = "200", description = "El usuario guardado, con su nueva `version`")
 	@ApiResponse(responseCode = "400", description = """
-			Uno o más campos inválidos (`VALIDATION_FAILED`, detalle en `errors`; `role = npd-leader` da \
-			`ROLE_NOT_ASSIGNABLE`)""",
+			Uno o más campos inválidos (`VALIDATION_FAILED`, detalle en `errors`), del usuario y de \
+			`employee` (`employee.<campo>`, mismos códigos que al registrar un recurso, como \
+			`EMPLOYEE_NUMBER_TAKEN`)""",
 			content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemDetail.class)))
 	@ApiResponse(responseCode = "401", description = "Sin token o token inválido (`UNAUTHORIZED`)",
 			content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemDetail.class)))
@@ -199,8 +209,10 @@ class UserController {
 	@ApiResponse(responseCode = "404", description = "No existe (`NOT_FOUND`)",
 			content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemDetail.class)))
 	@ApiResponse(responseCode = "409", description = """
-			- `CONCURRENT_MODIFICATION`: alguien guardó el usuario después de leerlo; `currentVersion` trae \
-			la versión actual.
+			- `CONCURRENT_MODIFICATION`: alguien guardó el usuario después de leerlo (`currentVersion` trae \
+			la versión actual), o su registro de empleado se editó a la vez en Recursos.
+			- `EMPLOYEE_NOT_LINKABLE`: su registro de empleado está de Baja por otro motivo y no puede \
+			volver como líder NPD (`reason = TERMINATED`).
 			- `LAST_OPERATIONS_ADMINISTRATOR`: no quedaría ningún Operations administrator activo.
 			- `NPD_LEAD_WITHOUT_EMPLOYEE`: líder NPD sin registro de empleado; su cuenta se debe eliminar.""",
 			content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemDetail.class)))
