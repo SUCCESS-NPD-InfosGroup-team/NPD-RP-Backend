@@ -44,7 +44,7 @@ class UserControllerTest {
 	private static final UUID KEYCLOAK_ID = UUID.fromString("5f0c2b8e-1d2a-4c3b-9e4f-6a7b8c9d0e1f");
 
 	private static final Map<String, Object> ANA = Map.of("fullName", " Ana María Ríos ", "email",
-			"Ana.Rios@Example.com", "role", "npd-leader");
+			"Ana.Rios@Example.com", "role", "customer-success");
 
 	@Autowired
 	private RestTestClient client;
@@ -75,7 +75,7 @@ class UserControllerTest {
 			.expectBody()
 			.jsonPath("$.fullName").isEqualTo("Ana María Ríos")
 			.jsonPath("$.email").isEqualTo("ana.rios@example.com")
-			.jsonPath("$.role").isEqualTo("npd-leader")
+			.jsonPath("$.role").isEqualTo("customer-success")
 			.jsonPath("$.state").isEqualTo("PENDING")
 			.jsonPath("$.lastAccessAt").doesNotExist()
 			.returnResult()
@@ -87,13 +87,13 @@ class UserControllerTest {
 			.single();
 		assertThat(location).hasPath(USERS + "/" + id);
 		get(location.getPath()).expectStatus().isOk().expectBody().jsonPath("$.email").isEqualTo("ana.rios@example.com");
-		verify(keycloak).assignRealmRole(KEYCLOAK_ID, Role.NPD_LEADER);
+		verify(keycloak).assignRealmRole(KEYCLOAK_ID, Role.CUSTOMER_SUCCESS);
 		verify(keycloak).sendInvitation(KEYCLOAK_ID);
 		assertThat(jdbc.sql("SELECT field || '=' || new_value || ' by ' || actor FROM audit_log WHERE entity_type = 'app_user'")
 			.query(String.class)
 			.list()).containsExactlyInAnyOrder("fullName=Ana María Ríos by operations-administrator.user",
 					"email=ana.rios@example.com by operations-administrator.user",
-					"role=npd-leader by operations-administrator.user");
+					"role=customer-success by operations-administrator.user");
 	}
 
 	/** Every invalid field is reported at once, in Spanish, and Keycloak is not called. */
@@ -113,6 +113,24 @@ class UserControllerTest {
 			.jsonPath("$.errors[*].field").isEqualTo(List.of("role"))
 			.jsonPath("$.errors[0].message").isEqualTo("Selecciona un rol.");
 		verifyNoInteractions(keycloak);
+	}
+
+	/**
+	 * SCRUM-241 CA-08: an NPD lead cannot be created here, so the role is rejected with the other
+	 * fields and nothing is created, neither in Keycloak nor in the database.
+	 */
+	@Test
+	void rejectsTheNpdLeadRole() {
+		post(ADMIN, Map.of("fullName", "Ana María Ríos", "email", "ana.rios@example.com", "role", "npd-leader"))
+			.expectStatus()
+			.isBadRequest()
+			.expectBody()
+			.jsonPath("$.errors[*].field").isEqualTo(List.of("role"))
+			.jsonPath("$.errors[0].code").isEqualTo("ROLE_NOT_ASSIGNABLE")
+			.jsonPath("$.errors[0].message").isEqualTo("Por ahora los líderes NPD no se pueden crear desde aquí.");
+
+		verifyNoInteractions(keycloak);
+		assertThat(jdbc.sql("SELECT count(*) FROM app_user").query(Long.class).single()).isZero();
 	}
 
 	/** An email that already has a user is rejected before calling Keycloak. */

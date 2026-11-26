@@ -8,8 +8,8 @@ Tests", and stays under 400 changed lines (`git diff --shortstat origin/develop.
 |---|--------|---------|------------|------------|--------|
 | 1 | `docs/SCRUM-241-npd-lead-flag` | `spec.md`, `design.md` and `plan.md` of this folder. | ~350 | — | Merged ([#54](https://github.com/SUCCESS-NPD-InfosGroup-team/NPD-RP-Backend/pull/54)) |
 | 2 | `fix/SCRUM-241-npd-lead-column` | V10, the entity, the import and the "Líder NPD" selector (design decisions 1 to 5). | ~250 | PR 1 | Merged ([#58](https://github.com/SUCCESS-NPD-InfosGroup-team/NPD-RP-Backend/pull/58)) |
-| 3 | `fix/SCRUM-241-npd-lead-validation` | `NOT_NPD_LEADER` when registering and editing a resource (decision 6). | ~220 | PR 2 | In progress |
-| 4 | `fix/SCRUM-241-block-npd-lead-user` | "Crear usuario" stops offering and accepting `npd-leader` (decision 7). | ~150 | PR 1 | Pending |
+| 3 | `fix/SCRUM-241-npd-lead-validation` | `NOT_NPD_LEADER` when registering and editing a resource (decision 6). | ~220 | PR 2 | Merged ([#61](https://github.com/SUCCESS-NPD-InfosGroup-team/NPD-RP-Backend/pull/61)) |
+| 4 | `fix/SCRUM-241-block-npd-lead-user` | "Crear usuario" stops offering and accepting `npd-leader` (decision 7). | ~150 | PR 1 | In progress |
 
 PR 4 does not depend on PR 2 or 3 and can be reviewed in parallel.
 

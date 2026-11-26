@@ -117,11 +117,16 @@ class UserController {
 
 			- `fullName` (hasta 150 caracteres), `email` (hasta 254, también es el usuario) y `role` son \
 			obligatorios. Primero se informan todos los campos inválidos (400).
-			- `role` es uno de: `operations-administrator`, `npd-leader`, `customer-success`, `guest`.
+			- `role` es uno de: `operations-administrator`, `customer-success`, `guest`. `npd-leader` se \
+			rechaza con `ROLE_NOT_ASSIGNABLE` **por ahora**: un líder NPD también necesita su registro de \
+			empleado para poder elegirlo como líder, y este endpoint solo crea el usuario. Se podrá crear \
+			con el registro de líderes NPD (HU-10, SCRUM-239).
 			- El usuario queda en estado `PENDING` hasta que use la plataforma por primera vez.
 			- Si el servicio de inicio de sesión falla, no queda nada creado y se puede reintentar (503).""")
 	@ApiResponse(responseCode = "201", description = "Usuario creado e invitación enviada; `Location` apunta a él")
-	@ApiResponse(responseCode = "400", description = "Uno o más campos inválidos (`VALIDATION_FAILED`, detalle en `errors`)",
+	@ApiResponse(responseCode = "400", description = """
+			Uno o más campos inválidos (`VALIDATION_FAILED`, detalle en `errors`; `role = npd-leader` da \
+			`ROLE_NOT_ASSIGNABLE`)""",
 			content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemDetail.class)))
 	@ApiResponse(responseCode = "401", description = "Sin token o token inválido (`UNAUTHORIZED`)",
 			content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemDetail.class)))

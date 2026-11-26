@@ -9,6 +9,6 @@ import jakarta.validation.constraints.Size;
 public record CreateUserRequest(
 		@Schema(description = "Nombre completo", example = "Ana María Ríos") @NotBlank @Size(max = 150) String fullName,
 		@Schema(description = "Correo; también es el usuario para iniciar sesión", example = "ana.rios@infosgroup.com") @NotBlank @Email(regexp = ".+@.+\\..+") @Size(max = 254) String email,
-		@Schema(description = "Código del rol", allowableValues = { "operations-administrator", "npd-leader",
-				"customer-success", "guest" }, example = "npd-leader") @NotBlank String role) {
+		@Schema(description = "Código del rol", allowableValues = { "operations-administrator",
+				"customer-success", "guest" }, example = "customer-success") @NotBlank String role) {
 }
