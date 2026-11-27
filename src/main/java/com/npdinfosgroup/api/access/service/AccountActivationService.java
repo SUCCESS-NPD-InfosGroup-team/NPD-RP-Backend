@@ -1,7 +1,6 @@
 package com.npdinfosgroup.api.access.service;
 
 import java.time.Clock;
-import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -31,13 +30,13 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionOperations;
 
 /**
- * Deactivates and reactivates a user account (SCRUM-231): Keycloak first, then the {@code app_user} row and its audit in
+ * Deactivates a user account (SCRUM-231, first version, being removed): Keycloak first, then the {@code app_user} row and its audit in
  * one transaction. See {@code docs/specs/SCRUM-231/design.md} §1, §2 and §5.
  * <p>
  * The Keycloak account is disabled, so it cannot log in again, and its sessions are closed, so its next
  * request is refused (CA-01). Keycloak and the database cannot share a transaction: no transaction stays
  * open while waiting for Keycloak, and if anything fails after the account was disabled, it is enabled
- * again (disabled again, after a failed reactivation). The employee record of an NPD lead is never touched (CA-09).
+ * again. The employee record of an NPD lead is never touched (CA-09).
  */
 @Service
 public class AccountActivationService {
@@ -76,7 +75,7 @@ public class AccountActivationService {
 	 * @param transactions runs the save and the audit in one transaction
 	 * @param clock gives the moment of the deactivation
 	 * @param queries builds the response
-	 * @param deletion when a deactivated account is deleted, after which it cannot be reactivated
+	 * @param deletion when a deactivated account is deleted
 	 * @param events schedules or cancels the deletion once the change is committed
 	 */
 	AccountActivationService(AppUserRepository users, KeycloakAdminClient keycloak, AuditService audit,
@@ -166,74 +165,6 @@ public class AccountActivationService {
 	}
 
 	/**
-	 * Reactivates a deactivated account before its deletion time (CA-02): enabled in Keycloak with the
-	 * role it kept, and back to {@code ACTIVE} in {@code app_user}, or to {@code PENDING} if the user never
-	 * accessed the platform; audited (CA-06). An account that is not deactivated is returned as it is.
-	 *
-	 * @param command the user id, the version that was read and who reactivates it
-	 * @return the user as it is saved
-	 * @throws NotFoundException if the user does not exist (also once deleted)
-	 * @throws ValidationException if the version is missing
-	 * @throws ApiException {@link ErrorCode#CONCURRENT_MODIFICATION} if someone saved the user after the
-	 *         version that was read, or {@link ErrorCode#ACCOUNT_DELETION_DUE} if its deletion time has
-	 *         passed; nothing changes
-	 * @throws IdentityProviderUnavailableException if Keycloak cannot be reached; nothing is left changed
-	 */
-	public UserResponse reactivate(AccountActivationCommand command) {
-		AppUser user = checked(command);
-		if (user.getState() != AppUserState.DISABLED) {
-			return queries.toResponse(user);
-		}
-		checkNotDue(user);
-		UUID keycloakId = user.getKeycloakId();
-		try {
-			keycloak.setEnabled(keycloakId, true);
-			UserResponse response = transactions.execute(status -> saveReactivation(command));
-			log.info("User {} reactivated", command.id());
-			return response;
-		}
-		catch (RuntimeException ex) {
-			undo(keycloakId, false);
-			throw ex;
-		}
-	}
-
-	/**
-	 * Saves the reactivation with the user locked, rechecking the version and the deletion time, which may
-	 * have passed while Keycloak was called. The lock also keeps the deletion of the account from running
-	 * at the same time: whichever comes second sees what the first one saved.
-	 */
-	private UserResponse saveReactivation(AccountActivationCommand command) {
-		long id = command.id();
-		AppUser user = users.lockById(id).orElseThrow(() -> new NotFoundException(id));
-		if (!Objects.equals(command.version(), user.getVersion())) {
-			throw concurrentModification(user);
-		}
-		checkNotDue(user);
-		AppUserState after = user.getLastAccessAt() == null ? AppUserState.PENDING : AppUserState.ACTIVE;
-		user.setState(after);
-		user.setDisabledAt(null);
-		try {
-			users.saveAndFlush(user);
-		}
-		catch (OptimisticLockingFailureException ex) {
-			throw concurrentModification(user);
-		}
-		audit.recordChanges(AUDIT_ENTITY, id, Map.of(STATE, AppUserState.DISABLED.name()), Map.of(STATE, after.name()),
-				command.actor());
-		events.publishEvent(new AccountStateChanged(id, null));
-		return queries.toResponse(user);
-	}
-
-	/** A deactivated account can be reactivated only before the deletion time it was given. */
-	private void checkNotDue(AppUser user) {
-		Instant deletesAt = deletion.deletesAt(user.getDisabledAt());
-		if (deletesAt != null && !clock.instant().isBefore(deletesAt)) {
-			throw new ApiException(ErrorCode.ACCOUNT_DELETION_DUE, List.of(), Map.of("deletesAt", deletesAt));
-		}
-	}
-
-	/**
 	 * The user, once the request is known to be current: the version is required and must be the one
 	 * saved.
 	 */
@@ -250,7 +181,7 @@ public class AccountActivationService {
 	}
 
 	/**
-	 * Puts the account back as it was in Keycloak after a failed deactivation or reactivation, best
+	 * Puts the account back as it was in Keycloak after a failed deactivation, best
 	 * effort: a failure is logged with the account id to fix it by hand.
 	 */
 	private void undo(UUID keycloakId, boolean enabled) {

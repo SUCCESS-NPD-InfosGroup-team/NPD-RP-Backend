@@ -67,7 +67,7 @@ class UserController {
 	 * @param queryService reads users
 	 * @param registrationService creates users
 	 * @param editService edits the name and the role of users
-	 * @param activationService deactivates and reactivates accounts
+	 * @param activationService deactivates accounts
 	 * @param deletionService deletes users
 	 * @param currentUser who makes the request, for the audit log
 	 */
@@ -296,49 +296,6 @@ class UserController {
 		return ResponseEntity
 			.ok(activationService.deactivate(new AccountActivationCommand(id, request.version(), currentUser.username())));
 	}
-
-	/**
-	 * Reactivates a deactivated account before its deletion time (SCRUM-231 CA-02), with the same role.
-	 * Audited with the administrator's username.
-	 *
-	 * @param id user id
-	 * @param request the version that was read
-	 * @return 200 with the user
-	 */
-	@PostMapping(path = "/{id}/reactivation", version = "v1")
-	@Operation(summary = "Reactivar cuenta", description = """
-			Reactiva una cuenta desactivada antes de que se elimine (HU-09), sin confirmación. Solo \
-			Operations administrator.
-
-			- Puede volver a entrar con el mismo rol; se cancela su eliminación.
-			- Vuelve a `ACTIVE`, o a `PENDING` si nunca había entrado a la plataforma.
-			- Pasada su `deletesAt` ya no se puede reactivar (`ACCOUNT_DELETION_DUE`), aunque todavía no se \
-			haya eliminado.
-			- Si no está desactivada, responde 200 sin cambios. Se audita el cambio de estado.
-			- Si el servicio de inicio de sesión falla, no queda nada cambiado y se puede reintentar (503).""")
-	@ApiResponse(responseCode = "200", description = "El usuario, con su nuevo `state`")
-	@ApiResponse(responseCode = "400", description = "Falta `version` (`VALIDATION_FAILED`)",
-			content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemDetail.class)))
-	@ApiResponse(responseCode = "401", description = "Sin token o token inválido (`UNAUTHORIZED`)",
-			content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemDetail.class)))
-	@ApiResponse(responseCode = "403", description = "El rol no es Operations administrator (`FORBIDDEN`)",
-			content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemDetail.class)))
-	@ApiResponse(responseCode = "404", description = "No existe, o ya se eliminó (`NOT_FOUND`)",
-			content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemDetail.class)))
-	@ApiResponse(responseCode = "409", description = """
-			Alguien guardó el usuario después de leerlo (`CONCURRENT_MODIFICATION`, con `currentVersion`) o \
-			pasó su hora de eliminación (`ACCOUNT_DELETION_DUE`, con `deletesAt`)""",
-			content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemDetail.class)))
-	@ApiResponse(responseCode = "503", description = """
-			El servicio de inicio de sesión no respondió; no quedó nada cambiado \
-			(`IDENTITY_PROVIDER_UNAVAILABLE`)""",
-			content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemDetail.class)))
-	ResponseEntity<UserResponse> reactivate(@Parameter(description = "Id del usuario") @PathVariable long id,
-			@RequestBody UserVersionRequest request) {
-		return ResponseEntity
-			.ok(activationService.reactivate(new AccountActivationCommand(id, request.version(), currentUser.username())));
-	}
-
 
 	/**
 	 * Deletes a user at once (SCRUM-231): from Keycloak, which ends its sessions, and from the user list.
