@@ -14,6 +14,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
@@ -66,7 +67,8 @@ class AccountActivationServiceTest {
 	private final UserQueryService queries = mock();
 
 	private final AccountActivationService service = new AccountActivationService(users, keycloak, audit,
-			TransactionOperations.withoutTransaction(), Clock.fixed(NOW, ZoneOffset.UTC), queries);
+			TransactionOperations.withoutTransaction(), Clock.fixed(NOW, ZoneOffset.UTC), queries,
+			new AccountDeletionProperties(Duration.ofDays(1), Duration.ofMinutes(5)));
 
 	private final UserResponse response = mock();
 
