@@ -21,5 +21,6 @@ public record ResourceListItemResponse(long id, String employeeNumber, String na
 		@Schema(description = "Días hasta la fecha final (negativo si ya pasó); null sin fecha final") Long daysToAssignmentEnd,
 		@Schema(description = "Proyecto actual; null = «Sin proyecto»") IdName project,
 		@Schema(description = "Cliente del proyecto; null = «Sin proyecto»") IdName client,
-		@Schema(description = "false = proyecto inactivo («No especificado», a corregir); null = «Sin proyecto»") Boolean projectActive) {
+		@Schema(description = "false = proyecto inactivo («No especificado», a corregir); null = «Sin proyecto»") Boolean projectActive,
+		@Schema(description = "`version` del registro, para enviarla al asignar o editar", example = "3") Integer version) {
 }
