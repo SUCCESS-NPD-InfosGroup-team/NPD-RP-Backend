@@ -31,6 +31,7 @@ import com.npdinfosgroup.api.shared.exception.ApiException;
 import com.npdinfosgroup.api.shared.exception.ErrorCode;
 import org.junit.jupiter.api.Test;
 import org.mockito.InOrder;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.transaction.support.TransactionOperations;
 
@@ -59,9 +60,11 @@ class AccountReactivationServiceTest {
 
 	private final UserQueryService queries = mock();
 
+	private final ApplicationEventPublisher events = mock();
+
 	private final AccountActivationService service = new AccountActivationService(users, keycloak, audit,
 			TransactionOperations.withoutTransaction(), Clock.fixed(NOW, ZoneOffset.UTC), queries,
-			new AccountDeletionProperties(Duration.ofDays(1), Duration.ofMinutes(5)));
+			new AccountDeletionProperties(Duration.ofDays(1), Duration.ofMinutes(5)), events);
 
 	private final UserResponse response = mock();
 
@@ -78,6 +81,7 @@ class AccountReactivationServiceTest {
 		order.verify(audit).recordChanges("app_user", ID, Map.of("state", "DISABLED"), Map.of("state", "ACTIVE"), ACTOR);
 		assertThat(locked.getState()).isEqualTo(AppUserState.ACTIVE);
 		assertThat(locked.getDisabledAt()).isNull();
+		verify(events).publishEvent(new AccountStateChanged(ID, null));
 		verify(keycloak, never()).logout(any());
 	}
 

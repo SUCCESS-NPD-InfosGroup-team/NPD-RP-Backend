@@ -25,6 +25,7 @@ import com.npdinfosgroup.api.shared.exception.ValidationException;
 import com.npdinfosgroup.api.shared.security.Role;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionOperations;
@@ -64,6 +65,8 @@ public class AccountActivationService {
 
 	private final AccountDeletionProperties deletion;
 
+	private final ApplicationEventPublisher events;
+
 	/**
 	 * Creates the service.
 	 *
@@ -74,10 +77,11 @@ public class AccountActivationService {
 	 * @param clock gives the moment of the deactivation
 	 * @param queries builds the response
 	 * @param deletion when a deactivated account is deleted, after which it cannot be reactivated
+	 * @param events schedules or cancels the deletion once the change is committed
 	 */
 	AccountActivationService(AppUserRepository users, KeycloakAdminClient keycloak, AuditService audit,
 			TransactionOperations transactions, Clock clock, UserQueryService queries,
-			AccountDeletionProperties deletion) {
+			AccountDeletionProperties deletion, ApplicationEventPublisher events) {
 		this.users = users;
 		this.keycloak = keycloak;
 		this.audit = audit;
@@ -85,6 +89,7 @@ public class AccountActivationService {
 		this.clock = clock;
 		this.queries = queries;
 		this.deletion = deletion;
+		this.events = events;
 	}
 
 	/**
@@ -156,6 +161,7 @@ public class AccountActivationService {
 		}
 		audit.recordChanges(AUDIT_ENTITY, id, Map.of(STATE, before), Map.of(STATE, AppUserState.DISABLED.name()),
 				command.actor());
+		events.publishEvent(new AccountStateChanged(id, deletion.deletesAt(user.getDisabledAt())));
 		return queries.toResponse(user);
 	}
 
@@ -215,6 +221,7 @@ public class AccountActivationService {
 		}
 		audit.recordChanges(AUDIT_ENTITY, id, Map.of(STATE, AppUserState.DISABLED.name()), Map.of(STATE, after.name()),
 				command.actor());
+		events.publishEvent(new AccountStateChanged(id, null));
 		return queries.toResponse(user);
 	}
 
