@@ -27,4 +27,12 @@ public interface ClientRepository extends JpaRepository<Client, Long> {
 	 */
 	Optional<Client> findFirstByNameIgnoreCase(String name);
 
+	/**
+	 * How many clients are active, for the status bar (HU-11). The imported «No especificado» client is
+	 * inactive, so it is not counted.
+	 *
+	 * @return the number of active clients
+	 */
+	long countByActiveTrue();
+
 }

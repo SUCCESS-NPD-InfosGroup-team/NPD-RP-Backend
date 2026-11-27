@@ -146,6 +146,14 @@ public interface EmployeeRepository extends JpaRepository<Employee, Long>, Emplo
 	long countWithoutProject(@Param("statusCode") String statusCode);
 
 	/**
+	 * How many employees have a status, for the «recursos activos» count of the status bar (HU-11).
+	 *
+	 * @param statusCode status code of the employees counted (Activo)
+	 * @return the number of employees
+	 */
+	long countByStatus_Code(String statusCode);
+
+	/**
 	 * The employee records of some NPD lead users, each with how many collaborators still have them as
 	 * lead, in one query for a whole page of users.
 	 *

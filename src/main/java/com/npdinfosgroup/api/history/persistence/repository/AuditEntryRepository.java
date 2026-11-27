@@ -26,6 +26,13 @@ public interface AuditEntryRepository extends JpaRepository<AuditEntry, Long>, J
 			Long entityId);
 
 	/**
+	 * Latest change of any record, for the «Última actualización de datos» of the status bar (HU-11).
+	 *
+	 * @return the most recent row, if the log is not empty
+	 */
+	Optional<AuditEntry> findFirstByOrderByOccurredAtDescIdDesc();
+
+	/**
 	 * The rows of one change of a record: every field saved in the same transaction shares its moment.
 	 *
 	 * @param entityType audited table

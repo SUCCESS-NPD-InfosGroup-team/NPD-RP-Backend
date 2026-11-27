@@ -29,4 +29,11 @@ public interface ProjectRepository extends JpaRepository<Project, Long> {
 	 */
 	Optional<Project> findFirstByClient_IdAndNameIgnoreCaseAndIdNot(Long clientId, String name, Long id);
 
+	/**
+	 * How many projects are active, for the status bar (HU-11).
+	 *
+	 * @return the number of active projects
+	 */
+	long countByActiveTrue();
+
 }
