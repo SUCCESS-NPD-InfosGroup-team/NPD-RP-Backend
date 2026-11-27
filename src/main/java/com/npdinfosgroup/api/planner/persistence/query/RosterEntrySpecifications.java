@@ -13,6 +13,8 @@ public final class RosterEntrySpecifications {
 
 	private static final char LIKE_ESCAPE = '\\';
 
+	private static final String PROJECT_ID = "projectId";
+
 	private RosterEntrySpecifications() {
 	}
 
@@ -47,6 +49,43 @@ public final class RosterEntrySpecifications {
 	 */
 	public static Specification<RosterEntry> in(String attribute, Collection<?> values) {
 		return (root, query, cb) -> root.get(attribute).in(values);
+	}
+
+	/**
+	 * People who can be added to a project: everyone not on Baja and not already in it, with or without
+	 * another project.
+	 *
+	 * @param projectId the project
+	 * @param terminatedStatus status code of the people left out (Baja)
+	 * @return the filter
+	 */
+	public static Specification<RosterEntry> candidatesFor(long projectId, String terminatedStatus) {
+		return (root, query, cb) -> cb.and(cb.notEqual(root.get("statusCode"), terminatedStatus),
+				cb.or(cb.isNull(root.get(PROJECT_ID)), cb.notEqual(root.get(PROJECT_ID), projectId)));
+	}
+
+	/**
+	 * People without a project.
+	 *
+	 * @return the filter
+	 */
+	public static Specification<RosterEntry> withoutProject() {
+		return (root, query, cb) -> cb.isNull(root.get(PROJECT_ID));
+	}
+
+	/**
+	 * Orders the rows: people without a project first, then by name. It does not filter, nor order a count.
+	 *
+	 * @return the ordering, as a filter that matches every row
+	 */
+	public static Specification<RosterEntry> withoutProjectFirst() {
+		return (root, query, cb) -> {
+			if (query != null && !Long.class.equals(query.getResultType())) {
+				query.orderBy(cb.asc(cb.selectCase().when(cb.isNull(root.get(PROJECT_ID)), 0).otherwise(1)),
+						cb.asc(root.get("fullName")), cb.asc(root.get("id")));
+			}
+			return cb.conjunction();
+		};
 	}
 
 }
