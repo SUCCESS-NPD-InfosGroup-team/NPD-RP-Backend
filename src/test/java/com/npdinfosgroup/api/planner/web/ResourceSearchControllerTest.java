@@ -266,6 +266,18 @@ class ResourceSearchControllerTest {
 		client.get().uri(RESOURCES).exchange().expectStatus().isUnauthorized();
 	}
 
+	/** Each row carries the current version of the record, which the bulk assignment sends back (HU-08). */
+	@Test
+	void rowsCarryTheVersion() {
+		jdbc.sql("UPDATE employee SET version = 4 WHERE id = :id").param("id", leaderId).update();
+
+		search("?q=lorena", "guest").expectStatus()
+			.isOk()
+			.expectBody()
+			.jsonPath("$.items[0].id").isEqualTo(leaderId)
+			.jsonPath("$.items[0].version").isEqualTo(4);
+	}
+
 	private void expectNames(String query, String... names) {
 		search(query, "guest").expectStatus().isOk().expectBody().jsonPath("$.items[*].name").isEqualTo(List.of(names));
 	}
