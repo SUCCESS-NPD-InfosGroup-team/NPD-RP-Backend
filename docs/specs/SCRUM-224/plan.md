@@ -5,10 +5,10 @@ How: [design.md](design.md).
 
 | # | Branch | Depends on | Estimate | Status |
 |---|--------|------------|----------|--------|
-| 0 | `docs/SCRUM-224-status-bar-spec` | — | docs (~250) | Pending |
-| 1 | `feature/SCRUM-224-notice-schedule` | PR 0 | 182 | Pending |
-| 2 | `feature/SCRUM-224-status-sources` | PR 0 | 193 | Pending |
-| 3 | `feature/SCRUM-224-operations-status` | PRs 1 and 2 | 323 | Pending |
+| 0 | `docs/SCRUM-224-status-bar-spec` | — | docs (~250) | Merged ([#94](https://github.com/SUCCESS-NPD-InfosGroup-team/NPD-RP-Backend/pull/94)) |
+| 1 | `feature/SCRUM-224-notice-schedule` | PR 0 | 182 | Merged ([#95](https://github.com/SUCCESS-NPD-InfosGroup-team/NPD-RP-Backend/pull/95)) |
+| 2 | `feature/SCRUM-224-status-sources` | PR 0 | 193 | Merged ([#97](https://github.com/SUCCESS-NPD-InfosGroup-team/NPD-RP-Backend/pull/97)) |
+| 3 | `feature/SCRUM-224-operations-status` | PRs 1 and 2 | 323 | Merged ([#98](https://github.com/SUCCESS-NPD-InfosGroup-team/NPD-RP-Backend/pull/98)) |
 
 PRs 1 and 2 are independent: both branch from `develop` after PR 0 and can be merged in any order. The
 frontend (SCRUM-225 / SCRUM-207) works against the contract of `design.md` until PR 3 is merged.
