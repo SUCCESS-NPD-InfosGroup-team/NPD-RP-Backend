@@ -14,5 +14,9 @@ public record ProjectMemberResponse(long id, String employeeNumber, String name,
 		@Schema(description = "Fecha final en el proyecto; null con indefinido") LocalDate assignmentEnd,
 		@Schema(description = "Sin fecha final") boolean indefinite,
 		@Schema(description = "Días hasta la fecha final (negativo si ya pasó); null con indefinido") Long daysToAssignmentEnd,
-		@Schema(description = "`version` del colaborador, para «Quitar del proyecto» y «Editar»") Integer version) {
+		@Schema(description = "`version` del colaborador, para «Quitar del proyecto» y «Editar»") Integer version,
+		@Schema(description = "Columna «Equipo»: quién provee el laptop (Cliente o Infos); null si no está registrado",
+				example = "Cliente", nullable = true) String equipmentProvider,
+		@Schema(description = "Columna «Contacto por cliente»: correo de contacto en el cliente; null si no está registrado",
+				example = "contacto@caja.com", nullable = true) String clientContactEmail) {
 }

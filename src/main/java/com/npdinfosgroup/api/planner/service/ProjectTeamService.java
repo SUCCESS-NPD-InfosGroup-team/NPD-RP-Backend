@@ -136,7 +136,7 @@ public class ProjectTeamService {
 				new CodeLabel(row.getSituation(), messages.getMessage("resource.situation." + row.getSituation(), null,
 						row.getSituation(), LocaleContextHolder.getLocale())),
 				row.getAssignmentStartDate(), end, end == null, end == null ? null : ChronoUnit.DAYS.between(today, end),
-				version);
+				version, row.getEquipmentProvider(), row.getClientContactEmail());
 	}
 
 }
