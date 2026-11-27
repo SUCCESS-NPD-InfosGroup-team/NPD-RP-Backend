@@ -83,7 +83,7 @@ class UserRegistrationServiceTest {
 		});
 
 		UserResponse expected = new UserResponse(7L, "Ana María Ríos", "ana.rios@example.com", "customer-success",
-				"PENDING", null, NOW, "Admin", 0, null);
+				"PENDING", null, NOW, "Admin", 0, null, null, null);
 		when(queries.toResponse(any())).thenReturn(expected);
 
 		UserResponse response = service.register(command);
