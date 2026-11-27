@@ -100,6 +100,21 @@ class UserActivationControllerTest {
 				"state: DISABLED -> ACTIVE by " + ACTOR);
 	}
 
+	/** A deactivated account cannot be edited until it is reactivated; nothing changes. */
+	@Test
+	void rejectsTheEditOfADeactivatedAccount() {
+		User ana = insert("Ana Torres", "guest", "DISABLED");
+
+		client.put().uri("/api/v1/access/users/" + ana.id()).header(AUTHORIZATION, "Bearer " + ADMIN)
+			.contentType(APPLICATION_JSON).body(Map.of("version", 0, "fullName", "Ana", "role", "guest")).exchange()
+			.expectStatus().isEqualTo(409)
+			.expectBody()
+			.jsonPath("$.code").isEqualTo("ACCOUNT_DISABLED");
+
+		verifyNoInteractions(keycloak);
+		assertThat(read(ana.id(), "full_name")).isEqualTo("Ana Torres");
+	}
+
 	/** Repeating a deactivation answers the user as it is, with no call and no audit. */
 	@Test
 	void deactivatingTwiceChangesNothing() {

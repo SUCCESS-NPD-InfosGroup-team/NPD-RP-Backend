@@ -4,31 +4,33 @@ PRs in merge order, all against `develop`. Each one compiles, passes "Validar ra
 Tests" (80% coverage on new code), and stays under 400 changed lines (`git diff --shortstat
 origin/develop...HEAD`). What and why: [spec.md](spec.md). How: [design.md](design.md).
 
-The code PRs start once SCRUM-53's last-administrator safeguards are merged
-([#76](https://github.com/SUCCESS-NPD-InfosGroup-team/NPD-RP-Backend/pull/76)): they reuse its
-`LAST_OPERATIONS_ADMINISTRATOR`, `lockById` and `lockByRoleAndState` instead of writing them again. If
-another story takes `V13` first, the migration of PR 3 is renumbered.
+The code PRs reuse SCRUM-53's `LAST_OPERATIONS_ADMINISTRATOR`, `lockById` and `lockByRoleAndState`
+(merged in [#76](https://github.com/SUCCESS-NPD-InfosGroup-team/NPD-RP-Backend/pull/76)). The branches are
+stacked: each one starts from the previous, so each PR shows only its own part once the previous one is
+merged. PR 3 was split in two and PR 6 in two to stay under 400 lines.
 
-| # | Branch | Content | Est. lines | Depends on | Status |
-|---|--------|---------|------------|------------|--------|
-| 1 | `docs/SCRUM-231-spec-design-plan` | `spec.md`, `design.md` and this `plan.md`. | ~360 | — | In review ([#79](https://github.com/SUCCESS-NPD-InfosGroup-team/NPD-RP-Backend/pull/79)) |
-| 2 | `feature/SCRUM-231-keycloak-enable-delete` | `setEnabled` and 404-tolerant `deleteAccount` in the Keycloak client. | ~180 | PR 1 | Pending |
-| 3 | `feature/SCRUM-231-deactivate-service` | V13, `AppUser.disabledAt`, settings, deactivation service with CA-04 and audit. | ~390 | PR 2, SCRUM-53 #76 | Pending |
-| 4 | `feature/SCRUM-231-reactivate-service` | Reactivation service, `ACCOUNT_DELETION_DUE`. | ~250 | PR 3 | Pending |
-| 5 | `feature/SCRUM-231-activation-endpoints` | Both endpoints, `disabledAt`/`deletesAt` in `UserResponse`, OpenAPI, messages, end-to-end tests. | ~380 | PR 4 | Pending |
-| 6 | `feature/SCRUM-231-account-deletion` | Deletion scheduler, startup recovery, `AuditService.recordDeletion`, hooks after commit. | ~390 | PR 5 | Pending |
-| 7 | `feature/SCRUM-231-block-disabled-edit` | `ACCOUNT_DISABLED` in the SCRUM-53 edit. | ~120 | PR 3, SCRUM-53 PR 6 | Pending |
+| # | Branch | Content | Lines | Depends on | Status |
+|---|--------|---------|-------|------------|--------|
+| 1 | `docs/SCRUM-231-spec-design-plan` | `spec.md`, `design.md` and this `plan.md`. | ~360 | — | Merged ([#79](https://github.com/SUCCESS-NPD-InfosGroup-team/NPD-RP-Backend/pull/79)) |
+| 2 | `feature/SCRUM-231-keycloak-enable-delete` | `setEnabled`, 404-tolerant `deleteAccount`; V13 and `AppUser.disabledAt`. | ~140 | PR 1 | Pending PR |
+| 3 | `feature/SCRUM-231-deactivation-service` | Deactivation service: Keycloak, transaction, audit, compensation. | ~395 | PR 2 | Pending PR |
+| 4 | `feature/SCRUM-231-deactivate-last-administrator` | CA-04 on deactivation; message of `LAST_OPERATIONS_ADMINISTRATOR`. | ~100 | PR 3 | Pending PR |
+| 5 | `feature/SCRUM-231-reactivate-service` | Reactivation service, `ACCOUNT_DELETION_DUE`, `app.access.*` settings. | ~365 | PR 4 | Pending PR |
+| 6 | `feature/SCRUM-231-activation-endpoints` | Both endpoints, `disabledAt`/`deletesAt`, OpenAPI, end-to-end tests. | ~370 | PR 5 | Pending PR |
+| 7 | `feature/SCRUM-231-account-deletion-service` | `deleteIfDue`, `pending`, `AuditService.recordDeletion`. | ~310 | PR 6 | Pending PR |
+| 8 | `feature/SCRUM-231-account-deletion-scheduler` | One task per account, startup recovery, retry, after-commit events. | ~395 | PR 7 | Pending PR |
+| 9 | `feature/SCRUM-231-block-disabled-edit` | `ACCOUNT_DISABLED` in the SCRUM-53 edit; this plan updated. | ~90 | PR 8 | Pending PR |
 
-After PR 5 the frontend can deactivate and reactivate; after PR 6 the whole story is served. PR 7 can go
-in any order after PR 3 once SCRUM-53's edit endpoint exists.
+After PR 6 the frontend can deactivate and reactivate; after PR 8 the whole story is served.
 
 ## PR 2 — Keycloak calls
 
-**Part 1 of 6 code PRs. Jira: SCRUM-231.**
+**Part 1 of 8 code PRs. Jira: SCRUM-231.**
 
 - `KeycloakAdminClient.setEnabled(id, enabled)`: `GET` the representation, `PUT` it back with `enabled`
   changed (design §4, calls 1–2); 404 → `IllegalStateException`.
 - `KeycloakAdminClient.deleteAccount(id)`: call 4; 404 → returns normally.
+- `V13__app_user_deactivation.sql` (design §5), `AppUser.disabledAt`, `docs/database/README.md`.
 - Tests in `KeycloakAdminClientTest` (`MockRestServiceServer`): other fields kept, 404 on each,
   5xx/timeout → unavailable.
 

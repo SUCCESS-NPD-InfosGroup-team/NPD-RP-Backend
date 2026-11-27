@@ -162,8 +162,9 @@ user as `GET /users/{id}` returns it.
 | 409 `ACCOUNT_DISABLED` | `PUT /users/{id}` (SCRUM-53 edit) on a deactivated account (new) |
 | 503 `IDENTITY_PROVIDER_UNAVAILABLE` | Keycloak down; nothing changed |
 
-`ACCOUNT_DISABLED` is checked in `UserEditService.update` before any Keycloak call, and again under the
-lock.
+`ACCOUNT_DISABLED` is checked in `UserEditService.update` before any Keycloak call. A deactivation saved
+after that check changes the `version`, so the edit's recheck under the lock already rejects it (409
+`CONCURRENT_MODIFICATION`).
 
 ## 7. Settings and changes outside the repository
 
