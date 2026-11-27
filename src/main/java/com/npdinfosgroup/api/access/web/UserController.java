@@ -87,8 +87,8 @@ class UserController {
 
 			- `role` es el código del rol; su nombre está en «Listar roles».
 			- `state`: `PENDING` (invitación enviada, aún no usa la plataforma), `ACTIVE` o `DISABLED` \
-			(desactivada). `disabledAt` y `deletesAt`: cuándo se desactivó y la fecha y hora exactas en que \
-			se elimina si no se reactiva; `null` si no está desactivada.
+			(desactivada, solo cuentas de antes de la eliminación inmediata). `disabledAt`: cuándo se \
+			desactivó; `null` si no está desactivada.
 			- `lastAccessAt` es `null` hasta su primer acceso.
 			- `createdAt` y `createdBy`: cuándo y quién lo creó. `createdBy` es el nombre completo del \
 			usuario que lo creó o, si esa cuenta no es un usuario de la plataforma, su nombre de usuario.
