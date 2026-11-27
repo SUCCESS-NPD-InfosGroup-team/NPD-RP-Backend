@@ -21,6 +21,7 @@ import com.npdinfosgroup.api.shared.exception.FieldErrorCode;
 import com.npdinfosgroup.api.shared.exception.FieldProblem;
 import com.npdinfosgroup.api.shared.exception.NotFoundException;
 import com.npdinfosgroup.api.shared.exception.ValidationException;
+import com.npdinfosgroup.api.shared.security.Role;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.OptimisticLockingFailureException;
@@ -45,6 +46,8 @@ public class AccountActivationService {
 	private static final String AUDIT_ENTITY = "app_user";
 
 	private static final String STATE = "state";
+
+	private static final String ADMINISTRATOR = Role.OPERATIONS_ADMINISTRATOR.realmName();
 
 	private final AppUserRepository users;
 
@@ -88,7 +91,8 @@ public class AccountActivationService {
 	 * @throws NotFoundException if the user does not exist
 	 * @throws ValidationException if the version is missing
 	 * @throws ApiException {@link ErrorCode#CONCURRENT_MODIFICATION} if someone saved the user after the
-	 *         version that was read; nothing changes
+	 *         version that was read, or {@link ErrorCode#LAST_OPERATIONS_ADMINISTRATOR} if it is the only
+	 *         active Operations administrator (CA-04); nothing changes
 	 * @throws IdentityProviderUnavailableException if Keycloak cannot be reached; nothing is left changed
 	 */
 	public UserResponse deactivate(AccountActivationCommand command) {
@@ -96,11 +100,18 @@ public class AccountActivationService {
 		if (user.getState() == AppUserState.DISABLED) {
 			return queries.toResponse(user);
 		}
+		// By role, not state: a PENDING administrator may become ACTIVE before the transaction (without a
+		// new version), and the transaction must then have the administrators locked to recheck CA-04
+		boolean administrator = ADMINISTRATOR.equals(user.getRole());
+		if (isActiveAdministrator(user)
+				&& users.countByRoleAndStateAndIdNot(ADMINISTRATOR, AppUserState.ACTIVE, user.getId()) == 0) {
+			throw lastAdministrator();
+		}
 		UUID keycloakId = user.getKeycloakId();
 		try {
 			keycloak.setEnabled(keycloakId, false);
 			keycloak.logout(keycloakId);
-			UserResponse response = transactions.execute(status -> saveDeactivation(command));
+			UserResponse response = transactions.execute(status -> saveDeactivation(command, administrator));
 			log.info("User {} deactivated", command.id());
 			return response;
 		}
@@ -112,14 +123,21 @@ public class AccountActivationService {
 	}
 
 	/**
-	 * Saves the deactivation with the user locked, rechecking the version, which may have changed while
-	 * Keycloak was called.
+	 * Saves the deactivation with the user locked, rechecking what may have changed while Keycloak was
+	 * called: the version and, for an administrator, that another active one remains. The administrators
+	 * are locked before the user, in the same order as the user edit, so two of them deactivating or
+	 * demoting each other at the same time wait for one another and the second one is rejected.
 	 */
-	private UserResponse saveDeactivation(AccountActivationCommand command) {
+	private UserResponse saveDeactivation(AccountActivationCommand command, boolean administrator) {
 		long id = command.id();
+		List<AppUser> administrators = administrator ? users.lockByRoleAndState(ADMINISTRATOR, AppUserState.ACTIVE)
+				: List.of();
 		AppUser user = users.lockById(id).orElseThrow(() -> new NotFoundException(id));
 		if (!Objects.equals(command.version(), user.getVersion())) {
 			throw concurrentModification(user);
+		}
+		if (isActiveAdministrator(user) && administrators.stream().allMatch(other -> other.getId() == id)) {
+			throw lastAdministrator();
 		}
 		String before = user.getState().name();
 		user.setState(AppUserState.DISABLED);
@@ -161,9 +179,17 @@ public class AccountActivationService {
 		}
 	}
 
+	private static boolean isActiveAdministrator(AppUser user) {
+		return ADMINISTRATOR.equals(user.getRole()) && user.getState() == AppUserState.ACTIVE;
+	}
+
 	private static ApiException concurrentModification(AppUser current) {
 		return new ApiException(ErrorCode.CONCURRENT_MODIFICATION, List.of(),
 				Map.of("currentVersion", current.getVersion()));
+	}
+
+	private static ApiException lastAdministrator() {
+		return new ApiException(ErrorCode.LAST_OPERATIONS_ADMINISTRATOR, List.of(), Map.of());
 	}
 
 }
