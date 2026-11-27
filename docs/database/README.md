@@ -10,6 +10,8 @@ PostgreSQL 18 schema, versioned with Flyway in [`src/main/resources/db/migration
 | `V4__projects_and_assignment_view.sql` | `project.contract_end_date`; `resource_v` with ids and project dates; `project_summary_v` |
 | `V5__create_audit_log.sql` | `audit_log`: who changed what and when, one row per field |
 | `V7__resource_search.sql` | `resource_v` with what the roster search needs: probation, client role id, start of the bar, group and search text |
+| `V12__app_user_employee_link.sql` | `app_user.employee_id` (the employee record of an NPD lead user) and `app_user.version`; the inactive termination reason `CAMBIO_DE_ROL` |
+| `V13__app_user_deactivation.sql` | `app_user.disabled_at` (moment of a deactivation, set only while `DISABLED`) and the `DELETE` action in `audit_log` |
 
 Images: [`er-diagram.png`](er-diagram.png). Editable diagram: [`er-diagram.drawio`](er-diagram.drawio) (open at https://app.diagrams.net).
 
@@ -50,6 +52,7 @@ erDiagram
         smallint talent_review_id FK "TALENT REVIEW"
         bigint project_id FK "PROYECTO; NULL = no project"
         bigint leader_id FK "LIDER TLP (employee)"
+        boolean is_npd_lead "can be chosen as NPD lead"
         bigint client_role_id FK "ROL EN CLIENTE"
         smallint equipment_provider_id FK "EQUIPO / LAPTOP"
         varchar client_contact_email "CONTACTO POR CLIENTE"
@@ -104,6 +107,8 @@ Every table also has `created_at` and `updated_at` (kept by the `set_updated_at`
 - **Everything except client and project name belongs to the employee**: in the planner, lead, end date, client contact, laptop, role, level and modality change from person to person within the same project.
 - `email` is optional and unique case-insensitively. `code` is text (`SP11`).
 - `probation_end_date` and `vacation_month` are generated from `hire_date`; they match the planner on all its rows.
+- **An NPD lead is marked** (`is_npd_lead`, V10), not deduced from `leader_id`: a lead may have no collaborators yet. Only marked employees who are not on Baja can be chosen as someone's lead. The import marks every employee found in `COD LIDER`, and HU-10 marks the leads registered from Usuarios; nothing unmarks them yet.
+- **An NPD lead user is linked to their employee record** (`app_user.employee_id`, V12, unique: one user per record). When the user changes to another role the record goes to Baja with the reason `CAMBIO_DE_ROL` and keeps `is_npd_lead`, so their collaborators keep a lead until they are reassigned; it comes back to Activo when the user is NPD lead again. `CAMBIO_DE_ROL` is inactive: only that role change sets it.
 - Nobody is their own lead; a termination date is not before the hire date; level is greater than zero.
 - Concurrent edits are detected with `version` (optimistic locking).
 
@@ -183,7 +188,7 @@ The audit rows are written in the same transaction as the change, so both are sa
 |---|---|
 | CLIENTE | `project.client_id` → `client` |
 | PROYECTO ASIGNADO | `employee.project_id` → `project` |
-| LIDER TLP, COD LIDER | `employee.leader_id` → `employee` |
+| LIDER TLP, COD LIDER | `employee.leader_id` → `employee`; that employee gets `is_npd_lead = true` |
 | COD EMPL | `employee.code` |
 | NOMBRE DE EMPLEADO | `employee.full_name` |
 | PUESTO | `employee.job_title_id` → `job_title` |

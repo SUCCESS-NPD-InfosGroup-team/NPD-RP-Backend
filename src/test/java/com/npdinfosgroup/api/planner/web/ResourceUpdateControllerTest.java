@@ -96,6 +96,7 @@ class ResourceUpdateControllerTest {
 		reasonId = catalogId("termination_reason", "RENUNCIA_VOLUNTARIA");
 		leaderId = insertEmployee("RT-L1", "Lorena Batista", workModeId, null, null);
 		resourceId = insertEmployee("RT-1", "Ana Torres", workModeId, projectId, leaderId);
+		jdbc.sql("UPDATE employee SET is_npd_lead = true WHERE id = :id").param("id", leaderId).update();
 	}
 
 	/** Leaves the database as the other tests expect it. */
@@ -138,6 +139,46 @@ class ResourceUpdateControllerTest {
 			.extracting(ResourceUpdateControllerTest::change)
 			.containsExactlyInAnyOrder("name: Ana Torres -> Ana María Torres",
 					"email: null -> ana.torres@infosgroup.com", "level: 3 -> 4");
+	}
+
+	/**
+	 * SCRUM-241 CA-09: editing keeps the NPD lead mark of the edited employee, whatever the form
+	 * changes, because the resource form has no field for it.
+	 */
+	@Test
+	void editingKeepsTheNpdLeadMark() {
+		jdbc.sql("UPDATE employee SET is_npd_lead = true WHERE id = :id").param("id", resourceId).update();
+		Map<String, Object> request = currentRecord();
+		request.put("name", "Ana María Torres");
+
+		put(ADMIN, resourceId, request).expectStatus().isOk();
+
+		assertThat(jdbc.sql("SELECT is_npd_lead FROM employee WHERE id = :id")
+			.param("id", resourceId)
+			.query(Boolean.class)
+			.single()).isTrue();
+	}
+
+	/**
+	 * SCRUM-241 CA-05: a resource whose saved lead is no longer an NPD lead can still be saved with
+	 * that lead, but cannot be moved to another employee who is not an NPD lead.
+	 */
+	@Test
+	void checksTheNpdLeadOnlyWhenTheLeadChanges() {
+		jdbc.sql("UPDATE employee SET is_npd_lead = false WHERE id = :id").param("id", leaderId).update();
+		Map<String, Object> request = currentRecord();
+		request.put("name", "Ana María Torres");
+
+		put(ADMIN, resourceId, request).expectStatus().isOk();
+
+		long unmarked = insertEmployee("RT-C1", "Carlos Sinmarca", workModeId, null, null);
+		Map<String, Object> newLead = currentRecord();
+		assignmentOf(newLead).put("leaderId", unmarked);
+		put(ADMIN, resourceId, newLead).expectStatus()
+			.isBadRequest()
+			.expectBody()
+			.jsonPath("$.errors[*].field").isEqualTo(List.of("assignment.leaderId"))
+			.jsonPath("$.errors[*].code").isEqualTo(List.of("NOT_NPD_LEADER"));
 	}
 
 	/** CA-07: saving the record as it was changes nothing: same version and no audit rows. */
@@ -266,6 +307,52 @@ class ResourceUpdateControllerTest {
 		assertThat(auditRows()).extracting(ResourceUpdateControllerTest::change)
 			.contains("status: Activo -> Baja", "assignment.project: RT Programa de automatización -> null",
 					"assignment.leader: Lorena Batista -> null", "termination.date: null -> " + TODAY);
+	}
+
+	/**
+	 * SCRUM-53 design §7: a Baja by "Cambio de rol" can be edited keeping that reason, but cannot go back to
+	 * Activo here; nobody can choose the reason by hand, neither on an edit nor on a registration.
+	 */
+	@Test
+	void guardsTheBajaByRoleChange() {
+		short roleChange = catalogId("termination_reason", "CAMBIO_DE_ROL");
+		jdbc.sql("""
+				UPDATE employee SET status_id = (SELECT id FROM resource_status WHERE code = 'BAJA'),
+				       termination_date = DATE '2026-01-31', termination_reason_id = :reason, project_id = NULL,
+				       leader_id = NULL
+				WHERE id = :id""").param("reason", roleChange).param("id", resourceId).update();
+		Map<String, Object> request = currentRecord();
+		request.put("name", "Ana Torres Ruiz");
+		request.put("status", "BAJA");
+		request.put("termination", Map.of("date", "2026-01-31", "reasonId", roleChange));
+		put(ADMIN, resourceId, request).expectStatus().isOk().expectBody()
+			.jsonPath("$.termination.reason.name").isEqualTo("Cambio de rol");
+
+		request = currentRecord();
+		request.put("assignment", null);
+		put(ADMIN, resourceId, request).expectStatus()
+			.isBadRequest()
+			.expectBody()
+			.jsonPath("$.errors[*].field").isEqualTo(List.of("status"))
+			.jsonPath("$.errors[0].code").isEqualTo("ROLE_CHANGE_TERMINATION")
+			.jsonPath("$.errors[0].message").isEqualTo(
+					"Está de Baja por cambio de rol: vuelve a Activo al cambiar su rol a líder NPD en Usuarios.");
+
+		Map<String, Object> other = recordOf(leaderId);
+		other.put("status", "BAJA");
+		other.put("termination", Map.of("date", TODAY.toString(), "reasonId", roleChange));
+		put(ADMIN, leaderId, other).expectStatus()
+			.isBadRequest()
+			.expectBody()
+			.jsonPath("$.errors[?(@.field == 'termination.reasonId')].code").isEqualTo(List.of("NOT_SPECIFIED_VALUE"));
+		other.put("employeeNumber", "RT-NEW");
+		other.put("email", null);
+		client.post().uri("/api/v1/planner/resources").header(AUTHORIZATION, "Bearer " + ADMIN).contentType(APPLICATION_JSON)
+			.body(other).exchange()
+			.expectStatus()
+			.isBadRequest()
+			.expectBody()
+			.jsonPath("$.errors[?(@.field == 'termination.reasonId')].code").isEqualTo(List.of("NOT_SPECIFIED_VALUE"));
 	}
 
 	/** Back from Baja the termination is cleared, and the person can go without project. */

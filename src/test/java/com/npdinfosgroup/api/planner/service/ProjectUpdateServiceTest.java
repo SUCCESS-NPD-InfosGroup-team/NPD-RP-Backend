@@ -1,0 +1,232 @@
+package com.npdinfosgroup.api.planner.service;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyMap;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+import java.time.Instant;
+import java.time.LocalDate;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+
+import com.npdinfosgroup.api.history.dto.AuditChange;
+import com.npdinfosgroup.api.history.service.AuditService;
+import com.npdinfosgroup.api.planner.dto.request.ProjectActivationCommand;
+import com.npdinfosgroup.api.planner.dto.request.UpdateProjectCommand;
+import com.npdinfosgroup.api.planner.dto.request.UpdateProjectRequest;
+import com.npdinfosgroup.api.planner.persistence.entity.Client;
+import com.npdinfosgroup.api.planner.persistence.entity.Project;
+import com.npdinfosgroup.api.planner.persistence.entity.Employee;
+import com.npdinfosgroup.api.planner.persistence.repository.EmployeeRepository;
+import com.npdinfosgroup.api.planner.persistence.repository.ProjectRepository;
+import com.npdinfosgroup.api.planner.service.validator.ProjectRequestValidator;
+import com.npdinfosgroup.api.shared.exception.ApiException;
+import com.npdinfosgroup.api.shared.exception.ErrorCode;
+import com.npdinfosgroup.api.shared.exception.NotFoundException;
+import com.npdinfosgroup.api.shared.exception.ValidationException;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.context.support.StaticMessageSource;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.OptimisticLockingFailureException;
+
+/**
+ * "Editar proyecto" without a database: the order of the checks, the 409 of a stale form, the races
+ * caught at the write and the audit of what changed.
+ */
+class ProjectUpdateServiceTest {
+
+	private static final String ACTOR = "ana.ops";
+
+	private final ProjectRepository projects = mock();
+
+	private final EmployeeRepository employees = mock();
+
+	private final ProjectRequestValidator validator = mock();
+
+	private final ProjectQueryService queries = mock();
+
+	private final AuditService audit = mock();
+
+	private final ProjectUpdateService service = new ProjectUpdateService(projects, employees, validator,
+			queries, audit, codesAsMessages());
+
+	private Project project;
+
+	/** An active project "Core" of client "Banco", at version 2, with a contract end. */
+	@BeforeEach
+	void createProject() {
+		Client client = new Client();
+		client.setName("Banco");
+		client.setActive(true);
+		project = new Project();
+		project.setId(7L);
+		project.setClient(client);
+		project.setName("Core");
+		project.setContractEndDate(LocalDate.of(2027, 1, 31));
+		project.setActive(true);
+		project.setVersion(2);
+		when(projects.findById(7L)).thenReturn(Optional.of(project));
+	}
+
+	/** The new values are saved stripped, the audit gets both snapshots and the answer has the project. */
+	@Test
+	void savesAndAuditsTheChanges() {
+		service.update(command(" Core 2 ", null, 2));
+
+		assertThat(project.getName()).isEqualTo("Core 2");
+		assertThat(project.getContractEndDate()).isNull();
+		verify(validator).checkNameAvailable(project, "Core 2");
+		verify(projects).saveAndFlush(project);
+		Map<String, String> after = new HashMap<>();
+		after.put("name", "Core 2");
+		after.put("contractEndDate", null);
+		verify(audit).recordChanges("project", 7L, Map.of("name", "Core", "contractEndDate", "2027-01-31"), after,
+				ACTOR);
+		verify(queries).get(7L);
+	}
+
+	/**
+	 * The people whose end date was the old contract end move to the new one, each audited; nobody moves
+	 * when the contract end is removed or did not change.
+	 */
+	@Test
+	void movesThePeopleWithTheOldContractEnd() {
+		LocalDate oldEnd = LocalDate.of(2027, 1, 31);
+		LocalDate newEnd = LocalDate.of(2027, 3, 31);
+		Employee ana = employee(1003L, oldEnd);
+		when(employees.findByProjectIdAndProjectEndDateAndStatus_CodeNot(7L, oldEnd, "BAJA")).thenReturn(List.of(ana));
+
+		assertThat(service.update(command("Core", newEnd, 2)).membersEndDateMoved()).isEqualTo(1);
+		assertThat(ana.getProjectEndDate()).isEqualTo(newEnd);
+		verify(employees).saveAllAndFlush(List.of(ana));
+		verify(audit).recordChanges("employee", 1003L, Map.of("assignment.endDate", "2027-01-31"),
+				Map.of("assignment.endDate", "2027-03-31"), ACTOR);
+
+		assertThat(service.moveMembersEndDate(7L, newEnd, null, ACTOR)).isZero();
+		assertThat(service.moveMembersEndDate(7L, null, newEnd, ACTOR)).isZero();
+		assertThat(service.moveMembersEndDate(7L, newEnd, newEnd, ACTOR)).isZero();
+	}
+
+	/** If one of the people was saved by someone else meanwhile, the whole edit is a 409. */
+	@Test
+	void rejectsTheEditWhenAPersonChangedMeanwhile() {
+		LocalDate oldEnd = LocalDate.of(2027, 1, 31);
+		Employee ana = employee(1003L, oldEnd);
+		when(employees.findByProjectIdAndProjectEndDateAndStatus_CodeNot(7L, oldEnd, "BAJA")).thenReturn(List.of(ana));
+		doThrow(new OptimisticLockingFailureException("stale")).when(employees).saveAllAndFlush(List.of(ana));
+
+		assertThatThrownBy(() -> service.update(command("Core", LocalDate.of(2027, 3, 31), 2))).extracting("code")
+			.isEqualTo(ErrorCode.CONCURRENT_MODIFICATION);
+	}
+
+	/** An unknown project is a 404 and an inactive one a 409, before any other check. */
+	@Test
+	void rejectsUnknownAndInactiveProjects() {
+		assertThatThrownBy(() -> service.update(new UpdateProjectCommand(8L, request("X", null, 0), ACTOR)))
+			.isInstanceOf(NotFoundException.class);
+
+		project.setActive(false);
+		assertThatThrownBy(() -> service.update(command("X", null, 2))).isInstanceOf(ApiException.class)
+			.extracting("code").isEqualTo(ErrorCode.PROJECT_INACTIVE);
+		verify(validator, never()).validateUpdate(any(), any());
+	}
+
+	/** A form read before the last save is a 409 with the current version and who saved it. */
+	@Test
+	void rejectsAStaleVersion() {
+		project.setUpdatedAt(Instant.parse("2026-11-25T20:00:00Z"));
+		when(audit.findLastChange("project", 7L))
+			.thenReturn(Optional.of(new AuditChange("luis.ops", Instant.now(), "UPDATE", List.of("name"))));
+
+		assertThatThrownBy(() -> service.update(command("Core 2", null, 1))).isInstanceOf(ApiException.class)
+			.satisfies(ex -> {
+				ApiException api = (ApiException) ex;
+				assertThat(api.getCode()).isEqualTo(ErrorCode.CONCURRENT_MODIFICATION);
+				assertThat(api.getProperties()).containsEntry("currentVersion", 2)
+					.containsEntry("updatedBy", "luis.ops")
+					.containsEntry("updatedFields", List.of("name"))
+					.containsKey("updatedAt");
+			});
+		verify(projects, never()).saveAndFlush(any());
+	}
+
+	/** A save by someone else or a name taken between the checks and the write are reported as 409. */
+	@Test
+	void reportsRacesCaughtAtTheWrite() {
+		doThrow(new OptimisticLockingFailureException("stale")).when(projects).saveAndFlush(project);
+		assertThatThrownBy(() -> service.update(command("Core 2", null, 2))).extracting("code")
+			.isEqualTo(ErrorCode.CONCURRENT_MODIFICATION);
+
+		doThrow(new DataIntegrityViolationException("project_client_name_uk")).when(projects).saveAndFlush(project);
+		project.setVersion(2);
+		assertThatThrownBy(() -> service.update(command("Core 3", null, 2))).extracting("code")
+			.isEqualTo(ErrorCode.PROJECT_NAME_TAKEN);
+		verify(audit, never()).recordChanges(anyString(), anyLong(), anyMap(), anyMap(), eq(ACTOR));
+	}
+
+	/** Deactivating checks the team; reactivating needs an active client; both are audited. */
+	@Test
+	void deactivatesAndReactivates() {
+		when(employees.countByProjectIdAndStatus_CodeNot(7L, "BAJA")).thenReturn(2L);
+		assertThatThrownBy(() -> service.deactivate(new ProjectActivationCommand(7L, 2, ACTOR))).extracting("code")
+			.isEqualTo(ErrorCode.PROJECT_HAS_TEAM);
+
+		when(employees.countByProjectIdAndStatus_CodeNot(7L, "BAJA")).thenReturn(0L);
+		service.deactivate(new ProjectActivationCommand(7L, 2, ACTOR));
+		assertThat(project.isActive()).isFalse();
+		verify(audit).recordChanges("project", 7L, Map.of("active", "audit.value.yes"), Map.of("active", "audit.value.no"),
+				ACTOR);
+
+		project.getClient().setActive(false);
+		assertThatThrownBy(() -> service.reactivate(new ProjectActivationCommand(7L, 2, ACTOR)))
+			.isInstanceOf(ValidationException.class);
+		project.getClient().setActive(true);
+		service.reactivate(new ProjectActivationCommand(7L, 2, ACTOR));
+		assertThat(project.isActive()).isTrue();
+	}
+
+	/** A missing version is a 400; a project already in the asked state is answered without changes. */
+	@Test
+	void validatesAndSkipsActivationChanges() {
+		assertThatThrownBy(() -> service.deactivate(new ProjectActivationCommand(7L, null, ACTOR)))
+			.isInstanceOf(ValidationException.class);
+
+		service.reactivate(new ProjectActivationCommand(7L, 1, ACTOR));
+		verify(projects, never()).saveAndFlush(any());
+		verify(queries).get(7L);
+	}
+
+	private static StaticMessageSource codesAsMessages() {
+		StaticMessageSource messages = new StaticMessageSource();
+		messages.setUseCodeAsDefaultMessage(true);
+		return messages;
+	}
+
+	private static Employee employee(long id, LocalDate end) {
+		Employee employee = new Employee();
+		employee.setId(id);
+		employee.setProjectEndDate(end);
+		return employee;
+	}
+
+	private static UpdateProjectCommand command(String name, LocalDate contractEnd, Integer version) {
+		return new UpdateProjectCommand(7L, request(name, contractEnd, version), ACTOR);
+	}
+
+	private static UpdateProjectRequest request(String name, LocalDate contractEnd, Integer version) {
+		return new UpdateProjectRequest(name, contractEnd, version);
+	}
+
+}

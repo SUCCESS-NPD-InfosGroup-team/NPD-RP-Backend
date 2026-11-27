@@ -56,12 +56,7 @@ final class ResourceFields {
 	/** Without an assignment the person has no project, and so no project data either. */
 	private static void copyAssignment(AssignmentRequest assignment, Employee employee) {
 		if (assignment == null) {
-			employee.setProjectId(null);
-			employee.setLeaderId(null);
-			employee.setClientRoleId(null);
-			employee.setEquipmentProviderId(null);
-			employee.setClientContactEmail(null);
-			employee.setProjectEndDate(null);
+			leaveProject(employee);
 			return;
 		}
 		employee.setProjectId(assignment.projectId());
@@ -70,6 +65,20 @@ final class ResourceFields {
 		employee.setEquipmentProviderId(assignment.equipmentId());
 		employee.setClientContactEmail(clean(assignment.clientContactEmail()));
 		employee.setProjectEndDate(assignment.isIndefinite() ? null : assignment.endDate());
+	}
+
+	/**
+	 * Takes the person out of their project, with its data: what a Baja does (BD-08).
+	 *
+	 * @param employee the row to write
+	 */
+	static void leaveProject(Employee employee) {
+		employee.setProjectId(null);
+		employee.setLeaderId(null);
+		employee.setClientRoleId(null);
+		employee.setEquipmentProviderId(null);
+		employee.setClientContactEmail(null);
+		employee.setProjectEndDate(null);
 	}
 
 	/**

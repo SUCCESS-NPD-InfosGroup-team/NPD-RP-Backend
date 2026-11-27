@@ -7,8 +7,8 @@ How: [design.md](design.md). Backend subtask: SCRUM-177.
 |---|--------|------------|----------|--------|
 | 0 | `docs/SCRUM-177-audit-log-spec` | — | 291 lines | Merged ([#44](https://github.com/SUCCESS-NPD-InfosGroup-team/NPD-RP-Backend/pull/44)) |
 | 1 | `feature/SCRUM-177-audit-log-queries` | PR 0 | 253 lines | Merged ([#45](https://github.com/SUCCESS-NPD-InfosGroup-team/NPD-RP-Backend/pull/45)) |
-| 2 | `feature/SCRUM-177-audit-log-service` | PR 1 | 384 lines | In review |
-| 3 | `feature/SCRUM-177-audit-log-endpoint` | PR 2 | ~300 lines | Pending |
+| 2 | `feature/SCRUM-177-audit-log-service` | PR 1 | 384 lines | Merged ([#50](https://github.com/SUCCESS-NPD-InfosGroup-team/NPD-RP-Backend/pull/50)) |
+| 3 | `feature/SCRUM-177-audit-log-endpoint` | PR 2 | 226 lines | In review |
 
 The PRs are merged in this order: each one uses what the previous one adds.
 
@@ -50,7 +50,8 @@ The request the frontend calls (design "Answer", "Security", "Errors").
   and paging, and its full OpenAPI description (answer, 400, 401, 403, 503, empty page for an unknown id).
 - `SecurityConfig`: the rule that limits the route to the Operations administrator, before
   `.anyRequest().authenticated()`.
-- Tests (`AuditControllerTest`, `@SpringBootTest`, random port): 200 with the answer for the Operations
+- Tests (new `AuditLogControllerTest`, `@SpringBootTest`, random port; `AuditControllerTest` keeps
+  "Último cambio"): 200 with the answer for the Operations
   administrator; 403 for NPD lead, Sales / Customer Success and Invitado; 401 without a token; empty page
   without changes and for an unknown id; 400 for a bad date and 400 `VALIDATION_FAILED` for `from` after
   `to`; "Último cambio" still answers to every role.

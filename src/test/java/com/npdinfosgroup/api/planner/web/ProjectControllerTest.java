@@ -254,6 +254,8 @@ class ProjectControllerTest {
 			.jsonPath("$.startDate").isNotEmpty()
 			.jsonPath("$.contractEndDate").isEqualTo(contractEnd)
 			.jsonPath("$.teamSize").isEqualTo(0)
+			.jsonPath("$.version").isEqualTo(0)
+			.jsonPath("$.updatedAt").isNotEmpty()
 			.returnResult()
 			.getResponseHeaders()
 			.getLocation();
@@ -333,6 +335,72 @@ class ProjectControllerTest {
 			.jsonPath("$.existingClientId").value(Number.class, id -> assertThat(id.longValue()).isEqualTo(tigoId));
 	}
 
+	/**
+	 * The header of the detail has the same figures as the row of the list: the lead and the pending
+	 * confirmation of "PJ Oracle Fusion", and none for the project whose only collaborator is on Baja.
+	 */
+	@Test
+	void givesTheDetailHeaderWithTheListFigures() {
+		client.get().uri(PROJECTS + "/{id}", fusionId).header(AUTHORIZATION, "Bearer npd-leader").exchange()
+			.expectStatus().isOk()
+			.expectBody()
+			.jsonPath("$.teamSize").isEqualTo(1)
+			.jsonPath("$.pendingConfirmation").isEqualTo(1)
+			.jsonPath("$.indefiniteCount").isEqualTo(0)
+			.jsonPath("$.nextAssignmentEnd").doesNotExist()
+			.jsonPath("$.daysToContractEnd").doesNotExist()
+			.jsonPath("$.leads[*].name").isEqualTo(List.of("PJ Lorena Batista"));
+
+		client.get().uri(PROJECTS + "/{id}", portalId).header(AUTHORIZATION, "Bearer guest").exchange()
+			.expectStatus().isOk()
+			.expectBody()
+			.jsonPath("$.teamSize").isEqualTo(0)
+			.jsonPath("$.daysToContractEnd").isEqualTo(20)
+			.jsonPath("$.leads").isEmpty();
+	}
+
+	/**
+	 * The team of a project, Baja excluded and Licencia included: pending confirmation first, then by end
+	 * date with the indefinite last, each with what the table and the timeline need.
+	 */
+	@Test
+	void listsTheTeamOfAProject() {
+		insertEmployee("PJ-4", "PJ Ana Zuniga", "LICENCIA", fusionId, leadId, null);
+		insertEmployee("PJ-5", "PJ Bruno Diaz", "ACTIVO", fusionId, null, TODAY.plusDays(10));
+
+		members("customer-success", fusionId).expectStatus()
+			.isOk()
+			.expectBody()
+			.jsonPath("$.total").isEqualTo(3)
+			.jsonPath("$.items[*].name").isEqualTo(List.of("PJ Laura Gomez", "PJ Bruno Diaz", "PJ Ana Zuniga"))
+			.jsonPath("$.items[0].employeeNumber").isEqualTo("PJ-2")
+			.jsonPath("$.items[0].situation.code").isEqualTo("PENDIENTE_CONFIRMACION")
+			.jsonPath("$.items[0].situation.label").isEqualTo("Pendiente de confirmación")
+			.jsonPath("$.items[0].daysToAssignmentEnd").isEqualTo(-1)
+			.jsonPath("$.items[0].leader.name").isEqualTo("PJ Lorena Batista")
+			.jsonPath("$.items[0].assignmentStart").isNotEmpty()
+			.jsonPath("$.items[0].version").isEqualTo(0)
+			.jsonPath("$.items[1].situation.code").isEqualTo("ASIGNADO")
+			.jsonPath("$.items[1].leader").doesNotExist()
+			.jsonPath("$.items[1].daysToAssignmentEnd").isEqualTo(10)
+			.jsonPath("$.items[2].status.code").isEqualTo("LICENCIA")
+			.jsonPath("$.items[2].indefinite").isEqualTo(true)
+			.jsonPath("$.items[2].assignmentEnd").doesNotExist();
+	}
+
+	/** A project whose only collaborator is on Baja has no team; an unknown project is a 404. */
+	@Test
+	void givesAnEmptyTeamAndRejectsUnknownProjects() {
+		members("guest", portalId).expectStatus()
+			.isOk()
+			.expectBody()
+			.jsonPath("$.items").isEmpty()
+			.jsonPath("$.total").isEqualTo(0);
+
+		members("npd-leader", 999_999).expectStatus().isNotFound();
+		client.get().uri(PROJECTS + "/{id}/members", portalId).exchange().expectStatus().isUnauthorized();
+	}
+
 	/** Only an Operations administrator creates projects; everybody with a token reads them. */
 	@Test
 	void checksRolesAndUnknownProject() {
@@ -357,6 +425,10 @@ class ProjectControllerTest {
 
 	private RestTestClient.ResponseSpec list(String token, String query) {
 		return client.get().uri(PROJECTS + "?" + query).header(AUTHORIZATION, "Bearer " + token).exchange();
+	}
+
+	private RestTestClient.ResponseSpec members(String token, long projectId) {
+		return client.get().uri(PROJECTS + "/{id}/members", projectId).header(AUTHORIZATION, "Bearer " + token).exchange();
 	}
 
 	private RestTestClient.ResponseSpec kpis(String token, String query) {

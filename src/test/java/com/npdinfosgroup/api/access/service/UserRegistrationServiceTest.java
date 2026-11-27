@@ -56,16 +56,18 @@ class UserRegistrationServiceTest {
 
 	private final CreateUserRequestValidator validator = mock();
 
+	private final UserQueryService queries = mock();
+
 	private final UserRegistrationService service = new UserRegistrationService(validator, users, keycloak, audit,
-			TransactionOperations.withoutTransaction(), Clock.fixed(NOW, ZoneOffset.UTC));
+			TransactionOperations.withoutTransaction(), Clock.fixed(NOW, ZoneOffset.UTC), queries);
 
 	private final CreateUserCommand command = new CreateUserCommand(
-			new CreateUserRequest(" Ana María Ríos ", " Ana.Rios@Example.com ", "npd-leader"), "admin");
+			new CreateUserRequest(" Ana María Ríos ", " Ana.Rios@Example.com ", "customer-success"), "admin");
 
 	/** The request itself is valid. */
 	@BeforeEach
 	void acceptRequest() {
-		when(validator.validate(any())).thenReturn(Role.NPD_LEADER);
+		when(validator.validate(any())).thenReturn(Role.CUSTOMER_SUCCESS);
 	}
 
 	/**
@@ -80,11 +82,15 @@ class UserRegistrationServiceTest {
 			return invocation.getArgument(0);
 		});
 
+		UserResponse expected = new UserResponse(7L, "Ana María Ríos", "ana.rios@example.com", "customer-success",
+				"PENDING", null, NOW, "Admin", 0, null, null, null);
+		when(queries.toResponse(any())).thenReturn(expected);
+
 		UserResponse response = service.register(command);
 
 		InOrder order = inOrder(keycloak);
 		order.verify(keycloak).createUser("ana.rios@example.com", "Ana María Ríos");
-		order.verify(keycloak).assignRealmRole(KEYCLOAK_ID, Role.NPD_LEADER);
+		order.verify(keycloak).assignRealmRole(KEYCLOAK_ID, Role.CUSTOMER_SUCCESS);
 		order.verify(keycloak).sendInvitation(KEYCLOAK_ID);
 		ArgumentCaptor<AppUser> saved = ArgumentCaptor.forClass(AppUser.class);
 		verify(users).save(saved.capture());
@@ -92,9 +98,9 @@ class UserRegistrationServiceTest {
 				AppUser::getCreatedBy)
 			.containsExactly(KEYCLOAK_ID, AppUserState.PENDING, NOW, "admin");
 		verify(audit).recordCreation("app_user", 7L,
-				Map.of("fullName", "Ana María Ríos", "email", "ana.rios@example.com", "role", "npd-leader"), "admin");
-		assertThat(response).isEqualTo(
-				new UserResponse(7L, "Ana María Ríos", "ana.rios@example.com", "npd-leader", "PENDING", null));
+				Map.of("fullName", "Ana María Ríos", "email", "ana.rios@example.com", "role", "customer-success"), "admin");
+		verify(queries).toResponse(saved.getValue());
+		assertThat(response).isEqualTo(expected);
 	}
 
 	/** An email already in {@code app_user} is rejected before calling Keycloak. */
@@ -128,7 +134,7 @@ class UserRegistrationServiceTest {
 			doThrow(new IllegalStateException("delete")).when(keycloak).deleteUser(KEYCLOAK_ID);
 		}
 		switch (failingStep) {
-			case "role" -> doThrow(failure).when(keycloak).assignRealmRole(KEYCLOAK_ID, Role.NPD_LEADER);
+			case "role" -> doThrow(failure).when(keycloak).assignRealmRole(KEYCLOAK_ID, Role.CUSTOMER_SUCCESS);
 			case "invitation" -> doThrow(failure).when(keycloak).sendInvitation(KEYCLOAK_ID);
 			default -> when(users.save(any())).thenThrow(failure);
 		}

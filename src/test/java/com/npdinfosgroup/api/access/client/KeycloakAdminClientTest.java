@@ -136,6 +136,172 @@ class KeycloakAdminClientTest {
 		server.verify();
 	}
 
+	/** The whole representation is sent back with the new first name: no field or attribute is lost. */
+	@Test
+	void renamesKeepingTheRestOfTheAccount() {
+		expectToken();
+		server.expect(requestTo(USERS_URL + "/" + USER_ID))
+			.andExpect(method(HttpMethod.GET))
+			.andRespond(withSuccess("""
+					{"id": "%s", "username": "ana@example.com", "email": "ana@example.com", "firstName": "Ana",
+					 "enabled": true, "requiredActions": ["UPDATE_PASSWORD"], "attributes": {"area": ["NPD"]}}"""
+				.formatted(USER_ID), APPLICATION_JSON));
+		server.expect(requestTo(USERS_URL + "/" + USER_ID))
+			.andExpect(method(HttpMethod.PUT))
+			.andExpect(content().json("""
+					{"id": "%s", "username": "ana@example.com", "email": "ana@example.com", "firstName": "Ana María Ríos",
+					 "enabled": true, "requiredActions": ["UPDATE_PASSWORD"], "attributes": {"area": ["NPD"]}}"""
+				.formatted(USER_ID), true))
+			.andRespond(withNoContent());
+
+		keycloak.rename(USER_ID, "Ana María Ríos");
+		server.verify();
+	}
+
+	/** Disabling or enabling sends the whole representation back with only {@code enabled} changed. */
+	@ParameterizedTest
+	@CsvSource({ "false, true", "true, false" })
+	void changesEnabledKeepingTheRestOfTheAccount(boolean enabled, boolean before) {
+		expectToken();
+		server.expect(requestTo(USERS_URL + "/" + USER_ID))
+			.andExpect(method(HttpMethod.GET))
+			.andRespond(withSuccess("""
+					{"id": "%s", "username": "ana@example.com", "firstName": "Ana", "enabled": %s,
+					 "attributes": {"area": ["NPD"]}}""".formatted(USER_ID, before), APPLICATION_JSON));
+		server.expect(requestTo(USERS_URL + "/" + USER_ID))
+			.andExpect(method(HttpMethod.PUT))
+			.andExpect(content().json("""
+					{"id": "%s", "username": "ana@example.com", "firstName": "Ana", "enabled": %s,
+					 "attributes": {"area": ["NPD"]}}""".formatted(USER_ID, enabled), true))
+			.andRespond(withNoContent());
+
+		keycloak.setEnabled(USER_ID, enabled);
+		server.verify();
+	}
+
+	/** A deactivated account is deleted by its id. */
+	@Test
+	void deletesADeactivatedAccount() {
+		expectToken();
+		server.expect(requestTo(USERS_URL + "/" + USER_ID)).andExpect(method(HttpMethod.DELETE)).andRespond(withNoContent());
+
+		keycloak.deleteAccount(USER_ID);
+		server.verify();
+	}
+
+	/** An account already gone counts as deleted, so a failed deletion can be repeated. */
+	@Test
+	void deletingAnAccountAlreadyGoneSucceeds() {
+		expectToken();
+		server.expect(requestTo(USERS_URL + "/" + USER_ID)).andRespond(withStatus(HttpStatus.NOT_FOUND));
+
+		keycloak.deleteAccount(USER_ID);
+		server.verify();
+	}
+
+	/** An outage while deleting is reported, so the deletion is retried later. */
+	@Test
+	void reportsKeycloakUnavailableOnADeletion() {
+		expectToken();
+		server.expect(requestTo(USERS_URL + "/" + USER_ID)).andRespond(withStatus(HttpStatus.BAD_GATEWAY));
+
+		assertThatThrownBy(() -> keycloak.deleteAccount(USER_ID)).isInstanceOf(IdentityProviderUnavailableException.class);
+	}
+
+	/**
+	 * Only the platform roles are removed: {@code default-roles-*} and {@code offline_access} stay, and
+	 * the new role is added.
+	 */
+	@Test
+	void replacesOnlyThePlatformRoles() {
+		expectToken();
+		expectRealmRoles("""
+				[{"id": "d-1", "name": "default-roles-npd-rp"}, {"id": "o-1", "name": "offline_access"},
+				 {"id": "g-1", "name": "guest"}]""");
+		server.expect(requestTo(USERS_URL + "/" + USER_ID + "/role-mappings/realm"))
+			.andExpect(method(HttpMethod.DELETE))
+			.andExpect(content().json("""
+					[{"id": "g-1", "name": "guest"}]""", true))
+			.andRespond(withNoContent());
+		server.expect(requestTo("http://keycloak.test/admin/realms/npd-rp/roles/npd-leader"))
+			.andExpect(method(HttpMethod.GET))
+			.andRespond(withSuccess("""
+					{"id": "r-1", "name": "npd-leader"}""", APPLICATION_JSON));
+		server.expect(requestTo(USERS_URL + "/" + USER_ID + "/role-mappings/realm"))
+			.andExpect(method(HttpMethod.POST))
+			.andExpect(content().json("""
+					[{"id": "r-1", "name": "npd-leader"}]""", true))
+			.andRespond(withNoContent());
+
+		keycloak.replaceRealmRole(USER_ID, Role.NPD_LEADER);
+		server.verify();
+	}
+
+	/** A role the account already has is kept: only the other platform roles go, nothing is added. */
+	@Test
+	void keepsTheNewRoleWhenTheAccountHasIt() {
+		expectToken();
+		expectRealmRoles("""
+				[{"id": "g-1", "name": "guest"}, {"id": "r-1", "name": "npd-leader"}]""");
+		server.expect(requestTo(USERS_URL + "/" + USER_ID + "/role-mappings/realm"))
+			.andExpect(method(HttpMethod.DELETE))
+			.andExpect(content().json("""
+					[{"id": "g-1", "name": "guest"}]""", true))
+			.andRespond(withNoContent());
+
+		keycloak.replaceRealmRole(USER_ID, Role.NPD_LEADER);
+		server.verify();
+	}
+
+	/** Repeating a replacement already done (the compensation of an edit) calls nothing else. */
+	@Test
+	void doesNothingWhenTheRoleIsAlreadyTheOnlyOne() {
+		expectToken();
+		expectRealmRoles("""
+				[{"id": "d-1", "name": "default-roles-npd-rp"}, {"id": "r-1", "name": "npd-leader"}]""");
+
+		keycloak.replaceRealmRole(USER_ID, Role.NPD_LEADER);
+		server.verify();
+	}
+
+	/** Every session of the account is closed. */
+	@Test
+	void logsTheUserOut() {
+		expectToken();
+		server.expect(requestTo(USERS_URL + "/" + USER_ID + "/logout"))
+			.andExpect(method(HttpMethod.POST))
+			.andRespond(withNoContent());
+
+		keycloak.logout(USER_ID);
+		server.verify();
+	}
+
+	/** An account deleted in the Keycloak console is an inconsistency, not a user error. */
+	@ParameterizedTest
+	@CsvSource({ "rename, ''", "role, /role-mappings/realm", "logout, /logout", "disable, ''" })
+	void failsWhenTheAccountNoLongerExists(String operation, String path) {
+		expectToken();
+		server.expect(requestTo(USERS_URL + "/" + USER_ID + path)).andRespond(withStatus(HttpStatus.NOT_FOUND));
+
+		assertThatThrownBy(() -> {
+			switch (operation) {
+				case "rename" -> keycloak.rename(USER_ID, "Ana");
+				case "role" -> keycloak.replaceRealmRole(USER_ID, Role.GUEST);
+				case "disable" -> keycloak.setEnabled(USER_ID, false);
+				default -> keycloak.logout(USER_ID);
+			}
+		}).isInstanceOf(IllegalStateException.class).hasMessageContaining(USER_ID.toString());
+	}
+
+	/** An outage during an edit is reported as such, like during a creation. */
+	@Test
+	void reportsKeycloakUnavailableOnAnEdit() {
+		expectToken();
+		server.expect(requestTo(USERS_URL + "/" + USER_ID + "/logout")).andRespond(withStatus(HttpStatus.BAD_GATEWAY));
+
+		assertThatThrownBy(() -> keycloak.logout(USER_ID)).isInstanceOf(IdentityProviderUnavailableException.class);
+	}
+
 	/** Keycloak failing (5xx) or not answering, on the token request or on the call itself, is an outage. */
 	@ParameterizedTest
 	@CsvSource({ "true, false", "true, true", "false, false", "false, true" })
@@ -168,6 +334,12 @@ class KeycloakAdminClientTest {
 		server.expect(requestTo(USERS_URL + "/" + USER_ID)).andRespond(withStatus(HttpStatus.FORBIDDEN));
 
 		assertThatThrownBy(() -> keycloak.deleteUser(USER_ID)).isInstanceOf(HttpClientErrorException.Forbidden.class);
+	}
+
+	private void expectRealmRoles(String roles) {
+		server.expect(requestTo(USERS_URL + "/" + USER_ID + "/role-mappings/realm"))
+			.andExpect(method(HttpMethod.GET))
+			.andRespond(withSuccess(roles, APPLICATION_JSON));
 	}
 
 	private void expectToken() {

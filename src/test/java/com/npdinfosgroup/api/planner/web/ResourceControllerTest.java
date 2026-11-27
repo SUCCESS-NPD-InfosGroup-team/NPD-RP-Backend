@@ -77,7 +77,8 @@ class ResourceControllerTest {
 	private short reasonId;
 
 	/**
-	 * A client with an active and an inactive project, an active NPD lead and one on Baja.
+	 * A client with an active and an inactive project, an active NPD lead and one on Baja, both
+	 * marked as NPD leads and without collaborators.
 	 */
 	@BeforeEach
 	void createFixture() {
@@ -102,6 +103,9 @@ class ResourceControllerTest {
 		reasonId = catalogId("termination_reason", "RENUNCIA_VOLUNTARIA");
 		leaderId = insertEmployee("RT-L1", "Lorena Batista", "ACTIVO", workModeId, null);
 		terminatedLeaderId = insertEmployee("RT-L2", "Pedro Salida", "BAJA", workModeId, null);
+		jdbc.sql("UPDATE employee SET is_npd_lead = true WHERE id IN (:ids)")
+			.param("ids", List.of(leaderId, terminatedLeaderId))
+			.update();
 	}
 
 	/** Leaves the database as the other tests expect it. */
@@ -537,18 +541,14 @@ class ResourceControllerTest {
 	}
 
 	/**
-	 * The "Líder NPD" selector offers who leads someone today, except those on Baja; whoever leads
-	 * nobody is not offered.
+	 * SCRUM-241 CA-04, CA-07: the "Líder NPD" selector offers the employees marked as NPD leads, even
+	 * without collaborators, except those on Baja. Leading someone without the mark is not enough.
 	 */
 	@Test
 	void listsNpdLeads() {
-		long led = insertEmployee("RT-C1", "Colaborador uno", "ACTIVO", workModeId, null);
-		long ledByTerminated = insertEmployee("RT-C2", "Colaborador dos", "ACTIVO", workModeId, null);
-		jdbc.sql("UPDATE employee SET leader_id = :leader WHERE id = :id").param("leader", leaderId).param("id", led)
-			.update();
-		jdbc.sql("UPDATE employee SET leader_id = :leader WHERE id = :id")
-			.param("leader", terminatedLeaderId)
-			.param("id", ledByTerminated)
+		long unmarked = insertEmployee("RT-C1", "Ana Sinmarca", "ACTIVO", workModeId, null);
+		long led = insertEmployee("RT-C2", "Colaborador dos", "ACTIVO", workModeId, null);
+		jdbc.sql("UPDATE employee SET leader_id = :leader WHERE id = :id").param("leader", unmarked).param("id", led)
 			.update();
 
 		client.get().uri(RESOURCES + "/npd-leads").header(AUTHORIZATION, "Bearer guest").exchange()
@@ -558,6 +558,49 @@ class ResourceControllerTest {
 			.jsonPath("$.items[0].id").value(Number.class, id(leaderId));
 
 		client.get().uri(RESOURCES + "/npd-leads").exchange().expectStatus().isUnauthorized();
+	}
+
+	/**
+	 * SCRUM-241 CA-09: registering a resource does not mark it as NPD lead, and choosing a lead does
+	 * not change the lead's mark.
+	 */
+	@Test
+	void registeringKeepsNpdLeadMarks() {
+		Map<String, Object> request = validRequest("1102");
+		request.put("assignment", assignment());
+
+		post(ADMIN, request).expectStatus().isCreated();
+
+		assertThat(isNpdLead("1102")).isFalse();
+		assertThat(isNpdLead("RT-L1")).isTrue();
+	}
+
+	/**
+	 * SCRUM-241 CA-05, CA-07: only an NPD lead can be chosen when registering. An employee without the
+	 * mark gets NOT_NPD_LEADER; one on Baja gets INACTIVE_LEADER, whether marked or not.
+	 */
+	@Test
+	void rejectsALeadWhoIsNotAnNpdLead() {
+		long unmarked = insertEmployee("RT-C1", "Ana Sinmarca", "ACTIVO", workModeId, null);
+		long unmarkedOnBaja = insertEmployee("RT-C2", "Beto Sinmarca", "BAJA", workModeId, null);
+		Map<String, Object> request = validRequest("1102");
+		Map<String, Object> assignment = assignment();
+		request.put("assignment", assignment);
+
+		assignment.put("leaderId", unmarked);
+		post(ADMIN, request).expectStatus()
+			.isBadRequest()
+			.expectBody()
+			.jsonPath("$.errors[*].field").isEqualTo(List.of("assignment.leaderId"))
+			.jsonPath("$.errors[*].code").isEqualTo(List.of("NOT_NPD_LEADER"));
+
+		assignment.put("leaderId", unmarkedOnBaja);
+		post(ADMIN, request).expectStatus()
+			.isBadRequest()
+			.expectBody()
+			.jsonPath("$.errors[*].code").isEqualTo(List.of("INACTIVE_LEADER"));
+
+		assertThat(employeeCount()).isEqualTo(4);
 	}
 
 	private RestTestClient.ResponseSpec post(String token, Object body) {
@@ -620,6 +663,13 @@ class ResourceControllerTest {
 			.param("workModality", workModality)
 			.param("project", project, Types.BIGINT)
 			.query(Long.class)
+			.single();
+	}
+
+	private boolean isNpdLead(String code) {
+		return jdbc.sql("SELECT is_npd_lead FROM employee WHERE code = :code")
+			.param("code", code)
+			.query(Boolean.class)
 			.single();
 	}
 

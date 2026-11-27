@@ -29,9 +29,11 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.EnumMap;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import com.npdinfosgroup.api.planner.dto.request.ImportEmployeeCommand;
@@ -328,6 +330,7 @@ class PlannerImportService {
 	 */
 	private void assignLeaders(List<PendingLeader> leaders, ImportRun run) {
 		Map<String, EmployeeRef> employees = repository.findEmployeesByCode();
+		Set<Long> npdLeads = new HashSet<>();
 		for (PendingLeader pending : leaders) {
 			PlannerRow row = pending.row();
 			RowIssues issues = new RowIssues(row, run);
@@ -348,7 +351,11 @@ class PlannerImportService {
 			}
 			issues.keepFlags();
 			repository.updateLeader(pending.employeeId(), leader == null ? null : leader.id());
+			if (leader != null) {
+				npdLeads.add(leader.id());
+			}
 		}
+		repository.markNpdLeads(npdLeads);
 	}
 
 	private static boolean isNoProject(String value) {

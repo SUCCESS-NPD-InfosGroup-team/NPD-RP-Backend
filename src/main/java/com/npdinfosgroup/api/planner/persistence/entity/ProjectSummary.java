@@ -1,5 +1,6 @@
 package com.npdinfosgroup.api.planner.persistence.entity;
 
+import java.time.Instant;
 import java.time.LocalDate;
 
 import jakarta.persistence.Column;
@@ -50,5 +51,10 @@ public class ProjectSummary {
 
 	@Column(name = "indefinite_count")
 	private Long indefiniteCount;
+
+	private Integer version;
+
+	@Column(name = "updated_at")
+	private Instant updatedAt;
 
 }

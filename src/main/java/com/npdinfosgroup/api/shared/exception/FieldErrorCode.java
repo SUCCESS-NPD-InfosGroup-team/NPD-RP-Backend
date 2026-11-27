@@ -21,6 +21,11 @@ public enum FieldErrorCode {
 	/** The value is not one of the allowed codes. */
 	UNKNOWN_VALUE,
 
+	ROLE_NOT_ASSIGNABLE,
+
+	/** A Baja by "Cambio de rol" cannot leave Baja in Recursos: only its user's role change brings it back. */
+	ROLE_CHANGE_TERMINATION,
+
 	/** The id does not exist in its catalog or table. */
 	UNKNOWN_ID,
 
@@ -38,6 +43,8 @@ public enum FieldErrorCode {
 
 	/** The chosen NPD lead is the edited resource itself. */
 	SELF_LEADER,
+
+	NOT_NPD_LEADER,
 
 	/** The date has already passed. */
 	DATE_IN_PAST,

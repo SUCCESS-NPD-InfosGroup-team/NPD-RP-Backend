@@ -28,6 +28,8 @@ public class AuditService {
 
 	private static final String UPDATE = "UPDATE";
 
+	private static final String DELETE = "DELETE";
+
 	private final AuditEntryRepository repository;
 
 	private final Clock clock;
@@ -88,6 +90,26 @@ public class AuditService {
 			.toList();
 		repository.saveAll(entries);
 		return entries.size();
+	}
+
+	/**
+	 * Records the deletion of a record: one row per field with a value, with its last value and no new
+	 * value, so what the record was stays in the log after it is gone.
+	 *
+	 * @param entityType audited table, for example {@code app_user}
+	 * @param entityId id of the deleted record
+	 * @param lastValues values as the user saw them, by field name; {@code null} values are skipped
+	 * @param actor username of who deleted it, or {@code system}
+	 */
+	@Transactional
+	public void recordDeletion(String entityType, long entityId, Map<String, String> lastValues, String actor) {
+		Instant now = clock.instant();
+		List<AuditEntry> entries = lastValues.entrySet()
+			.stream()
+			.filter(value -> Objects.nonNull(value.getValue()))
+			.map(value -> entry(entityType, entityId, DELETE, value.getKey(), value.getValue(), null, actor, now))
+			.toList();
+		repository.saveAll(entries);
 	}
 
 	/**

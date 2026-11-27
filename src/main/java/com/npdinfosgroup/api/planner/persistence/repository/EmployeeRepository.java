@@ -1,10 +1,13 @@
 package com.npdinfosgroup.api.planner.persistence.repository;
 
+import java.time.LocalDate;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
 import com.npdinfosgroup.api.planner.persistence.entity.Employee;
+import com.npdinfosgroup.api.planner.persistence.query.EmployeeVersion;
+import com.npdinfosgroup.api.planner.persistence.query.NpdLeadEmployeeRow;
 import com.npdinfosgroup.api.planner.persistence.query.ProjectLead;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -31,6 +34,14 @@ public interface EmployeeRepository extends JpaRepository<Employee, Long>, Emplo
 	 * @return {@code true} if it is taken
 	 */
 	boolean existsByEmailIgnoreCase(String email);
+
+	/**
+	 * Employee with an e-mail, ignoring case like its unique index, to offer linking it to a user.
+	 *
+	 * @param email e-mail
+	 * @return the employee, if any
+	 */
+	Optional<Employee> findFirstByEmailIgnoreCase(String email);
 
 	/**
 	 * Employee with an employee number other than the given one, for the edit of that employee.
@@ -63,17 +74,17 @@ public interface EmployeeRepository extends JpaRepository<Employee, Long>, Emplo
 	Optional<Employee> findDetailedById(Long id);
 
 	/**
-	 * Employees who lead at least one collaborator, by name, except those with the given status.
+	 * Employees marked as NPD leads, with or without collaborators, by name, except those with the
+	 * given status.
 	 *
 	 * @param excludedStatus status code left out (Baja)
 	 * @return the leads
 	 */
 	@Query("""
 			SELECT l FROM Employee l
-			WHERE l.status.code <> :excludedStatus
-			  AND EXISTS (SELECT 1 FROM Employee e WHERE e.leaderId = l.id)
+			WHERE l.isNpdLead = true AND l.status.code <> :excludedStatus
 			ORDER BY l.fullName""")
-	List<Employee> findLeadsExcludingStatus(@Param("excludedStatus") String excludedStatus);
+	List<Employee> findNpdLeadsExcludingStatus(@Param("excludedStatus") String excludedStatus);
 
 	/**
 	 * The NPD leads of the collaborators of some projects, by name, not counting collaborators with a
@@ -93,6 +104,38 @@ public interface EmployeeRepository extends JpaRepository<Employee, Long>, Emplo
 			@Param("excludedStatus") String excludedStatus);
 
 	/**
+	 * The members of a project with an end date, except those with a status, to move them with the
+	 * project's contract end.
+	 *
+	 * @param projectId project id
+	 * @param projectEndDate their end date in the project
+	 * @param excludedStatus status code left out (Baja)
+	 * @return the members
+	 */
+	List<Employee> findByProjectIdAndProjectEndDateAndStatus_CodeNot(Long projectId, LocalDate projectEndDate,
+			String excludedStatus);
+
+	/**
+	 * How many people are on a project, except those with a status: its team size.
+	 *
+	 * @param projectId project id
+	 * @param excludedStatus status code left out (Baja)
+	 * @return the team size
+	 */
+	long countByProjectIdAndStatus_CodeNot(Long projectId, String excludedStatus);
+
+	/**
+	 * The versions of some employees, in one query, for lists that send them back on an action.
+	 *
+	 * @param ids employee ids; must not be empty
+	 * @return one row per employee found
+	 */
+	@Query("""
+			SELECT new com.npdinfosgroup.api.planner.persistence.query.EmployeeVersion(e.id, e.version)
+			FROM Employee e WHERE e.id IN :ids""")
+	List<EmployeeVersion> findVersions(@Param("ids") Collection<Long> ids);
+
+	/**
 	 * How many employees with a status have no project, for the «Colaboradores sin proyecto» KPI of
 	 * the Projects module.
 	 *
@@ -101,5 +144,23 @@ public interface EmployeeRepository extends JpaRepository<Employee, Long>, Emplo
 	 */
 	@Query("SELECT count(e) FROM Employee e WHERE e.projectId IS NULL AND e.status.code = :statusCode")
 	long countWithoutProject(@Param("statusCode") String statusCode);
+
+	/**
+	 * The employee records of some NPD lead users, each with how many collaborators still have them as
+	 * lead, in one query for a whole page of users.
+	 *
+	 * @param ids employee ids
+	 * @param excludedStatus status code of the collaborators that do not count (Baja)
+	 * @return one row per employee found
+	 */
+	@Query("""
+			SELECT new com.npdinfosgroup.api.planner.persistence.query.NpdLeadEmployeeRow(
+			       l.id, l.code, s.code,
+			       (SELECT count(c) FROM Employee c JOIN c.status cs
+			        WHERE c.leaderId = l.id AND cs.code <> :excludedStatus))
+			FROM Employee l JOIN l.status s
+			WHERE l.id IN :ids""")
+	List<NpdLeadEmployeeRow> findNpdLeadEmployees(@Param("ids") Collection<Long> ids,
+			@Param("excludedStatus") String excludedStatus);
 
 }
