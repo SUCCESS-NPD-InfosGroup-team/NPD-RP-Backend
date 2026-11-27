@@ -6,8 +6,8 @@ How: [design.md](design.md).
 | # | Branch | Depends on | Estimate | Status |
 |---|--------|------------|----------|--------|
 | 0 | `docs/SCRUM-127-bulk-assignment-spec` | — | 364 lines | Merged ([#53](https://github.com/SUCCESS-NPD-InfosGroup-team/NPD-RP-Backend/pull/53)) |
-| 1 | `feature/SCRUM-127-roster-version` | PR 0 | 113 lines | In review |
-| 2 | `feature/SCRUM-127-assignment-candidates` | PR 1 | ~395 lines | Pending |
+| 1 | `feature/SCRUM-127-roster-version` | PR 0 | 113 lines | Merged ([#84](https://github.com/SUCCESS-NPD-InfosGroup-team/NPD-RP-Backend/pull/84)) |
+| 2 | `feature/SCRUM-127-assignment-candidates` | PR 1 | 398 lines | In review |
 | 3 | `feature/SCRUM-127-assignment-validation` | PR 0 | ~380 lines | Pending |
 | 4 | `feature/SCRUM-127-assignment-service` | PR 3 | ~350 lines | Pending |
 | 5 | `feature/SCRUM-127-assignment-endpoint` | PR 4 | ~330 lines | Pending |
