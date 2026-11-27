@@ -98,7 +98,9 @@ Errors: `401`; `404 NOT_FOUND` if the project does not exist.
       "assignmentEnd": "2026-11-20",
       "indefinite": false,
       "daysToAssignmentEnd": -5,
-      "version": 4
+      "version": 4,
+      "equipmentProvider": "Cliente",
+      "clientContactEmail": "contacto@caja.com"
     },
     {
       "id": 1071,
@@ -113,7 +115,9 @@ Errors: `401`; `404 NOT_FOUND` if the project does not exist.
       "assignmentEnd": null,
       "indefinite": true,
       "daysToAssignmentEnd": null,
-      "version": 2
+      "version": 2,
+      "equipmentProvider": null,
+      "clientContactEmail": null
     }
   ],
   "total": 2
@@ -131,12 +135,54 @@ Errors: `401`; `404 NOT_FOUND` if the project does not exist.
 | `assignmentEnd` / `indefinite` | End of the bar; `null` with `indefinite = true`. |
 | `daysToAssignmentEnd` | Negative if passed; `null` when indefinite. |
 | `version` | The person's version, for "Quitar del proyecto" (SCRUM-187) and "Editar" (409 if stale). |
+| `equipmentProvider` | «Equipo»: name of the person's laptop provider (`Cliente` or `Infos`); `null` if not set. Added on 2026-11-27. |
+| `clientContactEmail` | «Contacto por cliente»: contact e-mail at the client; `null` if not set. Added on 2026-11-27. |
 | `total` | People in the team. Equal to `teamSize` of the header. |
 
 Order: `PENDIENTE_CONFIRMACION` first, then `assignmentEnd` ascending, indefinite last, then `name`.
 A project without team answers `200` with `"items": []` and `"total": 0` ("Proyecto sin equipo").
 
 Errors: `401`; `404 NOT_FOUND` if the project does not exist.
+
+## Change on 2026-11-27 — laptop and client contact in the team table
+
+The two columns of the mockup's team table that the first version did not return (spec, "Change on
+2026-11-27"). Both values are already in `resource_v`, which the team is read from (`RosterEntry`):
+`equipment_provider` (the provider's **name**, from the `equipment_provider` catalog) and
+`client_contact_email`.
+
+Checked against the mockup on 2026-11-27: the column «Equipo» shows «Cliente» (a value of the
+`equipment_provider` catalog) and «Contacto por cliente» shows an e-mail; the headers have no sorting or
+filtering. The section title «Equipo (4)» is the project team; the column «Equipo» is the laptop.
+
+**Options considered for the laptop provider**
+
+- **A. `{ "id", "name" }`, like `AssignmentResponse.equipment`.** `resource_v` has no
+  `equipment_provider_id`, so it needs a new migration that appends the column to the view
+  (`CREATE OR REPLACE VIEW` only allows adding columns at the end) and a new field in `RosterEntry`. The
+  id is not needed by the table: "Editar" on a row opens the resource form, which reads the resource on
+  its own.
+- **B. The name only, as text (chosen).** It is what the mockup shows, and the same as the other catalog
+  columns of the row (`clientRole` is also the name only). No migration: two new mapped columns in
+  `RosterEntry` and two fields in `ProjectMemberResponse`. If the table ever needs the id, a field
+  `equipmentProviderId` can be added later without breaking anything.
+
+The field is called `equipmentProvider`, not `equipment`: in `AssignmentResponse`, `equipment` is the
+object `{id, name}`, and the same field name with two types would confuse the frontend.
+
+**Changes**
+
+- `RosterEntry`: map `equipment_provider` and `client_contact_email` (read-only view columns, like the
+  rest of the entity).
+- `ProjectMemberResponse`: `String equipmentProvider` and `String clientContactEmail` **at the end** of the
+  record, so the order of the existing fields does not change; both documented in OpenAPI as nullable.
+- `ProjectTeamService.member(...)`: fills them from the row.
+- No change in security, order, filters or the `total` of the team.
+
+**Tests (added to the existing ones)**
+
+- A member with laptop provider and client contact returns both; a member without them returns `null`
+  in both (in `ProjectControllerTest`, next to the existing `/members` tests, with Testcontainers).
 
 ## Tests
 

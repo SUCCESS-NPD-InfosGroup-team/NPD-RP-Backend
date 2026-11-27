@@ -24,7 +24,7 @@ Only the part the API serves. The screen, the timeline drawing and the action bu
 | ID | Criterion | What the backend guarantees |
 |----|-----------|-----------------------------|
 | CA-01 | Project list | Already served by SCRUM-121. Not changed here. |
-| CA-02 | Project detail | The header of the detail can be read with the same figures as its row in the list (client contract end, days to it, team size, "N por confirmar", indefinite, NPD leads). The team can be read with what the table and the timeline show for each person: name, employee number, level, role in the client, NPD lead, status, **Situación** (Asignado / Pendiente de confirmación), start and end of the bar, indefinite and days to the end. |
+| CA-02 | Project detail | The header of the detail can be read with the same figures as its row in the list (client contract end, days to it, team size, "N por confirmar", indefinite, NPD leads). The team can be read with what the table and the timeline show for each person: name, employee number, level, role in the client, NPD lead, status, **Situación** (Asignado / Pendiente de confirmación), start and end of the bar, indefinite and days to the end, **laptop («Equipo») and client contact («Contacto por cliente»)** (added on 2026-11-27). |
 | CA-03 | Visible to every role | Both requests answer 200 to every role. The create, edit and team actions are hidden by the frontend; the backend protects them in their own stories (SCRUM-121, SCRUM-228, SCRUM-127, SCRUM-187). |
 
 ## Agreed details
@@ -66,6 +66,31 @@ Only the part the API serves. The screen, the timeline drawing and the action bu
 - **Two requests, not one.** The header and the team are read separately (see design, Decision 1).
 - **NPD lead of each person.** It is the `leader_id` of each employee, as in the roster. It does not
   depend on the NPD lead flag of SCRUM-241, which only changes who can be *chosen* as lead.
+
+## Change on 2026-11-27 — laptop and client contact in the team table
+
+The team table of the mockup ("Proyecto · Detalle") has two columns that the first version of
+`GET /projects/{id}/members` did not return, found by the frontend (SCRUM-188):
+
+- **«Equipo»** is the person's **laptop provider** (Excel column EQUIPO / LAPTOP,
+  `employee.equipment_provider_id` → catalog `equipment_provider`). It is not the project team.
+- **«Contacto por cliente»** is the person's contact e-mail at the client (Excel column CONTACTO POR
+  CLIENTE, `employee.client_contact_email`).
+
+Both are already stored: they are set when a person is assigned (`AssignmentRequest` of SCRUM-127,
+`equipmentId` and `clientContactEmail`) or edited (HU-02), and `resource_v` already has both columns. The
+detail only has to show them.
+
+- Each team row adds `equipmentProvider` (name of the laptop provider, for example «Cliente» or «Infos»)
+  and `clientContactEmail`, as text like the other columns of the row (`clientRole`). The mockup shows
+  the name only, and the table only displays them: no sorting, filtering or editing from these columns.
+- `equipmentProvider` is not called `equipment`, because in the assignment response (`AssignmentResponse`)
+  `equipment` is an object `{id, name}`: the same name with two types would confuse the frontend.
+  `clientContactEmail` keeps the same name, as it is text in both.
+- Both are optional: a person without them comes back with `null`, and the table shows «—».
+- Additive change: the existing fields do not change, so the current frontend keeps working.
+- Not included: filtering or ordering the team by these columns, and editing them from the table (that
+  is "Editar" on the row, HU-02).
 
 ## Open questions
 
