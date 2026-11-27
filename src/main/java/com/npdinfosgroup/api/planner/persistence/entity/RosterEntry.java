@@ -87,4 +87,12 @@ public class RosterEntry {
 	@Column(name = "search_text", columnDefinition = "text")
 	private String searchText;
 
+	/** Name of who provides the person's laptop (EQUIPO / LAPTOP): «Cliente» or «Infos». */
+	@Column(name = "equipment_provider")
+	private String equipmentProvider;
+
+	/** Contact e-mail at the client (CONTACTO POR CLIENTE). */
+	@Column(name = "client_contact_email")
+	private String clientContactEmail;
+
 }

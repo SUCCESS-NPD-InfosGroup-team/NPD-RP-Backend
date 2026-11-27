@@ -388,6 +388,31 @@ class ProjectControllerTest {
 			.jsonPath("$.items[2].assignmentEnd").doesNotExist();
 	}
 
+	/**
+	 * The columns «Equipo» (who provides the laptop) and «Contacto por cliente» of the team table: filled
+	 * when the person has them, {@code null} otherwise.
+	 */
+	@Test
+	void givesTheLaptopProviderAndClientContactOfEachMember() {
+		long anaId = insertEmployee("PJ-4", "PJ Ana Zuniga", "ACTIVO", fusionId, leadId, null);
+		jdbc.sql("""
+				UPDATE employee
+				SET equipment_provider_id = (SELECT id FROM equipment_provider WHERE code = 'CLIENTE'),
+				    client_contact_email = 'pj.contacto@fusion.com'
+				WHERE id = :id""")
+			.param("id", anaId)
+			.update();
+
+		members("guest", fusionId).expectStatus()
+			.isOk()
+			.expectBody()
+			.jsonPath("$.items[*].name").isEqualTo(List.of("PJ Laura Gomez", "PJ Ana Zuniga"))
+			.jsonPath("$.items[0].equipmentProvider").doesNotExist()
+			.jsonPath("$.items[0].clientContactEmail").doesNotExist()
+			.jsonPath("$.items[1].equipmentProvider").isEqualTo("Cliente")
+			.jsonPath("$.items[1].clientContactEmail").isEqualTo("pj.contacto@fusion.com");
+	}
+
 	/** A project whose only collaborator is on Baja has no team; an unknown project is a 404. */
 	@Test
 	void givesAnEmptyTeamAndRejectsUnknownProjects() {
