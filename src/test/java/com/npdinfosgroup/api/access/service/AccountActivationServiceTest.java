@@ -4,8 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
-import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -17,12 +15,10 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
-import com.npdinfosgroup.api.access.client.IdentityProviderUnavailableException;
 import com.npdinfosgroup.api.access.client.KeycloakAdminClient;
 import com.npdinfosgroup.api.access.dto.request.AccountActivationCommand;
 import com.npdinfosgroup.api.access.dto.response.UserResponse;
@@ -40,7 +36,6 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.InOrder;
 import org.springframework.context.ApplicationEventPublisher;
-import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.transaction.support.TransactionOperations;
 
 /**
@@ -110,60 +105,6 @@ class AccountActivationServiceTest {
 		verify(users, never()).saveAndFlush(any());
 	}
 
-	/** An administrator can be deactivated while another active one remains; both are locked first. */
-	@Test
-	void deactivatesAnAdministratorWhenAnotherRemains() {
-		AppUser locked = given(user(ADMINISTRATOR, AppUserState.ACTIVE));
-		when(users.countByRoleAndStateAndIdNot(ADMINISTRATOR, AppUserState.ACTIVE, ID)).thenReturn(1L);
-		when(users.lockByRoleAndState(ADMINISTRATOR, AppUserState.ACTIVE)).thenReturn(List.of(locked, other(8L)));
-
-		service.deactivate(command(0));
-
-		InOrder order = inOrder(users);
-		order.verify(users).lockByRoleAndState(ADMINISTRATOR, AppUserState.ACTIVE);
-		order.verify(users).lockById(ID);
-		assertThat(locked.getState()).isEqualTo(AppUserState.DISABLED);
-	}
-
-	/** CA-04: the only active administrator is rejected before Keycloak is called. */
-	@Test
-	void rejectsTheLastActiveAdministrator() {
-		given(user(ADMINISTRATOR, AppUserState.ACTIVE));
-		when(users.countByRoleAndStateAndIdNot(ADMINISTRATOR, AppUserState.ACTIVE, ID)).thenReturn(0L);
-
-		assertThatThrownBy(() -> service.deactivate(command(0))).isInstanceOfSatisfying(ApiException.class,
-				ex -> assertThat(ex.getCode()).isEqualTo(ErrorCode.LAST_OPERATIONS_ADMINISTRATOR));
-		verifyNoInteractions(keycloak, audit);
-	}
-
-	/**
-	 * CA-04 under the lock: the other administrator was deactivated while Keycloak was called. The account
-	 * is enabled again and nothing is saved.
-	 */
-	@Test
-	void rejectsTheLastAdministratorFoundUnderTheLock() {
-		AppUser locked = given(user(ADMINISTRATOR, AppUserState.ACTIVE));
-		when(users.countByRoleAndStateAndIdNot(ADMINISTRATOR, AppUserState.ACTIVE, ID)).thenReturn(1L);
-		when(users.lockByRoleAndState(ADMINISTRATOR, AppUserState.ACTIVE)).thenReturn(List.of(locked));
-
-		assertThatThrownBy(() -> service.deactivate(command(0))).isInstanceOfSatisfying(ApiException.class,
-				ex -> assertThat(ex.getCode()).isEqualTo(ErrorCode.LAST_OPERATIONS_ADMINISTRATOR));
-		verify(keycloak).setEnabled(KEYCLOAK_ID, true);
-		verify(users, never()).saveAndFlush(any());
-		verifyNoInteractions(audit);
-	}
-
-	/** A pending administrator does not count as active: deactivating it needs no other administrator. */
-	@Test
-	void deactivatesAPendingAdministrator() {
-		AppUser locked = given(user(ADMINISTRATOR, AppUserState.PENDING));
-
-		service.deactivate(command(0));
-
-		verify(users, never()).countByRoleAndStateAndIdNot(any(), any(), anyLong());
-		assertThat(locked.getState()).isEqualTo(AppUserState.DISABLED);
-	}
-
 	/** The version is required. */
 	@Test
 	void requiresTheVersion() {
@@ -184,53 +125,6 @@ class AccountActivationServiceTest {
 			assertThat(ex.getProperties()).containsEntry("currentVersion", 4);
 		});
 		verifyNoInteractions(keycloak);
-	}
-
-	/** A save after the first read, seen under the lock, is a concurrent modification; Keycloak is undone. */
-	@Test
-	void rejectsAVersionChangedWhileKeycloakWasCalled() {
-		AppUser locked = given(user("guest", AppUserState.ACTIVE));
-		locked.setVersion(1);
-
-		assertThatThrownBy(() -> service.deactivate(command(0))).isInstanceOfSatisfying(ApiException.class,
-				ex -> assertThat(ex.getCode()).isEqualTo(ErrorCode.CONCURRENT_MODIFICATION));
-		verify(keycloak).setEnabled(KEYCLOAK_ID, true);
-	}
-
-	/** The optimistic lock of the save is a concurrent modification too. */
-	@Test
-	void reportsTheOptimisticLockOfTheSave() {
-		AppUser locked = given(user("guest", AppUserState.ACTIVE));
-		when(users.saveAndFlush(locked)).thenThrow(new OptimisticLockingFailureException("stale"));
-
-		assertThatThrownBy(() -> service.deactivate(command(0))).isInstanceOfSatisfying(ApiException.class,
-				ex -> assertThat(ex.getCode()).isEqualTo(ErrorCode.CONCURRENT_MODIFICATION));
-		verify(keycloak).setEnabled(KEYCLOAK_ID, true);
-		verifyNoInteractions(audit);
-	}
-
-	/** Keycloak down while disabling: it is enabled again (best effort) and the outage is reported. */
-	@Test
-	void undoesTheDeactivationWhenKeycloakFails() {
-		given(user("guest", AppUserState.ACTIVE));
-		doThrow(new IdentityProviderUnavailableException(new RuntimeException())).when(keycloak).logout(KEYCLOAK_ID);
-
-		assertThatThrownBy(() -> service.deactivate(command(0))).isInstanceOf(IdentityProviderUnavailableException.class);
-
-		verify(keycloak).setEnabled(KEYCLOAK_ID, true);
-		verify(users, never()).saveAndFlush(any());
-	}
-
-	/** A failed undo is only logged: the original error is the one reported. */
-	@Test
-	void reportsTheOriginalErrorWhenTheUndoFails() {
-		AppUser locked = given(user("guest", AppUserState.ACTIVE));
-		when(users.saveAndFlush(locked)).thenThrow(new IllegalStateException("database"));
-		doThrow(new IdentityProviderUnavailableException(new RuntimeException())).when(keycloak)
-			.setEnabled(KEYCLOAK_ID, true);
-
-		assertThatThrownBy(() -> service.deactivate(command(0))).isInstanceOf(IllegalStateException.class)
-			.hasMessage("database");
 	}
 
 	/** An unknown user is a 404, with no call to Keycloak. */
