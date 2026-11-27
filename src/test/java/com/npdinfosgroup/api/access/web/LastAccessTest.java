@@ -69,8 +69,9 @@ class LastAccessTest {
 	private UUID insertUser(String email, String state) {
 		UUID keycloakId = UUID.randomUUID();
 		jdbc.sql("""
-				INSERT INTO app_user (keycloak_id, full_name, email, role, state, created_at, created_by)
-				VALUES (:id, 'Test user', :email, 'guest', :state, now(), 'test')""")
+				INSERT INTO app_user (keycloak_id, full_name, email, role, state, created_at, created_by, disabled_at)
+				VALUES (:id, 'Test user', :email, 'guest', :state, now(), 'test',
+				        CASE WHEN :state = 'DISABLED' THEN now() END)""")
 			.param("id", keycloakId)
 			.param("email", email)
 			.param("state", state)
