@@ -219,8 +219,8 @@ public class KeycloakAdminClient {
 	}
 
 	/**
-	 * Deletes a deactivated account when its day has passed (call 4 of
-	 * {@code docs/specs/SCRUM-231/design.md} §4). An account that no longer exists counts as deleted, so a
+	 * Deletes the account of a user being deleted, which also ends its sessions
+	 * ({@code docs/specs/SCRUM-231/design.md} §2). An account that no longer exists counts as deleted, so a
 	 * deletion that failed after this call can simply be repeated.
 	 *
 	 * @param userId Keycloak id of the account
