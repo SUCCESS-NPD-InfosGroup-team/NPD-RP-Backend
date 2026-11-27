@@ -54,6 +54,7 @@ class SecurityConfig {
 				.requestMatchers(HttpMethod.POST, "/api/*/planner/resources", "/api/*/planner/projects",
 						"/api/*/planner/projects/*/deactivation", "/api/*/planner/projects/*/reactivation").hasRole(operationsAdministrator)
 				.requestMatchers(HttpMethod.PUT, "/api/*/planner/resources/*", "/api/*/planner/projects/*").hasRole(operationsAdministrator)
+				.requestMatchers(HttpMethod.GET, "/api/*/planner/projects/*/candidates").hasRole(operationsAdministrator)
 				.requestMatchers(HttpMethod.GET, "/api/*/history/resources/*/audit-log").hasRole(operationsAdministrator)
 				// User management, whatever the method: only Operations administrators
 				.requestMatchers("/api/*/access/**").hasRole(operationsAdministrator)
