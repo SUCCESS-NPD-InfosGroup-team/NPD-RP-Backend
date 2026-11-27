@@ -11,6 +11,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import com.npdinfosgroup.api.planner.dto.request.ResourceSearchCriteria;
 import com.npdinfosgroup.api.planner.dto.response.CodeLabel;
@@ -19,7 +20,9 @@ import com.npdinfosgroup.api.planner.dto.response.ResourceGroupResponse;
 import com.npdinfosgroup.api.planner.dto.response.ResourceListItemResponse;
 import com.npdinfosgroup.api.planner.dto.response.ResourceSearchResponse;
 import com.npdinfosgroup.api.planner.persistence.entity.RosterEntry;
+import com.npdinfosgroup.api.planner.persistence.query.EmployeeVersion;
 import com.npdinfosgroup.api.planner.persistence.query.RosterEntrySpecifications;
+import com.npdinfosgroup.api.planner.persistence.repository.EmployeeRepository;
 import com.npdinfosgroup.api.planner.persistence.repository.RosterEntryRepository;
 import com.npdinfosgroup.api.shared.dto.PageInfo;
 import com.npdinfosgroup.api.shared.exception.FieldErrorCode;
@@ -65,6 +68,8 @@ public class ResourceSearchService {
 
 	private final RosterEntryRepository roster;
 
+	private final EmployeeRepository employees;
+
 	private final CatalogService catalogs;
 
 	private final MessageSource messages;
@@ -75,13 +80,15 @@ public class ResourceSearchService {
 	 * Creates the service.
 	 *
 	 * @param roster rows of the roster
+	 * @param employees current version of each row
 	 * @param catalogs checks the status codes
 	 * @param messages labels of the situations
 	 * @param clock gives today for the days to the end date
 	 */
-	ResourceSearchService(RosterEntryRepository roster, CatalogService catalogs, MessageSource messages,
-			Clock clock) {
+	ResourceSearchService(RosterEntryRepository roster, EmployeeRepository employees, CatalogService catalogs,
+			MessageSource messages, Clock clock) {
 		this.roster = roster;
+		this.employees = employees;
 		this.catalogs = catalogs;
 		this.messages = messages;
 		this.clock = clock;
@@ -105,7 +112,11 @@ public class ResourceSearchService {
 		Page<RosterEntry> page = roster.findAll(filters,
 				PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), ROSTER_ORDER));
 		LocalDate today = LocalDate.now(clock);
-		List<ResourceListItemResponse> items = page.getContent().stream().map(row -> item(row, today)).toList();
+		Map<Long, Integer> versions = versionsOf(page.getContent());
+		List<ResourceListItemResponse> items = page.getContent()
+			.stream()
+			.map(row -> item(row, today, versions.get(row.getId())))
+			.toList();
 		return new ResourceSearchResponse(items, groups(page.getContent(), filters),
 				new PageInfo(page.getNumber(), page.getSize(), page.getTotalElements(), page.getTotalPages()));
 	}
@@ -157,7 +168,22 @@ public class ResourceSearchService {
 		}
 	}
 
-	private ResourceListItemResponse item(RosterEntry row, LocalDate today) {
+	/**
+	 * The version of every row of the page in one query (never one per row).
+	 *
+	 * @param rows the rows of the page
+	 * @return version by employee id; empty without rows
+	 */
+	private Map<Long, Integer> versionsOf(List<RosterEntry> rows) {
+		if (rows.isEmpty()) {
+			return Map.of();
+		}
+		return employees.findVersions(rows.stream().map(RosterEntry::getId).toList())
+			.stream()
+			.collect(Collectors.toMap(EmployeeVersion::id, EmployeeVersion::version));
+	}
+
+	private ResourceListItemResponse item(RosterEntry row, LocalDate today, Integer version) {
 		boolean hasProject = row.getProjectId() != null;
 		LocalDate end = row.getProjectEndDate();
 		return new ResourceListItemResponse(row.getId(), row.getEmployeeCode(), row.getFullName(), row.getLevel(),
@@ -169,7 +195,7 @@ public class ResourceSearchService {
 				hasProject ? row.getAssignmentStartDate() : null, end, hasProject && end == null,
 				end == null ? null : ChronoUnit.DAYS.between(today, end),
 				hasProject ? new IdName(row.getProjectId(), row.getProjectName()) : null, client(row),
-				hasProject ? row.getProjectActive() : null);
+				hasProject ? row.getProjectActive() : null, version);
 	}
 
 	private static IdName client(RosterEntry row) {
