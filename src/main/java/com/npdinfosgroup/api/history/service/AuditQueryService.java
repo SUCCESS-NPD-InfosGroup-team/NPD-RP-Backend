@@ -14,6 +14,7 @@ import com.npdinfosgroup.api.history.dto.response.AuditFieldOption;
 import com.npdinfosgroup.api.history.dto.response.AuditLogEntryResponse;
 import com.npdinfosgroup.api.history.dto.response.AuditLogResponse;
 import com.npdinfosgroup.api.history.dto.response.LastChangeResponse;
+import com.npdinfosgroup.api.history.dto.response.LatestChange;
 import com.npdinfosgroup.api.history.persistence.entity.AuditEntry;
 import com.npdinfosgroup.api.history.persistence.query.AuditEntrySpecifications;
 import com.npdinfosgroup.api.history.persistence.repository.AuditEntryRepository;
@@ -67,6 +68,19 @@ public class AuditQueryService {
 		this.repository = repository;
 		this.mapper = mapper;
 		this.clock = clock;
+	}
+
+	/**
+	 * The latest change saved through the API on any record, for the «Última actualización de datos» of
+	 * the status bar (HU-11). Only its author and moment are read, not its fields.
+	 *
+	 * @return who made the latest change and when, or empty if nothing was changed through the API yet
+	 *         (the data only comes from the Excel import)
+	 */
+	@Transactional(readOnly = true)
+	public Optional<LatestChange> findLatestChange() {
+		return repository.findFirstByOrderByOccurredAtDescIdDesc()
+			.map(last -> new LatestChange(last.getActor(), last.getOccurredAt()));
 	}
 
 	/**

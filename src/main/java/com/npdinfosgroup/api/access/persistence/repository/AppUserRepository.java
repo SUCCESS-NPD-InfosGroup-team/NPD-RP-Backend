@@ -37,6 +37,14 @@ public interface AppUserRepository extends JpaRepository<AppUser, Long> {
 	List<AppUser> findByEmailIn(Collection<String> emails);
 
 	/**
+	 * The user with an email, to show the name of who made the last change of the status bar.
+	 *
+	 * @param email email in lower case, as it is stored
+	 * @return the user, if there is one
+	 */
+	Optional<AppUser> findByEmail(String email);
+
+	/**
 	 * The users in a state, for example the deactivated ones whose deletion must be scheduled again.
 	 *
 	 * @param state state of the account

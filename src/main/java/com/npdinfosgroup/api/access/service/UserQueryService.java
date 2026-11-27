@@ -105,6 +105,19 @@ public class UserQueryService {
 	}
 
 	/**
+	 * The name to show for a username of the audit log, for the «por …» of the status bar (HU-11).
+	 * The username of the token is the user's email, so the user is looked up by it, ignoring case.
+	 *
+	 * @param username {@code preferred_username} saved as the actor of a change
+	 * @return the user's full name, or the username unchanged when no user has that email (an account
+	 *         created only in the Keycloak console, or a deleted user)
+	 */
+	@Transactional(readOnly = true)
+	public String displayNameOf(String username) {
+		return users.findByEmail(username.toLowerCase(Locale.ROOT)).map(AppUser::getFullName).orElse(username);
+	}
+
+	/**
 	 * Full name of each creator that is a user too, by email. {@code created_by} keeps the username of the
 	 * token, which is the email; a creator that is not in {@code app_user} (an account made in the Keycloak
 	 * console) keeps the username.
