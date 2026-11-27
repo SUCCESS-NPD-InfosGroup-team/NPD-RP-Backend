@@ -7,9 +7,11 @@ import com.npdinfosgroup.api.access.dto.request.CreateUserCommand;
 import com.npdinfosgroup.api.access.dto.request.CreateUserRequest;
 import com.npdinfosgroup.api.access.dto.request.UpdateUserCommand;
 import com.npdinfosgroup.api.access.dto.request.UpdateUserRequest;
+import com.npdinfosgroup.api.access.dto.request.UserDeletionCommand;
 import com.npdinfosgroup.api.access.dto.request.UserVersionRequest;
 import com.npdinfosgroup.api.access.dto.response.UserResponse;
 import com.npdinfosgroup.api.access.service.AccountActivationService;
+import com.npdinfosgroup.api.access.service.UserDeletionService;
 import com.npdinfosgroup.api.access.service.UserEditService;
 import com.npdinfosgroup.api.access.service.UserQueryService;
 import com.npdinfosgroup.api.access.service.UserRegistrationService;
@@ -25,12 +27,14 @@ import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
@@ -53,6 +57,8 @@ class UserController {
 
 	private final AccountActivationService activationService;
 
+	private final UserDeletionService deletionService;
+
 	private final CurrentUser currentUser;
 
 	/**
@@ -62,14 +68,17 @@ class UserController {
 	 * @param registrationService creates users
 	 * @param editService edits the name and the role of users
 	 * @param activationService deactivates and reactivates accounts
+	 * @param deletionService deletes users
 	 * @param currentUser who makes the request, for the audit log
 	 */
 	UserController(UserQueryService queryService, UserRegistrationService registrationService,
-			UserEditService editService, AccountActivationService activationService, CurrentUser currentUser) {
+			UserEditService editService, AccountActivationService activationService,
+			UserDeletionService deletionService, CurrentUser currentUser) {
 		this.queryService = queryService;
 		this.registrationService = registrationService;
 		this.editService = editService;
 		this.activationService = activationService;
+		this.deletionService = deletionService;
 		this.currentUser = currentUser;
 	}
 
@@ -328,6 +337,46 @@ class UserController {
 			@RequestBody UserVersionRequest request) {
 		return ResponseEntity
 			.ok(activationService.reactivate(new AccountActivationCommand(id, request.version(), currentUser.username())));
+	}
+
+
+	/**
+	 * Deletes a user at once (SCRUM-231): from Keycloak, which ends its sessions, and from the user list.
+	 * Audited with the administrator's username.
+	 *
+	 * @param id user id
+	 * @param userVersion the version that was read
+	 * @return 204
+	 */
+	@DeleteMapping(path = "/{id}", version = "v1")
+	@Operation(summary = "Eliminar usuario", description = """
+			Elimina un usuario (HU-09). Solo Operations administrator. No se puede deshacer: para darle 			acceso otra vez hay que crear un usuario nuevo.
+
+			- Se elimina su cuenta del servicio de inicio de sesión: sus sesiones terminan al instante 			(su siguiente petición da 401) y no puede volver a entrar; una invitación pendiente deja de 			servir.
+			- Sale de la lista de usuarios. El historial de cambios conserva su nombre, correo y rol.
+			- A un líder NPD solo se le elimina el usuario: su registro de empleado no cambia y sigue en 			Recursos.
+			- No se puede eliminar al único Operations administrator activo 			(`LAST_OPERATIONS_ADMINISTRATOR`).
+			- Si el servicio de inicio de sesión falla, no se elimina nada y se puede reintentar (503).""")
+	@ApiResponse(responseCode = "204", description = "Usuario eliminado")
+	@ApiResponse(responseCode = "400", description = "Falta `version` (`VALIDATION_FAILED`)",
+			content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemDetail.class)))
+	@ApiResponse(responseCode = "401", description = "Sin token o token inválido (`UNAUTHORIZED`)",
+			content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemDetail.class)))
+	@ApiResponse(responseCode = "403", description = "El rol no es Operations administrator (`FORBIDDEN`)",
+			content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemDetail.class)))
+	@ApiResponse(responseCode = "404", description = "No existe, o ya se eliminó (`NOT_FOUND`)",
+			content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemDetail.class)))
+	@ApiResponse(responseCode = "409", description = """
+			Alguien guardó el usuario después de leerlo (`CONCURRENT_MODIFICATION`, con `currentVersion`) o 			es el único Operations administrator activo (`LAST_OPERATIONS_ADMINISTRATOR`)""",
+			content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemDetail.class)))
+	@ApiResponse(responseCode = "503", description = """
+			El servicio de inicio de sesión no respondió; no se eliminó nada 			(`IDENTITY_PROVIDER_UNAVAILABLE`)""",
+			content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemDetail.class)))
+	ResponseEntity<Void> delete(@Parameter(description = "Id del usuario") @PathVariable long id,
+			@Parameter(description = "Versión del usuario que se leyó", example = "3") @RequestParam(name = "version",
+					required = false) Integer userVersion) {
+		deletionService.delete(new UserDeletionCommand(id, userVersion, currentUser.username()));
+		return ResponseEntity.noContent().build();
 	}
 
 }
