@@ -124,17 +124,6 @@ class UserEditServiceTest {
 		verify(users, never()).saveAndFlush(any());
 	}
 
-	/** A deactivated account is not edited: it must be reactivated first (SCRUM-231). */
-	@Test
-	void rejectsADeactivatedAccount() {
-		AppUser user = user("Ana Ríos", "guest", AppUserState.DISABLED);
-		when(users.findById(ID)).thenReturn(Optional.of(user));
-
-		assertThatThrownBy(() -> service.update(command("Ana", Role.CUSTOMER_SUCCESS)))
-			.isInstanceOfSatisfying(ApiException.class, ex -> assertThat(ex.getCode()).isEqualTo(ErrorCode.ACCOUNT_DISABLED));
-		verifyNoInteractions(validator, keycloak, audit);
-	}
-
 	/** A form read before the last save is rejected before its fields are checked. */
 	@Test
 	void rejectsAStaleVersion() {

@@ -108,8 +108,7 @@ public class UserEditService {
 	 * @throws ApiException {@link ErrorCode#CONCURRENT_MODIFICATION} if someone saved the user after the
 	 *         version that was read, {@link ErrorCode#NPD_LEAD_WITHOUT_EMPLOYEE} for an NPD lead without
 	 *         employee record (CA-13), or {@link ErrorCode#LAST_OPERATIONS_ADMINISTRATOR} if no active
-	 *         Operations administrator would remain (CA-04), or {@link ErrorCode#ACCOUNT_DISABLED} if the
-	 *         account is deactivated (SCRUM-231); nothing changes
+	 *         Operations administrator would remain (CA-04); nothing changes
 	 * @throws IdentityProviderUnavailableException if Keycloak cannot be reached; nothing is left changed
 	 */
 	public UserResponse update(UpdateUserCommand command) {
@@ -119,10 +118,6 @@ public class UserEditService {
 		// A stale form is reported before its fields: they may be wrong only because the user changed
 		if (request.version() != null && !request.version().equals(user.getVersion())) {
 			throw concurrentModification(user);
-		}
-		// A deactivation changes the version, so a later one is already caught above and under the lock
-		if (user.getState() == AppUserState.DISABLED) {
-			throw new ApiException(ErrorCode.ACCOUNT_DISABLED, List.of(), Map.of());
 		}
 		NewLead newLead = validate(request, user, command.actor());
 		Role role = Role.ofRealmName(request.role()).orElseThrow();

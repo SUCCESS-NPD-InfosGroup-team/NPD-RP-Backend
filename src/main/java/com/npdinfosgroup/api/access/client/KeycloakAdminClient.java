@@ -127,22 +127,6 @@ public class KeycloakAdminClient {
 	}
 
 	/**
-	 * Enables or disables the account (calls 1 and 2 of {@code docs/specs/SCRUM-231/design.md} §4). A
-	 * disabled account cannot log in nor use its action tokens (the invitation link), but keeps its
-	 * roles, so enabling it again restores it as it was. Its open sessions are not closed: see
-	 * {@link #logout(UUID)}. The whole representation is sent back, as on {@link #rename(UUID, String)}.
-	 *
-	 * @param userId Keycloak id of the account
-	 * @param enabled {@code false} to deactivate it, {@code true} to reactivate it
-	 * @throws IdentityProviderUnavailableException if Keycloak cannot be reached
-	 * @throws IllegalStateException if the account no longer exists
-	 */
-	public void setEnabled(UUID userId, boolean enabled) {
-		onAccount(userId, enabled ? "enable user" : "disable user",
-				() -> updateRepresentation(userId, "enabled", enabled));
-	}
-
-	/**
 	 * Leaves the account with {@code role} as its only platform role (calls 3 to 5 of the design). Only
 	 * the four roles of {@link Role} are removed: {@code default-roles-*}, {@code offline_access} and any
 	 * other realm role stay. A role the account already has is neither removed nor added again, so the

@@ -95,7 +95,7 @@ public class UserQueryService {
 			.map(user -> new UserResponse(user.getId(), user.getFullName(), user.getEmail(), user.getRole(),
 					user.getState().name(), user.getLastAccessAt(), user.getCreatedAt(),
 					creators.getOrDefault(user.getCreatedBy().toLowerCase(Locale.ROOT), user.getCreatedBy()),
-					user.getVersion(), toEmployee(user.getEmployeeId(), employees), user.getDisabledAt()))
+					user.getVersion(), toEmployee(user.getEmployeeId(), employees)))
 			.toList();
 	}
 
