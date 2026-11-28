@@ -45,14 +45,6 @@ public interface AppUserRepository extends JpaRepository<AppUser, Long> {
 	Optional<AppUser> findByEmail(String email);
 
 	/**
-	 * The users in a state, for example the deactivated ones whose deletion must be scheduled again.
-	 *
-	 * @param state state of the account
-	 * @return the users
-	 */
-	List<AppUser> findByState(AppUserState state);
-
-	/**
 	 * Whether a user is already linked to an employee record.
 	 *
 	 * @param employeeId id of the employee record
