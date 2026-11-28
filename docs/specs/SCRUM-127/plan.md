@@ -7,8 +7,9 @@ How: [design.md](design.md).
 |---|--------|------------|----------|--------|
 | 0 | `docs/SCRUM-127-bulk-assignment-spec` | — | 364 lines | Merged ([#53](https://github.com/SUCCESS-NPD-InfosGroup-team/NPD-RP-Backend/pull/53)) |
 | 1 | `feature/SCRUM-127-roster-version` | PR 0 | 113 lines | Merged ([#84](https://github.com/SUCCESS-NPD-InfosGroup-team/NPD-RP-Backend/pull/84)) |
-| 2 | `feature/SCRUM-127-assignment-candidates` | PR 1 | 398 lines | In review |
-| 3 | `feature/SCRUM-127-assignment-validation` | PR 0 | ~380 lines | Pending |
+| 2 | `feature/SCRUM-127-assignment-candidates` | PR 1 | 398 lines | Merged ([#96](https://github.com/SUCCESS-NPD-InfosGroup-team/NPD-RP-Backend/pull/96)) |
+| 3 | `feature/SCRUM-127-assignment-validation` | PR 0 | 356 lines | In review |
+| 3b | `feature/SCRUM-127-assignment-values` | PR 3 | ~280 lines | Pending |
 | 4 | `feature/SCRUM-127-assignment-service` | PR 3 | ~350 lines | Pending |
 | 5 | `feature/SCRUM-127-assignment-endpoint` | PR 4 | ~330 lines | Pending |
 | 6 | `feature/SCRUM-127-member-removal` | PR 5 | ~350 lines | Pending |
@@ -48,12 +49,23 @@ Design: contract 1.
 Design: Decision 2 and Decision 3, row errors of contract 2. No endpoint yet.
 
 - Request records: `AssignMembersRequest`, `AssignmentDefaults`, `MemberAssignment`.
-- `MemberAssignmentValidator` (`planner/service/validator`): resolves each member's values (override,
-  default, project contract end), checks every row with the rules of "Editar recurso" and collects all
-  the errors with `employeeId` and `index`.
+- `MemberAssignmentValidator` (`planner/service/validator`): who can be assigned. Every row is checked
+  (unknown, on Baja, already in the project, repeated, no version) and all the errors are collected with
+  `employeeId` and `index`; 1 to 100 members.
 - New `FieldErrorCode` values `TERMINATED`, `ALREADY_IN_PROJECT`, `DUPLICATED`, `NOT_IN_PROJECT`,
   `TOO_MANY`, and their Spanish messages in `messages.properties`.
-- Unit tests of every rule and of the end date resolution.
+- Unit tests of every rule.
+
+Measured at about 540 lines with the values of part 3b, the validation was split in two.
+
+## 3b. Assignment values — part 3b of 6
+
+Design: Decision 2, row errors of contract 2.
+
+- `MemberAssignmentValidator` resolves each member's lead, role, laptop and end date (own value, default,
+  project contract end) and checks them with the rules of "Editar recurso", including `NOT_NPD_LEADER`
+  (SCRUM-241) for a new lead. A problem of a shared value is reported once on `defaults.<field>`.
+- Unit tests of every rule and of the resolution.
 
 ## 4. Assignment service — part 4 of 6
 

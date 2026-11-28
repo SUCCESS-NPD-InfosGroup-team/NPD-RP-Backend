@@ -59,6 +59,21 @@ public enum FieldErrorCode {
 	EMAIL_TAKEN,
 
 	/** The employee number already belongs to another employee. */
-	EMPLOYEE_NUMBER_TAKEN
+	EMPLOYEE_NUMBER_TAKEN,
+
+	/** The person is on Baja and cannot be assigned. */
+	TERMINATED,
+
+	/** The person is already in the project they are being added to. */
+	ALREADY_IN_PROJECT,
+
+	/** The same person appears more than once in the request. */
+	DUPLICATED,
+
+	/** The person is not in the project they are being removed from. */
+	NOT_IN_PROJECT,
+
+	/** The list has more items than allowed. */
+	TOO_MANY
 
 }
