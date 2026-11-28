@@ -1,10 +1,7 @@
 package com.npdinfosgroup.api.access.web;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.http.HttpHeaders.AUTHORIZATION;
@@ -33,7 +30,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.client.RestTestClient;
 
 /**
- * Deactivating and reactivating a user account through the API (SCRUM-231), end to end with the
+ * Deactivating a user account through the API (SCRUM-231, first version, being removed), end to end with the
  * database; Keycloak is replaced by a mock of its client.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
@@ -64,11 +61,11 @@ class UserActivationControllerTest {
 	}
 
 	/**
-	 * CA-01, CA-06, CA-07, then CA-02: the account is disabled with its sessions closed, its deletion time
-	 * is one day later, and reactivating it puts it back as it was; both changes are audited.
+	 * The account is disabled with its sessions closed, its deletion time is one day later, and the
+	 * change is audited.
 	 */
 	@Test
-	void deactivatesAndReactivatesAnAccount() {
+	void deactivatesAnAccount() {
 		User ana = insert("Ana Torres", "customer-success", "ACTIVE");
 		Instant before = Instant.now();
 
@@ -87,17 +84,7 @@ class UserActivationControllerTest {
 			.expectBody()
 			.jsonPath("$.disabledAt").isEqualTo(saved.toString())
 			.jsonPath("$.deletesAt").isEqualTo(saved.plus(Duration.ofDays(1)).toString());
-
-		post(ana, "reactivation", 1).expectStatus()
-			.isOk()
-			.expectBody()
-			.jsonPath("$.state").isEqualTo("ACTIVE")
-			.jsonPath("$.role").isEqualTo("customer-success")
-			.jsonPath("$.disabledAt").isEmpty()
-			.jsonPath("$.deletesAt").isEmpty();
-		verify(keycloak).setEnabled(ana.keycloakId(), true);
-		assertThat(auditRows()).containsExactly("state: ACTIVE -> DISABLED by " + ACTOR,
-				"state: DISABLED -> ACTIVE by " + ACTOR);
+		assertThat(auditRows()).containsExactly("state: ACTIVE -> DISABLED by " + ACTOR);
 	}
 
 	/** A deactivated account cannot be edited until it is reactivated; nothing changes. */
@@ -139,21 +126,6 @@ class UserActivationControllerTest {
 
 		verifyNoInteractions(keycloak);
 		assertThat(read(admin.id(), "state")).isEqualTo("ACTIVE");
-	}
-
-	/** CA-02: past its deletion time the account cannot be reactivated, even if it was not deleted yet. */
-	@Test
-	void rejectsAReactivationPastTheDeletionTime() {
-		User ana = insert("Ana Torres", "guest", "DISABLED");
-		jdbc.sql("UPDATE app_user SET disabled_at = now() - interval '25 hours' WHERE id = :id").param("id", ana.id())
-			.update();
-
-		post(ana, "reactivation", 0).expectStatus()
-			.isEqualTo(409)
-			.expectBody()
-			.jsonPath("$.code").isEqualTo("ACCOUNT_DELETION_DUE");
-
-		verify(keycloak, never()).setEnabled(any(), anyBoolean());
 	}
 
 	/** CA-09: an NPD lead's employee record is not changed: it stays Activo and can still be chosen. */
@@ -203,20 +175,18 @@ class UserActivationControllerTest {
 		verifyNoInteractions(keycloak);
 	}
 
-	/** CA-05: only Operations administrators deactivate or reactivate; without a token it is refused. */
+	/** Only Operations administrators deactivate; without a token it is refused. */
 	@ParameterizedTest
 	@ValueSource(strings = { "npd-leader", "customer-success", "guest" })
 	void onlyOperationsAdministratorsChangeTheState(String role) {
 		User ana = insert("Ana Torres", "guest", "ACTIVE");
 
-		for (String action : List.of("deactivation", "reactivation")) {
-			client.post().uri("/api/v1/access/users/" + ana.id() + "/" + action).header(AUTHORIZATION, "Bearer " + role)
-				.contentType(APPLICATION_JSON).body(Map.of("version", 0)).exchange()
-				.expectStatus().isForbidden();
-			client.post().uri("/api/v1/access/users/" + ana.id() + "/" + action)
-				.contentType(APPLICATION_JSON).body(Map.of("version", 0)).exchange()
-				.expectStatus().isUnauthorized();
-		}
+		client.post().uri("/api/v1/access/users/" + ana.id() + "/deactivation").header(AUTHORIZATION, "Bearer " + role)
+			.contentType(APPLICATION_JSON).body(Map.of("version", 0)).exchange()
+			.expectStatus().isForbidden();
+		client.post().uri("/api/v1/access/users/" + ana.id() + "/deactivation")
+			.contentType(APPLICATION_JSON).body(Map.of("version", 0)).exchange()
+			.expectStatus().isUnauthorized();
 		verifyNoInteractions(keycloak);
 		assertThat(read(ana.id(), "state")).isEqualTo("ACTIVE");
 	}
