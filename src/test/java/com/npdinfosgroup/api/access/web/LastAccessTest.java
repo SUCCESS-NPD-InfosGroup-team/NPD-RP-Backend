@@ -40,13 +40,13 @@ class LastAccessTest {
 
 	/**
 	 * The first call makes a pending user active and records the moment, and a second call right after
-	 * does not write it again. A disabled user keeps that state. Recording the access does not change the
+	 * does not write it again. An active user stays active. Recording the access does not change the
 	 * {@code version}, so it never makes an edit of the user fail as concurrent (SCRUM-53).
 	 */
 	@Test
 	void recordsTheAccessAndActivatesPendingUsers() {
 		UUID ana = insertUser("ana@example.com", "PENDING");
-		UUID luis = insertUser("luis@example.com", "DISABLED");
+		UUID luis = insertUser("luis@example.com", "ACTIVE");
 
 		callAs(ana);
 		Timestamp first = column("last_access_at", ana, Timestamp.class);
@@ -55,7 +55,7 @@ class LastAccessTest {
 
 		assertThat(column("state", ana, String.class)).isEqualTo("ACTIVE");
 		assertThat(first).isNotNull().isEqualTo(column("last_access_at", ana, Timestamp.class));
-		assertThat(column("state", luis, String.class)).isEqualTo("DISABLED");
+		assertThat(column("state", luis, String.class)).isEqualTo("ACTIVE");
 		assertThat(column("last_access_at", luis, Timestamp.class)).isNotNull();
 		assertThat(column("version", ana, Integer.class)).isZero();
 	}
@@ -69,9 +69,8 @@ class LastAccessTest {
 	private UUID insertUser(String email, String state) {
 		UUID keycloakId = UUID.randomUUID();
 		jdbc.sql("""
-				INSERT INTO app_user (keycloak_id, full_name, email, role, state, created_at, created_by, disabled_at)
-				VALUES (:id, 'Test user', :email, 'guest', :state, now(), 'test',
-				        CASE WHEN :state = 'DISABLED' THEN now() END)""")
+				INSERT INTO app_user (keycloak_id, full_name, email, role, state, created_at, created_by)
+				VALUES (:id, 'Test user', :email, 'guest', :state, now(), 'test')""")
 			.param("id", keycloakId)
 			.param("email", email)
 			.param("state", state)

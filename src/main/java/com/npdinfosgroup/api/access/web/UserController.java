@@ -86,9 +86,7 @@ class UserController {
 			filtros. El parámetro `sort` se ignora. Solo Operations administrator.
 
 			- `role` es el código del rol; su nombre está en «Listar roles».
-			- `state`: `PENDING` (invitación enviada, aún no usa la plataforma), `ACTIVE` o `DISABLED` \
-			(desactivada, solo cuentas de antes de la eliminación inmediata). `disabledAt`: cuándo se \
-			desactivó; `null` si no está desactivada.
+			- `state`: `PENDING` (invitación enviada, aún no usa la plataforma) o `ACTIVE`.
 			- `lastAccessAt` es `null` hasta su primer acceso.
 			- `createdAt` y `createdBy`: cuándo y quién lo creó. `createdBy` es el nombre completo del \
 			usuario que lo creó o, si esa cuenta no es un usuario de la plataforma, su nombre de usuario.
@@ -232,8 +230,7 @@ class UserController {
 			usuario), `NOT_NPD_LEAD` (no es líder NPD) o `TERMINATED` (de Baja, también un antiguo líder \
 			dado de baja por otro motivo), con `matchedBy`, `existingResourceId` y `existingResourceName`.
 			- `LAST_OPERATIONS_ADMINISTRATOR`: no quedaría ningún Operations administrator activo.
-			- `NPD_LEAD_WITHOUT_EMPLOYEE`: líder NPD sin registro de empleado; su cuenta se debe eliminar.
-			- `ACCOUNT_DISABLED`: la cuenta está desactivada; hay que reactivarla antes de editarla.""",
+			- `NPD_LEAD_WITHOUT_EMPLOYEE`: líder NPD sin registro de empleado; su cuenta se debe eliminar.""",
 			content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemDetail.class)))
 	@ApiResponse(responseCode = "503", description = """
 			El servicio de inicio de sesión no respondió; no quedó nada cambiado \
