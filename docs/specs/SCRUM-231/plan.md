@@ -10,56 +10,69 @@ branches below are stacked: each one starts from the previous, so each PR shows 
 
 | # | Branch | Content | Lines | Depends on | Status |
 |---|--------|---------|-------|------------|--------|
-| 1 | `docs/SCRUM-231-delete-user` | `spec.md` and `design.md`, rewritten. | ~305 | — | Pending |
-| 2 | `docs/SCRUM-231-delete-user-plan` | This `plan.md`, rewritten. | ~145 | PR 1 | Pending |
-| 3 | `feature/SCRUM-231-delete-user` | `DELETE /users/{id}`: service, endpoint, tests. | ~380 | PR 2 | Pending |
-| 4 | `feature/SCRUM-231-remove-reactivation` | Reactivation, `ACCOUNT_DELETION_DUE`. | ~350 | PR 3 | Pending |
-| 5 | `feature/SCRUM-231-remove-deactivation-endpoint` | Deactivation endpoint, `UserVersionRequest`, end-to-end tests. | ~330 | PR 4 | Pending |
-| 6 | `feature/SCRUM-231-remove-deactivation-service` | `AccountActivationService` and its tests. | ~390 | PR 5 | Pending |
-| 7 | `feature/SCRUM-231-remove-deletion-scheduler` | The job, `AccountStateChanged`, `SchedulingConfig`. | ~380 | PR 6 | Pending |
-| 8 | `feature/SCRUM-231-remove-deletion-service` | `AccountDeletionService`, settings, `deletesAt`. | ~350 | PR 7 | Pending |
-| 9 | `feature/SCRUM-231-drop-disabled-state` | `V14`, `DISABLED`, `disabledAt`, `ACCOUNT_DISABLED`, `setEnabled`. | ~300 | PR 8 | Pending |
+| 1 | `docs/SCRUM-231-delete-user` | `spec.md` and `design.md`, rewritten. | 305 | — | In review ([#102](https://github.com/SUCCESS-NPD-InfosGroup-team/NPD-RP-Backend/pull/102)) |
+| 2 | `docs/SCRUM-231-delete-user-plan` | This `plan.md`, rewritten. | ~150 | PR 1 | In review ([#103](https://github.com/SUCCESS-NPD-InfosGroup-team/NPD-RP-Backend/pull/103)) |
+| 3 | `feature/SCRUM-231-delete-user-service` | `UserDeletionService` and its unit tests. | 309 | PR 2 | Pending |
+| 4 | `feature/SCRUM-231-delete-user-endpoint` | `DELETE /users/{id}`, OpenAPI, end-to-end tests. | 246 | PR 3 | Pending |
+| 5 | `feature/SCRUM-231-remove-reactivation` | Reactivation, `ACCOUNT_DELETION_DUE`. | 390 | PR 4 | Pending |
+| 6 | `feature/SCRUM-231-remove-deactivation-endpoint` | Deactivation endpoint, `UserVersionRequest`, end-to-end tests. | 298 | PR 5 | Pending |
+| 7 | `feature/SCRUM-231-trim-deactivation-service` | CA-04 and compensation of the now unused deactivation. | 186 | PR 6 | Pending |
+| 8 | `feature/SCRUM-231-remove-deactivation-service` | `AccountActivationService` and its tests. | 336 | PR 7 | Pending |
+| 9 | `feature/SCRUM-231-remove-deletion-scheduler` | The job, `AccountStateChanged`, `SchedulingConfig`. | 373 | PR 8 | Pending |
+| 10 | `feature/SCRUM-231-remove-deletion-service` | `AccountDeletionService`, settings, `deletesAt`. | 354 | PR 9 | Pending |
+| 11 | `feature/SCRUM-231-drop-disabled-state` | `V14`, `DISABLED`, `disabledAt`, `ACCOUNT_DISABLED`, `setEnabled`. | 195 | PR 10 | Pending |
 
-The docs go in two PRs to stay under 400 lines. The frontend can switch to the new endpoint after
-PR 3. The old endpoints answer until PR 5, so the frontend has to stop calling them before PR 5 is
-merged. Line counts are estimates; a PR that ends up over 400 is split again and this table updated.
+The docs go in two PRs, the new service and its endpoint in two, and the deactivation service is
+trimmed before it is deleted, all to stay under 400 lines. The frontend can switch to the new endpoint
+after PR 4. The old endpoints answer until PR 5 (reactivation) and PR 6 (deactivation), so the frontend
+has to stop calling them before those are merged.
 
-## PR 3 — Delete a user
+## PR 3 — Delete a user: service
 
 - `UserDeletionCommand` (id, version, actor); `UserDeletionService.delete` (design §1–2).
+- `UserDeletionServiceTest` (unit, mocked Keycloak): order lock → Keycloak → delete → audit, CA-04 (last
+  one, another active one, a pending one), version, unknown user, Keycloak down → nothing deleted.
+
+## PR 4 — Delete a user: endpoint
+
 - `UserController.delete`: `DELETE /api/v1/access/users/{id}?version=`, 204, OpenAPI (design §4).
 - `LAST_OPERATIONS_ADMINISTRATOR` message: "eliminar" instead of "desactivar".
-- Tests: `UserDeletionServiceTest` (unit, mocked Keycloak): order Keycloak → delete → audit, CA-04 (last
-  one, another active one), version, Keycloak down → nothing deleted. `UserDeletionControllerTest`
-  (Testcontainers): 204 and gone from the list, audit rows (CA-06), CA-09, CA-05, 400/404/409.
+- `UserDeletionControllerTest` (Testcontainers): 204 and gone (CA-01, CA-02), audit rows (CA-06), CA-04,
+  CA-05, CA-09, 400/404/409, 503 keeps the user.
 
-## PR 4 — Remove the reactivation
+## PR 5 — Remove the reactivation
 
 - `AccountActivationService.reactivate`, `POST /users/{id}/reactivation`, `ACCOUNT_DELETION_DUE` and its
   messages; `AccountReactivationServiceTest` and the reactivation end-to-end cases.
 
-## PR 5 — Remove the deactivation endpoint
+## PR 6 — Remove the deactivation endpoint
 
 - `POST /users/{id}/deactivation`, `UserVersionRequest`, `UserActivationControllerTest`.
 
-## PR 6 — Remove the deactivation service
+## PR 7 — Trim the deactivation service
+
+- With no caller left, the last-administrator check and the compensation go first, with their tests.
+
+## PR 8 — Remove the deactivation service
 
 - `AccountActivationService`, `AccountActivationCommand`, `AccountActivationServiceTest`.
 
-## PR 7 — Remove the scheduled deletion
+## PR 9 — Remove the scheduled deletion
 
-- `AccountDeletionScheduler`, `AccountStateChanged`, `SchedulingConfig`, `AccountDeletionService.pending`,
-  `AppUserRepository.findByState`, their tests and `AccountDeletionTest`.
+- `AccountDeletionScheduler`, `AccountStateChanged`, `SchedulingConfig`, their tests and
+  `AccountDeletionTest`.
 
-## PR 8 — Remove the deletion after one day
+## PR 10 — Remove the deletion after one day
 
-- `AccountDeletionService`, `AccountDeletionProperties`, `AccountDeletionConfig`, the `app.access.*`
-  settings, `UserResponse.deletesAt`; `AccountDeletionServiceTest`.
+- `AccountDeletionService`, `AccountDeletionProperties`, `AccountDeletionConfig`,
+  `AppUserRepository.findByState`, the `app.access.*` settings, `UserResponse.deletesAt`;
+  `AccountDeletionServiceTest`.
 
-## PR 9 — Remove the deactivated state
+## PR 11 — Remove the deactivated state
 
 - `V14__drop_app_user_deactivation.sql` (design §3), `docs/database/README.md`.
 - `AppUser.disabledAt`, `AppUserState.DISABLED`, `UserResponse.disabledAt`, the `DISABLED` state in the
   list's OpenAPI.
 - `ACCOUNT_DISABLED` in `UserEditService` and its messages; `KeycloakAdminClient.setEnabled` and its tests.
-- Tests: `LastAccessTest` without `DISABLED`; migration deletes `DISABLED` rows with their audit.
+- Tests: `DropDeactivationMigrationTest` (V13 → V14 deletes the `DISABLED` rows with their audit),
+  `LastAccessTest` without `DISABLED`.
