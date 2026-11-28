@@ -203,7 +203,7 @@ class UserUpdateControllerTest {
 			.expectBody()
 			.jsonPath("$.code").isEqualTo("LAST_OPERATIONS_ADMINISTRATOR")
 			.jsonPath("$.detail").isEqualTo(
-					"Debe quedar al menos un Operations administrator activo: no se puede cambiar el rol ni desactivar la cuenta del último. No se guardó ningún cambio.");
+					"Debe quedar al menos un Operations administrator activo: no se puede cambiar el rol ni eliminar al último. No se guardó ningún cambio.");
 		verifyNoInteractions(keycloak);
 
 		insert("Luis Gómez", ADMIN, "ACTIVE");
