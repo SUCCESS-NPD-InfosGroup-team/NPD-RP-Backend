@@ -2,15 +2,12 @@ package com.npdinfosgroup.api.access.web;
 
 import java.net.URI;
 
-import com.npdinfosgroup.api.access.dto.request.AccountActivationCommand;
 import com.npdinfosgroup.api.access.dto.request.CreateUserCommand;
 import com.npdinfosgroup.api.access.dto.request.CreateUserRequest;
 import com.npdinfosgroup.api.access.dto.request.UpdateUserCommand;
 import com.npdinfosgroup.api.access.dto.request.UpdateUserRequest;
 import com.npdinfosgroup.api.access.dto.request.UserDeletionCommand;
-import com.npdinfosgroup.api.access.dto.request.UserVersionRequest;
 import com.npdinfosgroup.api.access.dto.response.UserResponse;
-import com.npdinfosgroup.api.access.service.AccountActivationService;
 import com.npdinfosgroup.api.access.service.UserDeletionService;
 import com.npdinfosgroup.api.access.service.UserEditService;
 import com.npdinfosgroup.api.access.service.UserQueryService;
@@ -55,8 +52,6 @@ class UserController {
 
 	private final UserEditService editService;
 
-	private final AccountActivationService activationService;
-
 	private final UserDeletionService deletionService;
 
 	private final CurrentUser currentUser;
@@ -67,17 +62,14 @@ class UserController {
 	 * @param queryService reads users
 	 * @param registrationService creates users
 	 * @param editService edits the name and the role of users
-	 * @param activationService deactivates accounts
 	 * @param deletionService deletes users
 	 * @param currentUser who makes the request, for the audit log
 	 */
 	UserController(UserQueryService queryService, UserRegistrationService registrationService,
-			UserEditService editService, AccountActivationService activationService,
-			UserDeletionService deletionService, CurrentUser currentUser) {
+			UserEditService editService, UserDeletionService deletionService, CurrentUser currentUser) {
 		this.queryService = queryService;
 		this.registrationService = registrationService;
 		this.editService = editService;
-		this.activationService = activationService;
 		this.deletionService = deletionService;
 		this.currentUser = currentUser;
 	}
@@ -250,51 +242,6 @@ class UserController {
 	ResponseEntity<UserResponse> update(@Parameter(description = "Id del usuario") @PathVariable long id,
 			@RequestBody UpdateUserRequest request) {
 		return ResponseEntity.ok(editService.update(new UpdateUserCommand(id, request, currentUser.username())));
-	}
-
-	/**
-	 * Deactivates a user account (SCRUM-231): its sessions end at once and it is deleted one day later
-	 * unless it is reactivated. Audited with the administrator's username.
-	 *
-	 * @param id user id
-	 * @param request the version that was read
-	 * @return 200 with the user, with {@code deletesAt}
-	 */
-	@PostMapping(path = "/{id}/deactivation", version = "v1")
-	@Operation(summary = "Desactivar cuenta", description = """
-			Desactiva la cuenta de un usuario (HU-09). Solo Operations administrator.
-
-			- Sus sesiones terminan al instante (su siguiente petición da 401) y no puede volver a entrar; \
-			una invitación pendiente deja de servir.
-			- Queda en estado `DISABLED`; `disabledAt` es el momento y `deletesAt` la fecha y hora exactas \
-			en que la cuenta se elimina (1 día después) si no se reactiva.
-			- A un líder NPD solo se le desactiva el usuario: su registro de empleado no cambia y sigue en \
-			Recursos.
-			- No se puede desactivar al único Operations administrator activo \
-			(`LAST_OPERATIONS_ADMINISTRATOR`).
-			- Si ya está desactivada, responde 200 sin cambios. Se audita el cambio de estado.
-			- Si el servicio de inicio de sesión falla, no queda nada cambiado y se puede reintentar (503).""")
-	@ApiResponse(responseCode = "200", description = "El usuario, con `state = DISABLED`, `disabledAt` y `deletesAt`")
-	@ApiResponse(responseCode = "400", description = "Falta `version` (`VALIDATION_FAILED`)",
-			content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemDetail.class)))
-	@ApiResponse(responseCode = "401", description = "Sin token o token inválido (`UNAUTHORIZED`)",
-			content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemDetail.class)))
-	@ApiResponse(responseCode = "403", description = "El rol no es Operations administrator (`FORBIDDEN`)",
-			content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemDetail.class)))
-	@ApiResponse(responseCode = "404", description = "No existe (`NOT_FOUND`)",
-			content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemDetail.class)))
-	@ApiResponse(responseCode = "409", description = """
-			Alguien guardó el usuario después de leerlo (`CONCURRENT_MODIFICATION`, con `currentVersion`) o \
-			es el único Operations administrator activo (`LAST_OPERATIONS_ADMINISTRATOR`)""",
-			content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemDetail.class)))
-	@ApiResponse(responseCode = "503", description = """
-			El servicio de inicio de sesión no respondió; no quedó nada cambiado \
-			(`IDENTITY_PROVIDER_UNAVAILABLE`)""",
-			content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemDetail.class)))
-	ResponseEntity<UserResponse> deactivate(@Parameter(description = "Id del usuario") @PathVariable long id,
-			@RequestBody UserVersionRequest request) {
-		return ResponseEntity
-			.ok(activationService.deactivate(new AccountActivationCommand(id, request.version(), currentUser.username())));
 	}
 
 	/**
