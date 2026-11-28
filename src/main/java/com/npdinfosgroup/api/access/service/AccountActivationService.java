@@ -3,7 +3,6 @@ package com.npdinfosgroup.api.access.service;
 import java.time.Clock;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.UUID;
 
 import com.npdinfosgroup.api.access.client.IdentityProviderUnavailableException;
@@ -21,11 +20,9 @@ import com.npdinfosgroup.api.shared.exception.FieldErrorCode;
 import com.npdinfosgroup.api.shared.exception.FieldProblem;
 import com.npdinfosgroup.api.shared.exception.NotFoundException;
 import com.npdinfosgroup.api.shared.exception.ValidationException;
-import com.npdinfosgroup.api.shared.security.Role;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationEventPublisher;
-import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionOperations;
 
@@ -47,8 +44,6 @@ public class AccountActivationService {
 	private static final String AUDIT_ENTITY = "app_user";
 
 	private static final String STATE = "state";
-
-	private static final String ADMINISTRATOR = Role.OPERATIONS_ADMINISTRATOR.realmName();
 
 	private final AppUserRepository users;
 
@@ -101,63 +96,30 @@ public class AccountActivationService {
 	 * @throws NotFoundException if the user does not exist
 	 * @throws ValidationException if the version is missing
 	 * @throws ApiException {@link ErrorCode#CONCURRENT_MODIFICATION} if someone saved the user after the
-	 *         version that was read, or {@link ErrorCode#LAST_OPERATIONS_ADMINISTRATOR} if it is the only
-	 *         active Operations administrator (CA-04); nothing changes
-	 * @throws IdentityProviderUnavailableException if Keycloak cannot be reached; nothing is left changed
+	 *         version that was read; nothing changes
+	 * @throws IdentityProviderUnavailableException if Keycloak cannot be reached
 	 */
 	public UserResponse deactivate(AccountActivationCommand command) {
 		AppUser user = checked(command);
 		if (user.getState() == AppUserState.DISABLED) {
 			return queries.toResponse(user);
 		}
-		// By role, not state: a PENDING administrator may become ACTIVE before the transaction (without a
-		// new version), and the transaction must then have the administrators locked to recheck CA-04
-		boolean administrator = ADMINISTRATOR.equals(user.getRole());
-		if (isActiveAdministrator(user)
-				&& users.countByRoleAndStateAndIdNot(ADMINISTRATOR, AppUserState.ACTIVE, user.getId()) == 0) {
-			throw lastAdministrator();
-		}
 		UUID keycloakId = user.getKeycloakId();
-		try {
-			keycloak.setEnabled(keycloakId, false);
-			keycloak.logout(keycloakId);
-			UserResponse response = transactions.execute(status -> saveDeactivation(command, administrator));
-			log.info("User {} deactivated", command.id());
-			return response;
-		}
-		catch (RuntimeException ex) {
-			// Enabled again even if disabling itself failed: it may have been applied before the error
-			undo(keycloakId, true);
-			throw ex;
-		}
+		keycloak.setEnabled(keycloakId, false);
+		keycloak.logout(keycloakId);
+		UserResponse response = transactions.execute(status -> saveDeactivation(command));
+		log.info("User {} deactivated", command.id());
+		return response;
 	}
 
-	/**
-	 * Saves the deactivation with the user locked, rechecking what may have changed while Keycloak was
-	 * called: the version and, for an administrator, that another active one remains. The administrators
-	 * are locked before the user, in the same order as the user edit, so two of them deactivating or
-	 * demoting each other at the same time wait for one another and the second one is rejected.
-	 */
-	private UserResponse saveDeactivation(AccountActivationCommand command, boolean administrator) {
+	/** Saves the deactivation with the user locked. */
+	private UserResponse saveDeactivation(AccountActivationCommand command) {
 		long id = command.id();
-		List<AppUser> administrators = administrator ? users.lockByRoleAndState(ADMINISTRATOR, AppUserState.ACTIVE)
-				: List.of();
 		AppUser user = users.lockById(id).orElseThrow(() -> new NotFoundException(id));
-		if (!Objects.equals(command.version(), user.getVersion())) {
-			throw concurrentModification(user);
-		}
-		if (isActiveAdministrator(user) && administrators.stream().allMatch(other -> other.getId() == id)) {
-			throw lastAdministrator();
-		}
 		String before = user.getState().name();
 		user.setState(AppUserState.DISABLED);
 		user.setDisabledAt(clock.instant());
-		try {
-			users.saveAndFlush(user);
-		}
-		catch (OptimisticLockingFailureException ex) {
-			throw concurrentModification(user);
-		}
+		users.saveAndFlush(user);
 		audit.recordChanges(AUDIT_ENTITY, id, Map.of(STATE, before), Map.of(STATE, AppUserState.DISABLED.name()),
 				command.actor());
 		events.publishEvent(new AccountStateChanged(id, deletion.deletesAt(user.getDisabledAt())));
@@ -180,31 +142,9 @@ public class AccountActivationService {
 		return user;
 	}
 
-	/**
-	 * Puts the account back as it was in Keycloak after a failed deactivation, best
-	 * effort: a failure is logged with the account id to fix it by hand.
-	 */
-	private void undo(UUID keycloakId, boolean enabled) {
-		try {
-			keycloak.setEnabled(keycloakId, enabled);
-		}
-		catch (RuntimeException ex) {
-			log.error("Could not set enabled = {} again on Keycloak account {}: {}", enabled, keycloakId,
-					ex.getClass().getName());
-		}
-	}
-
-	private static boolean isActiveAdministrator(AppUser user) {
-		return ADMINISTRATOR.equals(user.getRole()) && user.getState() == AppUserState.ACTIVE;
-	}
-
 	private static ApiException concurrentModification(AppUser current) {
 		return new ApiException(ErrorCode.CONCURRENT_MODIFICATION, List.of(),
 				Map.of("currentVersion", current.getVersion()));
-	}
-
-	private static ApiException lastAdministrator() {
-		return new ApiException(ErrorCode.LAST_OPERATIONS_ADMINISTRATOR, List.of(), Map.of());
 	}
 
 }
