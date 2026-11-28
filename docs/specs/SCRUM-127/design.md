@@ -168,6 +168,7 @@ Row errors (`400 VALIDATION_FAILED`), each with `employeeId` and `index`:
 | `leaderId` | `REQUIRED` / `UNKNOWN_ID` / `INACTIVE_LEADER` / `SELF_LEADER` | No lead, unknown, on Baja, or the person themselves. |
 | `clientRoleId` / `equipmentId` | `UNKNOWN_ID` | Not in its catalog. |
 | `endDate` | `REQUIRED` / `DATE_IN_PAST` / `CONFLICTING_VALUES` | No date and no contract end; date passed; date and indefinite. |
+| `version` | `REQUIRED` | The member has no version. |
 
 Request-level errors: `members` empty or over 100 → `400 VALIDATION_FAILED`, `field` = `members`,
 codes `REQUIRED` / `TOO_MANY`. `401`, `403`, `404` (project), `409` (see Decision 3).
